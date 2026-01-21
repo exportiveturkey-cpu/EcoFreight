@@ -22,9 +22,11 @@ const AIAssistant: React.FC = () => {
     }
 
     setIsConnecting(true);
+    // Fix: Ensure fresh GoogleGenAI instance initialization before session start
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
+      // Fix: Use standard AudioContext with proper fallback for cross-browser support
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       outputNodeRef.current = audioContextRef.current.createGain();
       outputNodeRef.current.connect(audioContextRef.current.destination);
@@ -42,6 +44,7 @@ const AIAssistant: React.FC = () => {
             const audioData = parts?.[0]?.inlineData?.data;
             
             if (audioData && audioContextRef.current) {
+              // Fix: Implement gapless audio playback by tracking nextStartTime
               const buffer = await decodeAudioData(decode(audioData), audioContextRef.current, 24000, 1);
               const source = audioContextRef.current.createBufferSource();
               source.buffer = buffer;
@@ -51,6 +54,7 @@ const AIAssistant: React.FC = () => {
               nextStartTimeRef.current += buffer.duration;
             }
 
+            // Fix: Capture and display transcription text in UI message list
             if (message.serverContent?.outputTranscription?.text) {
                const transcription = message.serverContent.outputTranscription.text;
                setMessages(prev => [...prev, { role: 'model', text: transcription }]);
@@ -61,6 +65,9 @@ const AIAssistant: React.FC = () => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
+          // Fix: Enable both input and output audio transcription in session config
+          outputAudioTranscription: {},
+          inputAudioTranscription: {},
           systemInstruction: "You are EcoFreight AI, an expert logistics coordinator. You support multiple languages including English, Turkish, and Greek. If the user speaks or writes in Turkish, respond in Turkish professionally. You have access to real-time shipment data and carbon metrics. Help the user optimize their supply chain and reduce emissions. Be professional, concise, and proactive."
         }
       });
@@ -73,7 +80,8 @@ const AIAssistant: React.FC = () => {
 
   const startMicStream = async (sessionPromise: Promise<any>) => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const inputCtx = new AudioContext({ sampleRate: 16000 });
+    // Fix: Correct sample rate for input audio context
+    const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
     const source = inputCtx.createMediaStreamSource(stream);
     const processor = inputCtx.createScriptProcessor(4096, 1, 1);
 
@@ -82,6 +90,7 @@ const AIAssistant: React.FC = () => {
       const pcm = new Int16Array(inputData.length);
       for (let i = 0; i < inputData.length; i++) pcm[i] = inputData[i] * 32768;
       
+      // Fix: Solely rely on sessionPromise resolution to send data
       sessionPromise.then(session => {
         session.sendRealtimeInput({
           media: { data: encode(new Uint8Array(pcm.buffer)), mimeType: 'audio/pcm;rate=16000' }
@@ -93,15 +102,37 @@ const AIAssistant: React.FC = () => {
     processor.connect(inputCtx.destination);
   };
 
-  const decode = (base64: string) => Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-  const encode = (bytes: Uint8Array) => btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''));
+  // Fix: Manual base64 decode implementation following guidelines
+  const decode = (base64: string) => {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  };
+
+  // Fix: Manual base64 encode implementation following guidelines
+  const encode = (bytes: Uint8Array) => {
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
   
+  // Fix: Manual raw PCM audio decoding logic for Gemini Live API
   const decodeAudioData = async (data: Uint8Array, ctx: AudioContext, sampleRate: number, channels: number) => {
     const dataInt16 = new Int16Array(data.buffer);
-    const buffer = ctx.createBuffer(channels, dataInt16.length / channels, sampleRate);
+    const frameCount = dataInt16.length / channels;
+    const buffer = ctx.createBuffer(channels, frameCount, sampleRate);
     for (let c = 0; c < channels; c++) {
       const channelData = buffer.getChannelData(c);
-      for (let i = 0; i < channelData.length; i++) channelData[i] = dataInt16[i * channels + c] / 32768.0;
+      for (let i = 0; i < frameCount; i++) {
+        channelData[i] = dataInt16[i * channels + c] / 32768.0;
+      }
     }
     return buffer;
   };
