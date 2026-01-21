@@ -13,8 +13,8 @@ import {
   Cell
 } from 'recharts';
 import { TrendingUp, TrendingDown, Ship, Globe, Leaf, DollarSign, ArrowUpRight, Activity } from 'lucide-react';
-import { Shipment } from '../types.ts';
-import { Language, translations } from '../services/i18n.ts';
+import { Shipment } from '../types';
+import { Language, translations } from '../services/i18n';
 
 interface DashboardProps {
   shipments: Shipment[];

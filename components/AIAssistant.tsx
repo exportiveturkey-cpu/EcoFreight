@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import { Mic, MicOff, Send, Sparkles, MessageSquare, Loader2, Volume2, ShieldCheck, Terminal } from 'lucide-react';
 
@@ -38,7 +38,9 @@ const AIAssistant: React.FC = () => {
             startMicStream(sessionPromise);
           },
           onmessage: async (message: LiveServerMessage) => {
-            const audioData = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+            const parts = message.serverContent?.modelTurn?.parts;
+            const audioData = parts?.[0]?.inlineData?.data;
+            
             if (audioData && audioContextRef.current) {
               const buffer = await decodeAudioData(decode(audioData), audioContextRef.current, 24000, 1);
               const source = audioContextRef.current.createBufferSource();
@@ -48,8 +50,10 @@ const AIAssistant: React.FC = () => {
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += buffer.duration;
             }
-            if (message.serverContent?.outputTranscription) {
-               setMessages(prev => [...prev, { role: 'model', text: message.serverContent!.outputTranscription!.text }]);
+
+            if (message.serverContent?.outputTranscription?.text) {
+               const transcription = message.serverContent.outputTranscription.text;
+               setMessages(prev => [...prev, { role: 'model', text: transcription }]);
             }
           },
           onclose: () => setIsLive(false),
@@ -116,7 +120,6 @@ const AIAssistant: React.FC = () => {
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
-        {/* Main Interface */}
         <div className="lg:col-span-2 flex flex-col bg-white rounded-[3rem] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
           <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <div className="flex items-center gap-4">
@@ -172,7 +175,6 @@ const AIAssistant: React.FC = () => {
           </div>
         </div>
 
-        {/* Info Sidebar */}
         <div className="space-y-6">
           <div className="bg-slate-900 rounded-[3rem] p-8 text-white shadow-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>

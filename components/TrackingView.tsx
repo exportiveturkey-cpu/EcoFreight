@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Navigation, Clock, CheckCircle2, Sparkles, ExternalLink, Loader2, Globe, LocateFixed, Zap, Radio, Shield, Ship, Plane, Truck, Train, Info, ArrowRight, BrainCircuit, Activity } from 'lucide-react';
-import { Shipment, Leg, TransportMode } from '../types.ts';
-import { Language, translations } from '../services/i18n.ts';
-import { getLocationInsights, MapInsight, predictShipmentETA, ETAPrediction } from '../services/gemini.ts';
+import { Shipment, Leg, TransportMode } from '../types';
+import { Language, translations } from '../services/i18n';
+import { getLocationInsights, MapInsight, predictShipmentETA, ETAPrediction } from '../services/gemini';
 
 interface TrackingViewProps {
   shipments: Shipment[];

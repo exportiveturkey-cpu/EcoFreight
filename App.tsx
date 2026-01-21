@@ -16,16 +16,16 @@ import {
   LayoutGrid,
   MessageSquare
 } from 'lucide-react';
-import Dashboard from './components/Dashboard.tsx';
-import ShipmentManager from './components/ShipmentManager.tsx';
-import SustainabilityHub from './components/SustainabilityHub.tsx';
-import ArchitectureDocs from './components/ArchitectureDocs.tsx';
-import TrackingView from './components/TrackingView.tsx';
-import AIAssistant from './components/AIAssistant.tsx';
-import Login from './components/Login.tsx';
-import { Shipment, ShipmentStatus, TransportMode } from './types.ts';
-import { Language, translations } from './services/i18n.ts';
-import { auth, onAuthStateChanged, signOut } from './services/firebase.ts';
+import Dashboard from './components/Dashboard';
+import ShipmentManager from './components/ShipmentManager';
+import SustainabilityHub from './components/SustainabilityHub';
+import ArchitectureDocs from './components/ArchitectureDocs';
+import TrackingView from './components/TrackingView';
+import AIAssistant from './components/AIAssistant';
+import Login from './components/Login';
+import { Shipment, ShipmentStatus, TransportMode } from './types';
+import { Language, translations } from './services/i18n';
+import { auth, onAuthStateChanged, signOut } from './services/firebase';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'shipments' | 'tracking' | 'sustainability' | 'docs' | 'ai-assistant'>('dashboard');
