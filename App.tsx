@@ -96,6 +96,10 @@ const App: React.FC = () => {
 
   const handleLogout = () => signOut(auth);
 
+  const handleDeleteShipment = (id: string) => {
+    setShipments(prev => prev.filter(s => s.id !== id));
+  };
+
   const toggleLanguage = () => {
     const languages: Language[] = ['en', 'tr', 'el'];
     const currentIndex = languages.indexOf(lang);
@@ -203,7 +207,14 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-12 custom-scrollbar">
           {activeTab === 'dashboard' && <Dashboard shipments={shipments} lang={lang} />}
-          {activeTab === 'shipments' && <ShipmentManager shipments={shipments} onAdd={s => setShipments([s, ...shipments])} lang={lang} />}
+          {activeTab === 'shipments' && (
+            <ShipmentManager 
+              shipments={shipments} 
+              onAdd={s => setShipments([s, ...shipments])} 
+              onDelete={handleDeleteShipment}
+              lang={lang} 
+            />
+          )}
           {activeTab === 'tracking' && <TrackingView shipments={shipments} lang={lang} />}
           {activeTab === 'sustainability' && <SustainabilityHub shipments={shipments} lang={lang} />}
           {activeTab === 'ai-assistant' && <AIAssistant />}

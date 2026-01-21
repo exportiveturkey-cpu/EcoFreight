@@ -1,22 +1,25 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput } from 'lucide-react';
+import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info } from 'lucide-react';
 import { Shipment, ShipmentStatus, TransportMode } from '../types';
 import { calculateLegEmissions } from '../services/carbon';
 import { Language, translations } from '../services/i18n';
 import { processShipmentDocument } from '../services/gemini';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface ShipmentManagerProps {
   shipments: Shipment[];
   onAdd: (shipment: Shipment) => void;
+  onDelete: (id: string) => void;
   lang: Language;
 }
 
-const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lang }) => {
+const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, onDelete, lang }) => {
   const t = translations[lang];
   const [isModalOpen, setModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [analyticsShipment, setAnalyticsShipment] = useState<Shipment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -31,7 +34,6 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
     incoterms: 'CIF'
   });
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -111,6 +113,35 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
     setModalOpen(false);
   };
 
+  const handleDownloadBOL = (s: Shipment) => {
+    const content = `BILL OF LADING\nShipment ID: ${s.id}\nCustomer: ${s.customerName}\nOrigin: ${s.origin}\nDestination: ${s.destination}\nWeight: ${s.weightTonnes}T\nVolume: ${s.volumeCbm}CBM\nTotal Cost: $${s.totalCost.toLocaleString()}\nDate: ${new Date().toLocaleDateString()}`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `BOL_${s.id}.txt`;
+    link.click();
+    setOpenMenuId(null);
+  };
+
+  const handleExportESG = (s: Shipment) => {
+    const esgData = {
+      shipmentId: s.id,
+      carbonFootprintKg: s.totalEmissionsKg,
+      transportMode: s.legs[0]?.mode,
+      distanceKm: s.legs[0]?.distanceKm,
+      offsettingEligibility: true,
+      certifiedBy: "EcoFreight AI"
+    };
+    const blob = new Blob([JSON.stringify(esgData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ESG_REPORT_${s.id}.json`;
+    link.click();
+    setOpenMenuId(null);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -128,7 +159,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
@@ -174,11 +205,11 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
                         className="absolute right-12 top-1/2 -translate-y-1/2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 w-48 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
                       >
                         <div className="p-2">
-                          <MenuOption icon={<Eye size={14} />} label="View Analytics" onClick={() => setOpenMenuId(null)} />
-                          <MenuOption icon={<Download size={14} />} label="Download BOL" onClick={() => setOpenMenuId(null)} />
-                          <MenuOption icon={<FileOutput size={14} />} label="Export ESG Data" onClick={() => setOpenMenuId(null)} />
+                          <MenuOption icon={<Eye size={14} />} label="View Analytics" onClick={() => { setAnalyticsShipment(s); setOpenMenuId(null); }} />
+                          <MenuOption icon={<Download size={14} />} label="Download BOL" onClick={() => handleDownloadBOL(s)} />
+                          <MenuOption icon={<FileOutput size={14} />} label="Export ESG Data" onClick={() => handleExportESG(s)} />
                           <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                          <MenuOption icon={<Trash2 size={14} />} label="Delete Order" variant="danger" onClick={() => setOpenMenuId(null)} />
+                          <MenuOption icon={<Trash2 size={14} />} label="Delete Order" variant="danger" onClick={() => { onDelete(s.id); setOpenMenuId(null); }} />
                         </div>
                       </div>
                     )}
@@ -189,6 +220,79 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
           </table>
         </div>
       </div>
+
+      {/* Shipment Analytics Modal */}
+      {analyticsShipment && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-[3rem] w-full max-w-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+            <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-4">
+                <div className="bg-indigo-500 p-3 rounded-2xl text-white shadow-lg shadow-indigo-500/20">
+                  <BarChart3 size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Analytics: {analyticsShipment.id}</h2>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{analyticsShipment.customerName}</p>
+                </div>
+              </div>
+              <button onClick={() => setAnalyticsShipment(null)} className="bg-slate-100 p-2 rounded-xl text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Impact</p>
+                      <p className="text-xl font-black text-emerald-600">{analyticsShipment.totalEmissionsKg}kg CO2e</p>
+                   </div>
+                   <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Cost</p>
+                      <p className="text-xl font-black text-slate-900">${analyticsShipment.totalCost.toLocaleString()}</p>
+                   </div>
+                </div>
+
+                <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white">
+                  <h4 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <TrendingUp size={14} /> Efficiency Insight
+                  </h4>
+                  <p className="text-sm font-medium leading-relaxed italic opacity-80">
+                    "This {analyticsShipment.legs[0]?.mode} leg is operating at a {(analyticsShipment.totalEmissionsKg / analyticsShipment.weightTonnes).toFixed(1)}kg/tonne efficiency. Switching to Intermodal could reduce emissons by up to 34%."
+                  </p>
+                </div>
+              </div>
+
+              <div className="h-64 bg-slate-50 rounded-[2.5rem] border border-slate-100 p-6">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Cost vs Carbon Breakdown</h4>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[
+                    { name: 'Emissions (x10)', val: analyticsShipment.totalEmissionsKg / 10 },
+                    { name: 'Cost (x1)', val: analyticsShipment.totalCost / 100 }
+                  ]}>
+                    <XAxis dataKey="name" hide />
+                    <YAxis hide />
+                    <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '16px', border: 'none', fontWeight: 'bold'}} />
+                    <Bar dataKey="val" radius={[12, 12, 12, 12]}>
+                      <Cell fill="#10b981" />
+                      <Cell fill="#6366f1" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            <div className="px-10 py-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+               <button 
+                onClick={() => setAnalyticsShipment(null)}
+                className="px-8 py-3 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-black transition-all"
+               >
+                 Close Report
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
