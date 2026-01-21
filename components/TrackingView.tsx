@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Navigation, Clock, CheckCircle2, Sparkles, ExternalLink, Loader2, Globe, LocateFixed, Zap, Radio, Shield, Ship, Plane, Truck, Train, Info, ArrowRight, BrainCircuit, Activity } from 'lucide-react';
+import { Search, MapPin, Navigation, Clock, CheckCircle2, Sparkles, ExternalLink, Loader2, Globe, LocateFixed, Zap, Radio, Shield, Ship, Plane, Truck, Train, Info, ArrowRight, BrainCircuit, Activity, RefreshCcw } from 'lucide-react';
 import { Shipment, Leg, TransportMode } from '../types';
 import { Language, translations } from '../services/i18n';
 import { getLocationInsights, MapInsight, predictShipmentETA, ETAPrediction } from '../services/gemini';
@@ -19,12 +19,8 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
   const [loadingAi, setLoadingAi] = useState(false);
   const [loadingEta, setLoadingEta] = useState(false);
 
-  // Track the last processed ID to prevent duplicate calls during re-renders (Vite HMR)
-  const lastProcessedIdRef = useRef<string | null>(null);
-
   useEffect(() => {
-    if (selectedShipment && selectedShipment.id !== lastProcessedIdRef.current) {
-      lastProcessedIdRef.current = selectedShipment.id;
+    if (selectedShipment) {
       setAiInsight(null);
       setEtaPrediction(null);
       fetchLocationInsights(selectedShipment.origin);
@@ -33,7 +29,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
         setActiveLegId(selectedShipment.legs[0].id);
       }
     }
-  }, [selectedShipment]);
+  }, [selectedShipment?.id]); // Use ID as dependency to catch selection changes reliably
 
   const fetchLocationInsights = async (location: string) => {
     setLoadingAi(true);
@@ -68,8 +64,6 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
       default: return <PackageSmall />;
     }
   };
-
-  const activeLeg = selectedShipment?.legs.find(l => l.id === activeLegId);
 
   return (
     <div className="h-full flex flex-col gap-8 animate-in slide-in-from-right-4 duration-700">
@@ -146,7 +140,15 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
               ) : etaPrediction ? (
                 <div className="space-y-4 animate-in fade-in duration-500">
                   <div>
-                    <p className="text-3xl font-black text-white">{etaPrediction.estimated_days} Days</p>
+                    <div className="flex justify-between items-start">
+                      <p className="text-3xl font-black text-white">{etaPrediction.estimated_days} Days</p>
+                      <button 
+                        onClick={() => selectedShipment && fetchETAPrediction(selectedShipment)}
+                        className="p-2 bg-white/5 hover:bg-white/10 rounded-xl transition-colors text-slate-400"
+                      >
+                        <RefreshCcw size={14} />
+                      </button>
+                    </div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Predicted Arrival Window</p>
                   </div>
                   
@@ -170,7 +172,15 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                   </p>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500 font-medium">Select a shipment to generate predictive arrival telemetry.</p>
+                <div className="space-y-4">
+                  <p className="text-xs text-slate-500 font-medium">Unable to generate ETA telemetry.</p>
+                  <button 
+                    onClick={() => selectedShipment && fetchETAPrediction(selectedShipment)}
+                    className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                  >
+                    Trigger AI Re-analysis
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -182,13 +192,6 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
             <div className="absolute inset-0 flex items-center justify-center p-20">
               <div className="relative w-full h-full flex items-center justify-between">
                 <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-                  <path 
-                    d={`M 10%,50% Q 50%,20% 90%,50%`} 
-                    fill="none" 
-                    stroke="rgba(16,185,129,0.2)" 
-                    strokeWidth="4" 
-                    strokeDasharray="8 4"
-                  />
                   {selectedShipment?.legs.map((leg, idx) => {
                     const startX = 10 + (idx * (80 / selectedShipment.legs.length));
                     const endX = 10 + ((idx + 1) * (80 / selectedShipment.legs.length));
@@ -250,15 +253,6 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                     <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></div>
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Lat: 41.008 | Lng: 28.978</span>
                  </div>
-              </div>
-            </div>
-
-            <div className="absolute top-10 right-10">
-              <div className="bg-slate-950/80 backdrop-blur-md border border-white/10 p-5 rounded-3xl text-right">
-                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Live ETA Estimate</p>
-                 <p className="text-white font-bold text-xs">
-                   {loadingEta ? 'Computing...' : etaPrediction ? `${etaPrediction.estimated_days} Days` : 'N/A'}
-                 </p>
               </div>
             </div>
           </div>
