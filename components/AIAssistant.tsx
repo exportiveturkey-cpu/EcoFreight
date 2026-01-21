@@ -13,20 +13,51 @@ const AIAssistant: React.FC = () => {
   const sessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef(0);
   const outputNodeRef = useRef<GainNode | null>(null);
+  
+  // Clean-up refs for microphone
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const inputAudioCtxRef = useRef<AudioContext | null>(null);
+
+  const cleanupSession = () => {
+    // Stop all microphone tracks
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
+    // Disconnect processor
+    if (micProcessorRef.current) {
+      micProcessorRef.current.disconnect();
+      micProcessorRef.current = null;
+    }
+    // Close input context
+    if (inputAudioCtxRef.current) {
+      inputAudioCtxRef.current.close();
+      inputAudioCtxRef.current = null;
+    }
+    // Close session
+    if (sessionRef.current) {
+      try {
+        sessionRef.current.close();
+      } catch (e) {
+        // Ignore already closed errors
+      }
+      sessionRef.current = null;
+    }
+    setIsLive(false);
+    setIsConnecting(false);
+  };
 
   const toggleLiveSession = async () => {
     if (isLive) {
-      sessionRef.current?.close();
-      setIsLive(false);
+      cleanupSession();
       return;
     }
 
     setIsConnecting(true);
-    // Fix: Ensure fresh GoogleGenAI instance initialization before session start
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
-      // Fix: Use standard AudioContext with proper fallback for cross-browser support
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       outputNodeRef.current = audioContextRef.current.createGain();
       outputNodeRef.current.connect(audioContextRef.current.destination);
@@ -44,7 +75,6 @@ const AIAssistant: React.FC = () => {
             const audioData = parts?.[0]?.inlineData?.data;
             
             if (audioData && audioContextRef.current) {
-              // Fix: Implement gapless audio playback by tracking nextStartTime
               const buffer = await decodeAudioData(decode(audioData), audioContextRef.current, 24000, 1);
               const source = audioContextRef.current.createBufferSource();
               source.buffer = buffer;
@@ -54,21 +84,22 @@ const AIAssistant: React.FC = () => {
               nextStartTimeRef.current += buffer.duration;
             }
 
-            // Fix: Capture and display transcription text in UI message list
             if (message.serverContent?.outputTranscription?.text) {
                const transcription = message.serverContent.outputTranscription.text;
                setMessages(prev => [...prev, { role: 'model', text: transcription }]);
             }
           },
-          onclose: () => setIsLive(false),
-          onerror: (e) => console.error("Live Error:", e)
+          onclose: () => cleanupSession(),
+          onerror: (e) => {
+            console.error("Live Error:", e);
+            cleanupSession();
+          }
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          // Fix: Enable both input and output audio transcription in session config
           outputAudioTranscription: {},
           inputAudioTranscription: {},
-          systemInstruction: "You are EcoFreight AI, an expert logistics coordinator. You support multiple languages including English, Turkish, and Greek. If the user speaks or writes in Turkish, respond in Turkish professionally. You have access to real-time shipment data and carbon metrics. Help the user optimize their supply chain and reduce emissions. Be professional, concise, and proactive."
+          systemInstruction: "You are EcoFreight AI, an expert logistics coordinator. Be professional and concise."
         }
       });
       sessionRef.current = await sessionPromise;
@@ -79,30 +110,47 @@ const AIAssistant: React.FC = () => {
   };
 
   const startMicStream = async (sessionPromise: Promise<any>) => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // Fix: Correct sample rate for input audio context
-    const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-    const source = inputCtx.createMediaStreamSource(stream);
-    const processor = inputCtx.createScriptProcessor(4096, 1, 1);
-
-    processor.onaudioprocess = (e) => {
-      const inputData = e.inputBuffer.getChannelData(0);
-      const pcm = new Int16Array(inputData.length);
-      for (let i = 0; i < inputData.length; i++) pcm[i] = inputData[i] * 32768;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
       
-      // Fix: Solely rely on sessionPromise resolution to send data
-      sessionPromise.then(session => {
-        session.sendRealtimeInput({
-          media: { data: encode(new Uint8Array(pcm.buffer)), mimeType: 'audio/pcm;rate=16000' }
-        });
-      });
-    };
+      const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      inputAudioCtxRef.current = inputCtx;
+      
+      const source = inputCtx.createMediaStreamSource(stream);
+      const processor = inputCtx.createScriptProcessor(4096, 1, 1);
+      micProcessorRef.current = processor;
 
-    source.connect(processor);
-    processor.connect(inputCtx.destination);
+      processor.onaudioprocess = (e) => {
+        // Crucial Check: Don't send if session is marked as inactive
+        if (!isLive && !isConnecting) return;
+
+        const inputData = e.inputBuffer.getChannelData(0);
+        const pcm = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) pcm[i] = inputData[i] * 32768;
+        
+        sessionPromise.then(session => {
+          // Additional safety check for WebSocket state
+          if (session) {
+            try {
+              session.sendRealtimeInput({
+                media: { data: encode(new Uint8Array(pcm.buffer)), mimeType: 'audio/pcm;rate=16000' }
+              });
+            } catch (err) {
+              console.debug("Failed to send audio (likely closed):", err);
+            }
+          }
+        });
+      };
+
+      source.connect(processor);
+      processor.connect(inputCtx.destination);
+    } catch (err) {
+      console.error("Microphone access denied:", err);
+      cleanupSession();
+    }
   };
 
-  // Fix: Manual base64 decode implementation following guidelines
   const decode = (base64: string) => {
     const binaryString = atob(base64);
     const len = binaryString.length;
@@ -113,7 +161,6 @@ const AIAssistant: React.FC = () => {
     return bytes;
   };
 
-  // Fix: Manual base64 encode implementation following guidelines
   const encode = (bytes: Uint8Array) => {
     let binary = '';
     const len = bytes.byteLength;
@@ -123,7 +170,6 @@ const AIAssistant: React.FC = () => {
     return btoa(binary);
   };
   
-  // Fix: Manual raw PCM audio decoding logic for Gemini Live API
   const decodeAudioData = async (data: Uint8Array, ctx: AudioContext, sampleRate: number, channels: number) => {
     const dataInt16 = new Int16Array(data.buffer);
     const frameCount = dataInt16.length / channels;
