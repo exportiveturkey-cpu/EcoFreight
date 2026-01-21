@@ -1,11 +1,9 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all envs regardless of the `VITE_` prefix.
-  // Fix: Property 'cwd' does not exist on type 'Process' - casting to any as this runs in Node.js
   const env = loadEnv(mode, (process as any).cwd(), '');
   
   return {
@@ -17,8 +15,13 @@ export default defineConfig(({ mode }) => {
       port: 3000,
     },
     define: {
-      // This makes process.env.API_KEY available in the browser
+      // Direct replacement for code using process.env.API_KEY
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      // Provide a fallback for process.env
+      'process.env': JSON.stringify({ 
+        NODE_ENV: mode,
+        API_KEY: env.API_KEY 
+      }),
     },
   };
 });
