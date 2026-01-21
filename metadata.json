@@ -1,0 +1,8 @@
+{
+  "name": "EcoFreight SaaS",
+  "description": "A high-performance shipping management platform with advanced carbon footprint tracking, sustainability analytics, and AI-driven route optimization.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ]
+}

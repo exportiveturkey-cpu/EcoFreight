@@ -1,0 +1,43 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcoFreight - Sustainable Logistics Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.onerror = function(msg, url, line, col, error) {
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = `<div style="padding: 20px; color: #e11d48; font-family: sans-serif;"><h1>Runtime Error</h1><pre>${msg}</pre></div>`;
+      }
+    };
+    window.process = window.process || { env: { API_KEY: "" } };
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "firebase/": "https://esm.sh/firebase@^12.8.0/",
+      "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+      "react": "https://esm.sh/react@^19.2.3?bundle",
+      "react/": "https://esm.sh/react@^19.2.3/",
+      "react-dom": "https://esm.sh/react-dom@^19.2.3?bundle",
+      "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+      "recharts": "https://esm.sh/recharts@^3.6.0?bundle",
+      "lucide-react": "https://esm.sh/lucide-react@^0.562.0?bundle"
+    }
+  }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-900 overflow-hidden">
+  <div id="root"></div>
+  <script type="module" src="index.tsx"></script>
+</body>
+</html>
