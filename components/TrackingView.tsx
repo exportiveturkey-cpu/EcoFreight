@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, MapPin, Navigation, Clock, CheckCircle2, Sparkles, ExternalLink, Loader2, Globe, LocateFixed, Zap, Radio, Shield, Ship, Plane, Truck, Train, Info, ArrowRight, BrainCircuit, Activity } from 'lucide-react';
 import { Shipment, Leg, TransportMode } from '../types';
 import { Language, translations } from '../services/i18n';
@@ -19,8 +19,14 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
   const [loadingAi, setLoadingAi] = useState(false);
   const [loadingEta, setLoadingEta] = useState(false);
 
+  // Track the last processed ID to prevent duplicate calls during re-renders (Vite HMR)
+  const lastProcessedIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (selectedShipment) {
+    if (selectedShipment && selectedShipment.id !== lastProcessedIdRef.current) {
+      lastProcessedIdRef.current = selectedShipment.id;
+      setAiInsight(null);
+      setEtaPrediction(null);
       fetchLocationInsights(selectedShipment.origin);
       fetchETAPrediction(selectedShipment);
       if (selectedShipment.legs.length > 0) {

@@ -4,7 +4,13 @@ import { Shipment, Recommendation } from "../types";
 
 const getAIInstance = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// Simple in-memory cache to prevent redundant API calls (429 errors)
+const cache: Record<string, any> = {};
+
 export const getSustainabilityInsights = async (shipments: Shipment[]): Promise<Recommendation[]> => {
+  const cacheKey = `sustain_${shipments.map(s => s.id).join('_')}`;
+  if (cache[cacheKey]) return cache[cacheKey];
+
   const ai = getAIInstance();
   const summary = shipments.map(s => ({
     mode: s.legs[0]?.mode,
@@ -16,7 +22,8 @@ export const getSustainabilityInsights = async (shipments: Shipment[]): Promise<
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      // Flash model has much higher rate limits than Pro on Free Tier
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -36,7 +43,9 @@ export const getSustainabilityInsights = async (shipments: Shipment[]): Promise<
       }
     });
 
-    return JSON.parse(response.text || "[]");
+    const result = JSON.parse(response.text || "[]");
+    cache[cacheKey] = result;
+    return result;
   } catch (error) {
     console.error("AI Error:", error);
     return [];
@@ -85,6 +94,8 @@ export interface MapInsight {
 }
 
 export const getLocationInsights = async (location: string): Promise<MapInsight> => {
+  if (cache[`loc_${location}`]) return cache[`loc_${location}`];
+
   const ai = getAIInstance();
   
   let userCoords = { latitude: 41.0082, longitude: 28.9784 };
@@ -116,10 +127,12 @@ export const getLocationInsights = async (location: string): Promise<MapInsight>
         uri: chunk.maps.uri
       })) || [];
 
-    return {
+    const result = {
       text: response.text || "AI insight could not be generated.",
       sources: sources
     };
+    cache[`loc_${location}`] = result;
+    return result;
   } catch (error) {
     console.error("Maps AI Error:", error);
     return { text: "Failed to connect to AI Tracking Services.", sources: [] };
@@ -134,6 +147,8 @@ export interface ETAPrediction {
 }
 
 export const predictShipmentETA = async (shipment: Shipment): Promise<ETAPrediction | null> => {
+  if (cache[`eta_${shipment.id}`]) return cache[`eta_${shipment.id}`];
+
   const ai = getAIInstance();
   
   const context = {
@@ -145,29 +160,29 @@ export const predictShipmentETA = async (shipment: Shipment): Promise<ETAPredict
   };
 
   const prompt = `Predict the Estimated Time of Arrival (ETA) and logistical confidence for this shipment based on its route and mode. 
-  Data: ${JSON.stringify(context)}. 
-  Consider typical transit times for ${context.mode} between ${context.origin} and ${context.destination}.`;
+  Data: ${JSON.stringify(context)}.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            estimated_days: { type: Type.NUMBER, description: "Total days from now until arrival" },
-            confidence_score: { type: Type.NUMBER, description: "Confidence percentage (0-100)" },
-            reasoning: { type: Type.STRING, description: "Logistical reasoning for this prediction" },
-            predicted_status: { type: Type.STRING, description: "Predicted operational status upon arrival" }
-          },
-          required: ["estimated_days", "confidence_score", "reasoning", "predicted_status"]
+            estimated_days: { type: Type.NUMBER },
+            confidence_score: { type: Type.NUMBER },
+            reasoning: { type: Type.STRING },
+            predicted_status: { type: Type.STRING }
+          }
         }
       }
     });
 
-    return JSON.parse(response.text || "null");
+    const result = JSON.parse(response.text || "null");
+    cache[`eta_${shipment.id}`] = result;
+    return result;
   } catch (error) {
     console.error("ETA Prediction Error:", error);
     return null;
