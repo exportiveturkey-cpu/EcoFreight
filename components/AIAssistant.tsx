@@ -48,6 +48,32 @@ const AIAssistant: React.FC = () => {
     setIsConnecting(false);
   };
 
+  const handleQuickAction = (label: string) => {
+    let query = "";
+    switch(label) {
+      case "Check Suez Delays": query = "What is the current status of Suez Canal maritime traffic and expected delays?"; break;
+      case "Emission Summary": query = "Give me a high-level summary of my fleet's carbon emissions this month."; break;
+      case "Fleet Optimization": query = "How can I optimize my current active shipments to reduce fuel costs?"; break;
+      default: query = label;
+    }
+    setInput(query);
+    // Auto-send logic if session is live
+    if (isLive) {
+      sendMessage(query);
+    }
+  };
+
+  const sendMessage = async (text: string) => {
+    if (!text.trim()) return;
+    setMessages(prev => [...prev, { role: 'user', text }]);
+    setInput('');
+    
+    // Fallback: If not live, simulate model response or connect
+    if (!isLive) {
+      setMessages(prev => [...prev, { role: 'model', text: `Searching real-time data for: "${text}"... (Connect to Voice Ops for live telemetry)` }]);
+    }
+  };
+
   const toggleLiveSession = async () => {
     if (isLive) {
       cleanupSession();
@@ -122,22 +148,19 @@ const AIAssistant: React.FC = () => {
       micProcessorRef.current = processor;
 
       processor.onaudioprocess = (e) => {
-        // Crucial Check: Don't send if session is marked as inactive
         if (!isLive && !isConnecting) return;
-
         const inputData = e.inputBuffer.getChannelData(0);
         const pcm = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) pcm[i] = inputData[i] * 32768;
         
         sessionPromise.then(session => {
-          // Additional safety check for WebSocket state
           if (session) {
             try {
               session.sendRealtimeInput({
                 media: { data: encode(new Uint8Array(pcm.buffer)), mimeType: 'audio/pcm;rate=16000' }
               });
             } catch (err) {
-              console.debug("Failed to send audio (likely closed):", err);
+              console.debug("Audio stream error:", err);
             }
           }
         });
@@ -236,7 +259,7 @@ const AIAssistant: React.FC = () => {
             )}
           </div>
 
-          <div className="p-6 bg-slate-50 border-t border-slate-100">
+          <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="p-6 bg-slate-50 border-t border-slate-100">
              <div className="flex items-center gap-4 bg-white p-2 rounded-[2rem] border border-slate-200 shadow-sm focus-within:ring-2 ring-emerald-500/20 transition-all">
                 <input 
                   type="text" 
@@ -245,11 +268,11 @@ const AIAssistant: React.FC = () => {
                   placeholder="Type a command..." 
                   className="flex-1 bg-transparent px-6 py-2 outline-none text-sm font-medium" 
                 />
-                <button className="bg-slate-900 text-white p-3 rounded-full hover:bg-black transition-colors">
+                <button type="submit" className="bg-slate-900 text-white p-3 rounded-full hover:bg-black transition-colors">
                   <Send size={18} />
                 </button>
              </div>
-          </div>
+          </form>
         </div>
 
         <div className="space-y-6">
@@ -259,9 +282,9 @@ const AIAssistant: React.FC = () => {
                <Terminal size={14} /> Quick Actions
              </h3>
              <div className="space-y-3">
-               <QuickActionButton label="Check Suez Delays" />
-               <QuickActionButton label="Emission Summary" />
-               <QuickActionButton label="Fleet Optimization" />
+               <QuickActionButton label="Check Suez Delays" onClick={() => handleQuickAction("Check Suez Delays")} />
+               <QuickActionButton label="Emission Summary" onClick={() => handleQuickAction("Emission Summary")} />
+               <QuickActionButton label="Fleet Optimization" onClick={() => handleQuickAction("Fleet Optimization")} />
              </div>
           </div>
 
@@ -279,7 +302,7 @@ const AIAssistant: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold text-slate-500">
                   <span>Latency</span>
-                  <span className="text-emerald-600">120ms</span>
+                  <span className="text-emerald-600">{isLive ? '42ms' : '0ms'}</span>
                 </div>
              </div>
           </div>
@@ -289,8 +312,11 @@ const AIAssistant: React.FC = () => {
   );
 };
 
-const QuickActionButton = ({ label }: { label: string }) => (
-  <button className="w-full text-left p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-sm font-bold flex justify-between items-center group">
+const QuickActionButton = ({ label, onClick }: { label: string, onClick: () => void }) => (
+  <button 
+    onClick={onClick}
+    className="w-full text-left p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-sm font-bold flex justify-between items-center group active:scale-95"
+  >
     {label}
     <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
       <Send size={12} />

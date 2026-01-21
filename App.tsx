@@ -14,7 +14,10 @@ import {
   ChevronRight,
   User,
   LayoutGrid,
-  MessageSquare
+  MessageSquare,
+  X,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ShipmentManager from './components/ShipmentManager';
@@ -34,8 +37,15 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('en');
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const t = translations[lang];
+
+  const notifications = [
+    { id: 1, type: 'alert', text: 'Suez Canal delays detected (Shipment SH-8291)', time: '2 mins ago' },
+    { id: 2, type: 'info', text: 'Monthly ESG report is ready for review', time: '1 hour ago' },
+    { id: 3, type: 'info', text: 'New route optimization available for SEA freight', time: '5 hours ago' }
+  ];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -155,7 +165,7 @@ const App: React.FC = () => {
             <button onClick={toggleLanguage} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-[10px] font-black tracking-widest text-slate-500 hover:bg-slate-50 transition-all uppercase">
               <Languages size={14} className="text-emerald-500" /> {lang}
             </button>
-            <div className="relative cursor-pointer hover:scale-110 transition-transform">
+            <div className="relative cursor-pointer hover:scale-110 transition-transform" onClick={() => setShowNotifications(!showNotifications)}>
               <Bell size={22} className="text-slate-400" />
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm"></span>
             </div>
@@ -164,6 +174,32 @@ const App: React.FC = () => {
             </button>
           </div>
         </header>
+
+        {/* Notifications Panel */}
+        {showNotifications && (
+          <div className="fixed top-24 right-12 w-80 bg-white rounded-3xl border border-slate-200 shadow-2xl z-[60] animate-in slide-in-from-top-4 duration-300 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">Alert Center</h4>
+              <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            </div>
+            <div className="max-h-96 overflow-y-auto custom-scrollbar">
+              {notifications.map(n => (
+                <div key={n.id} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors flex gap-3">
+                  <div className={`mt-0.5 ${n.type === 'alert' ? 'text-red-500' : 'text-blue-500'}`}>
+                    {n.type === 'alert' ? <AlertTriangle size={16} /> : <Info size={16} />}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-800 leading-tight">{n.text}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 bg-slate-50 text-center">
+              <button className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700">Clear All Telemetry</button>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-12 custom-scrollbar">
           {activeTab === 'dashboard' && <Dashboard shipments={shipments} lang={lang} />}

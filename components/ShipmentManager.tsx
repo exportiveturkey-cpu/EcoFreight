@@ -1,6 +1,6 @@
 
-import React, { useState, useRef } from 'react';
-import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput } from 'lucide-react';
 import { Shipment, ShipmentStatus, TransportMode } from '../types';
 import { calculateLegEmissions } from '../services/carbon';
 import { Language, translations } from '../services/i18n';
@@ -16,7 +16,9 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
   const t = translations[lang];
   const [isModalOpen, setModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   
   const [newShipment, setNewShipment] = useState({
     customer: '',
@@ -28,6 +30,17 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
     type: 'General Cargo',
     incoterms: 'CIF'
   });
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -115,48 +128,70 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t.customer}</th>
-              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t.origin} & {t.destination}</th>
-              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Financials</th>
-              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t.status}</th>
-              <th className="px-8 py-5 text-right"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {shipments.map(s => (
-              <tr key={s.id} className="hover:bg-slate-50/50 transition-colors group">
-                <td className="px-8 py-6">
-                  <p className="text-sm font-black text-slate-900 mb-0.5">{s.id}</p>
-                  <p className="text-xs font-medium text-slate-500">{s.customerName}</p>
-                </td>
-                <td className="px-8 py-6">
-                  <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                    {s.origin} <ArrowRight size={14} className="text-slate-300" /> {s.destination}
-                  </div>
-                </td>
-                <td className="px-8 py-6 text-sm font-black text-emerald-600">${s.totalCost.toLocaleString()}</td>
-                <td className="px-8 py-6">
-                  <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest">
-                    {s.status}
-                  </span>
-                </td>
-                <td className="px-8 py-6 text-right">
-                  <button className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 group-hover:text-slate-600 transition-all">
-                    <MoreVertical size={18} />
-                  </button>
-                </td>
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t.customer}</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t.origin} & {t.destination}</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Financials</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t.status}</th>
+                <th className="px-8 py-5 text-right"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {shipments.map(s => (
+                <tr key={s.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-8 py-6">
+                    <p className="text-sm font-black text-slate-900 mb-0.5">{s.id}</p>
+                    <p className="text-xs font-medium text-slate-500">{s.customerName}</p>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                      {s.origin} <ArrowRight size={14} className="text-slate-300" /> {s.destination}
+                    </div>
+                  </td>
+                  <td className="px-8 py-6 text-sm font-black text-emerald-600">${s.totalCost.toLocaleString()}</td>
+                  <td className="px-8 py-6">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      s.status === ShipmentStatus.IN_TRANSIT ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      {s.status}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6 text-right relative">
+                    <button 
+                      onClick={() => setOpenMenuId(openMenuId === s.id ? null : s.id)}
+                      className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 group-hover:text-slate-600 transition-all"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+
+                    {openMenuId === s.id && (
+                      <div 
+                        ref={menuRef}
+                        className="absolute right-12 top-1/2 -translate-y-1/2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 w-48 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                      >
+                        <div className="p-2">
+                          <MenuOption icon={<Eye size={14} />} label="View Analytics" onClick={() => setOpenMenuId(null)} />
+                          <MenuOption icon={<Download size={14} />} label="Download BOL" onClick={() => setOpenMenuId(null)} />
+                          <MenuOption icon={<FileOutput size={14} />} label="Export ESG Data" onClick={() => setOpenMenuId(null)} />
+                          <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                          <MenuOption icon={<Trash2 size={14} />} label="Delete Order" variant="danger" onClick={() => setOpenMenuId(null)} />
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-[3rem] w-full max-w-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
             <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div className="flex items-center gap-4">
@@ -173,8 +208,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
               </button>
             </div>
 
-            <div className="p-10">
-              {/* SMART IMPORT AREA */}
+            <div className="p-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
               <div className="mb-10 group relative">
                 <div className={`absolute inset-0 bg-emerald-500 rounded-[2.5rem] blur-2xl opacity-0 group-hover:opacity-10 transition-opacity duration-500 ${isProcessing ? 'opacity-20 animate-pulse' : ''}`}></div>
                 <div 
@@ -263,5 +297,16 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, lan
     </div>
   );
 };
+
+const MenuOption = ({ icon, label, onClick, variant = 'default' }: { icon: React.ReactNode, label: string, onClick: () => void, variant?: 'default' | 'danger' }) => (
+  <button 
+    onClick={onClick}
+    className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold rounded-xl transition-colors ${
+      variant === 'danger' ? 'text-red-500 hover:bg-red-50' : 'text-slate-600 hover:bg-slate-50'
+    }`}
+  >
+    {icon} {label}
+  </button>
+);
 
 export default ShipmentManager;
