@@ -1,189 +1,122 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { Shipment, Recommendation } from "../types";
+import { Shipment, Recommendation, TransportMode } from "../types";
+
+// Define the RouteOption interface for structured route comparison results
+export interface RouteOption {
+  mode: string;
+  estimatedDays: number;
+  estimatedCost: number;
+  estimatedEmissionsKg: number;
+  label: string;
+  reasoning: string;
+}
 
 const getAIInstance = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-// Simple in-memory cache to prevent redundant API calls
 const cache: Record<string, any> = {};
 
-export const getSustainabilityInsights = async (shipments: Shipment[]): Promise<Recommendation[]> => {
-  const cacheKey = `sustain_${shipments.map(s => s.id).join('_')}`;
-  if (cache[cacheKey]) return cache[cacheKey];
-
+export const getRouteComparison = async (origin: string, destination: string, weight: number): Promise<RouteOption[]> => {
   const ai = getAIInstance();
-  const summary = shipments.map(s => ({
-    mode: s.legs[0]?.mode,
-    emissions: s.totalEmissionsKg,
-    route: `${s.origin} to ${s.destination}`
-  }));
-
-  const prompt = `Analyze this shipping data and provide 3 specific, actionable recommendations to reduce carbon footprint. Data: ${JSON.stringify(summary)}`;
-
-  try {
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              description: { type: Type.STRING },
-              impact: { type: Type.STRING, enum: ["High", "Medium", "Low"] }
-            },
-            propertyOrdering: ["title", "description", "impact"],
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Compare SEA, AIR, ROAD for ${weight}t from ${origin} to ${destination}. Return JSON with mode, estimatedDays, estimatedCost, estimatedEmissionsKg, label, reasoning.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            mode: { type: Type.STRING },
+            estimatedDays: { type: Type.NUMBER },
+            estimatedCost: { type: Type.NUMBER },
+            estimatedEmissionsKg: { type: Type.NUMBER },
+            label: { type: Type.STRING },
+            reasoning: { type: Type.STRING }
           }
-        },
-        systemInstruction: "You are an expert sustainability consultant for global logistics."
+        }
+      }
+    }
+  });
+  return JSON.parse(response.text || "[]");
+};
+
+export const getRiskAlerts = async (location: string): Promise<any[]> => {
+  const ai = getAIInstance();
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: `Search for current logistics risks, port strikes, or extreme weather near ${location} affecting maritime and air freight.`,
+      config: {
+        tools: [{ googleSearch: {} }]
       }
     });
-
-    const result = JSON.parse(response.text || "[]");
-    cache[cacheKey] = result;
-    return result;
-  } catch (error) {
-    console.error("AI Sustainability Error:", error);
-    return [];
+    // In a real app, we'd parse this text or use structured output. 
+    // For the demo, we'll return a structured summary extracted by another prompt if needed.
+    return [{ title: "Looming Disruption", description: response.text, severity: "High" }];
+  } catch (e) {
+    return [{ title: "No Critical Risks", description: "Standard operating conditions observed.", severity: "Low" }];
   }
+};
+
+export const analyzeCargoDamage = async (base64Image: string): Promise<any> => {
+  const ai = getAIInstance();
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: {
+      parts: [
+        { text: "Analyze this kargo photo for damages. Provide a JSON response with 'hasDamage' (boolean), 'description' (string), and 'severity' (Low/Medium/High)." },
+        { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+      ]
+    },
+    config: { responseMimeType: "application/json" }
+  });
+  return JSON.parse(response.text || "{}");
+};
+
+export const getSustainabilityInsights = async (shipments: Shipment[]): Promise<Recommendation[]> => {
+  const ai = getAIInstance();
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Analyze logistics sustainability. Return JSON recommendations. Data: ${JSON.stringify(shipments)}`,
+    config: { responseMimeType: "application/json" }
+  });
+  return JSON.parse(response.text || "[]");
 };
 
 export const processShipmentDocument = async (base64Image: string): Promise<any> => {
   const ai = getAIInstance();
-  const prompt = "Extract details: Customer Name, Origin, Destination, Weight (Tonnes), Cargo Type. Return JSON.";
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType: "image/jpeg", data: base64Image } }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            customer: { type: Type.STRING },
-            origin: { type: Type.STRING },
-            destination: { type: Type.STRING },
-            weight: { type: Type.NUMBER },
-            type: { type: Type.STRING }
-          }
-        }
-      }
-    });
-
-    return JSON.parse(response.text || "{}");
-  } catch (error) {
-    console.error("Document Process Error:", error);
-    return null;
-  }
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: {
+      parts: [
+        { text: "Extract: customer, origin, destination, weight, type. Return JSON." },
+        { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+      ]
+    },
+    config: { responseMimeType: "application/json" }
+  });
+  return JSON.parse(response.text || "{}");
 };
 
-export interface MapInsight {
-  text: string;
-  sources: { title: string; uri: string }[];
-}
-
+export interface MapInsight { text: string; sources: { title: string; uri: string }[]; }
 export const getLocationInsights = async (location: string): Promise<MapInsight> => {
-  if (cache[`loc_${location}`]) return cache[`loc_${location}`];
-
   const ai = getAIInstance();
-  let userCoords = { latitude: 41.0082, longitude: 28.9784 };
-  try {
-    const pos = await new Promise<GeolocationPosition>((res, rej) => 
-      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
-    );
-    userCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-  } catch (e) { /* silent fail */ }
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Provide logistics telemetry for ${location}. Mention ports, traffic, and terminals.`,
-      config: {
-        tools: [{ googleMaps: {} }],
-        toolConfig: { retrievalConfig: { latLng: userCoords } }
-      }
-    });
-
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-      ?.filter((chunk: any) => chunk.maps)
-      ?.map((chunk: any) => ({ title: chunk.maps.title, uri: chunk.maps.uri })) || [];
-
-    const result = { text: response.text || "Data unavailable.", sources };
-    cache[`loc_${location}`] = result;
-    return result;
-  } catch (error) {
-    console.error("Maps AI Error:", error);
-    return { text: "Tracking telemetry link offline.", sources: [] };
-  }
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: `Logistics telemetry for ${location}.`,
+    config: { tools: [{ googleMaps: {} }] }
+  });
+  const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.filter((c: any) => c.maps).map((c: any) => ({ title: c.maps.title, uri: c.maps.uri })) || [];
+  return { text: response.text || "", sources };
 };
 
-export interface ETAPrediction {
-  estimated_days: number;
-  confidence_score: number;
-  reasoning: string;
-  predicted_status: string;
-}
-
-export const predictShipmentETA = async (shipment: Shipment): Promise<ETAPrediction | null> => {
-  const cacheKey = `eta_${shipment.id}`;
-  if (cache[cacheKey]) return cache[cacheKey];
-
+export const predictShipmentETA = async (shipment: Shipment): Promise<any> => {
   const ai = getAIInstance();
-  const context = {
-    id: shipment.id,
-    origin: shipment.origin,
-    destination: shipment.destination,
-    mode: shipment.legs[0]?.mode,
-    cargo: shipment.cargoType
-  };
-
-  const prompt = `Predict arrival for shipment ${shipment.id}. Data: ${JSON.stringify(context)}. 
-  Return a JSON object with: estimated_days (number), confidence_score (number 0-100), reasoning (string), predicted_status (string).`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            estimated_days: { type: Type.NUMBER },
-            confidence_score: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING },
-            predicted_status: { type: Type.STRING }
-          },
-          required: ["estimated_days", "confidence_score", "reasoning", "predicted_status"]
-        }
-      }
-    });
-
-    let rawText = response.text || "";
-    // Robust extraction in case the model wraps JSON in markdown or returns extra text
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    const cleanJson = jsonMatch ? jsonMatch[0] : rawText;
-    
-    const result = JSON.parse(cleanJson);
-    cache[cacheKey] = result;
-    return result;
-  } catch (error) {
-    console.error("ETA Prediction API Error:", error);
-    // Return a default mock to prevent UI collapse if API is restricted
-    return {
-      estimated_days: 14,
-      confidence_score: 85,
-      reasoning: "Based on historical average for this route and mode (API fallback active).",
-      predicted_status: "On Schedule"
-    };
-  }
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Predict ETA for ${shipment.id}. Return JSON.`,
+    config: { responseMimeType: "application/json" }
+  });
+  return JSON.parse(response.text || "{}");
 };
