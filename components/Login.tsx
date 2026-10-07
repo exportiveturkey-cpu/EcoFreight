@@ -18,11 +18,22 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError('');
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       onLoginSuccess(userCredential.user);
     } catch (err: any) {
-      setError('Invalid email or password. Please check your credentials.');
-      console.error(err);
+      console.error('Login error:', err);
+      const code = err?.code || '';
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        setError('E-posta adresi veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.');
+      } else if (code === 'auth/user-disabled') {
+        setError('Bu kullanıcı hesabı devre dışı bırakılmış.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Çok fazla başarısız giriş denemesi yapıldı. Lütfen biraz bekleyip tekrar deneyin.');
+      } else if (code === 'auth/network-request-failed') {
+        setError('Ağ bağlantısı hatası. İnternet bağlantınızı kontrol edin.');
+      } else {
+        setError(err.message || 'Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.');
+      }
     } finally {
       setLoading(false);
     }

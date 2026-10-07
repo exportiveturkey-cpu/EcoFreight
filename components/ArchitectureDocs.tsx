@@ -17,10 +17,10 @@ const ArchitectureDocs: React.FC = () => {
             <h2 className="text-xl font-bold text-slate-800">Tech Stack</h2>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
-            <DocItem title="Frontend" content="React (ESM Modules), TypeScript, Tailwind CSS" />
-            <DocItem title="Visualization" content="Recharts for Sustainability Analytics" />
-            <DocItem title="AI Intelligence" content="Google Gemini 3 Pro for ESG Reporting" />
-            <DocItem title="Backend Interface" content="RESTful API Gateway (Planned)" />
+            <DocItem title="Frontend" content="React, TypeScript, Tailwind CSS, Lucide Icons" />
+            <DocItem title="Visualization" content="Recharts for Decarbonization & Emissions Analytics" />
+            <DocItem title="AI Intelligence" content="Google Gemini 3.8 Flash (Multimodal Routing & ESG Intelligence)" />
+            <DocItem title="Backend Interface" content="Express Full-Stack API Gateway (/api/gemini/*)" />
           </div>
         </div>
 
