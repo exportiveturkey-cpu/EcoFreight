@@ -31,17 +31,17 @@ const ArchitectureDocs: React.FC = () => {
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <div className="flex items-start gap-4 mb-4">
-              <div className="bg-orange-100 p-2 rounded-lg">
-                <Zap size={20} className="text-orange-600" />
+              <div className="bg-emerald-100 p-2 rounded-lg">
+                <Zap size={20} className="text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-800">Surge Zero-Build Deploy</p>
-                <p className="text-xs text-slate-500 mt-1">Bu uygulama doğrudan statik dosya olarak sunulur. Build gerektirmez.</p>
+                <p className="text-sm font-bold text-slate-800">Cloud Run Microservices</p>
+                <p className="text-xs text-slate-500 mt-1">Full-stack Express gateway with TLS 1.3 containerized on Google Cloud.</p>
               </div>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <code className="text-[11px] text-slate-600 font-mono block"># Terminal komutu:</code>
-              <code className="text-[11px] text-indigo-600 font-mono block">surge . last-angle.surge.sh</code>
+              <code className="text-[11px] text-slate-600 font-mono block"># Production Gateway:</code>
+              <code className="text-[11px] text-emerald-600 font-mono block">https://ais-dev-...europe-west3.run.app</code>
             </div>
           </div>
         </div>

@@ -1,19 +1,27 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 // Added Leaf to the icons imported from lucide-react
-import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf } from 'lucide-react';
+import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert } from 'lucide-react';
 import { Shipment, ShipmentStatus, TransportMode } from '../types';
 import { calculateLegEmissions } from '../services/carbon';
 import { Language, translations } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
+import { formatEUR, formatNumber } from '../services/formatters';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-interface ShipmentManagerProps { shipments: Shipment[]; onAdd: (shipment: Shipment) => void; onDelete: (id: string) => void; lang: Language; }
+interface ShipmentManagerProps { 
+  shipments: Shipment[]; 
+  isReadOnly?: boolean;
+  onAdd: (shipment: Shipment) => void; 
+  onDelete: (id: string) => void; 
+  lang: Language; 
+}
 
-const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, onDelete, lang }) => {
+const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly = false, onAdd, onDelete, lang }) => {
   const t = translations[lang];
   const [isModalOpen, setModalOpen] = useState(false);
+  const [showReadOnlyNotice, setShowReadOnlyNotice] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [routeOptions, setRouteOptions] = useState<RouteOption[]>([]);
@@ -74,12 +82,65 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, onD
 
   return (
     <div className="space-y-6">
+      {isReadOnly && (
+        <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-xl text-blue-600">
+              <Lock size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-bold">Müşteri Demo Önizlemesi (Salt Okunur Mod)</p>
+              <p className="text-[11px] text-blue-700">
+                16 aktif sevkiyat verisi, CBAM emisyonları ve müşteri takip portalı benchmark testi için açıktır. Referans veri setinin bütünlüğünü korumak adına sevkiyat ekleme kilitlenmiştir.
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-1 rounded-lg bg-blue-200/70 text-blue-800 shrink-0">
+            Read-Only
+          </span>
+        </div>
+      )}
+
+      {showReadOnlyNotice && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <ShieldAlert size={18} className="text-amber-600 shrink-0" />
+            <p className="text-xs font-medium">
+              <strong>İşlem Sınırlandırıldı:</strong> Müşteri demo oturumunda yeni sevkiyat oluşturulamaz. Canlı rota optimizasyonunu ve yeni kayıt test etmek için 14 günlük <strong>NBG Seeds Jüri Moduna</strong> geçebilirsiniz.
+            </p>
+          </div>
+          <button 
+            onClick={() => setShowReadOnlyNotice(false)} 
+            className="text-amber-700 hover:text-amber-900 text-xs font-bold px-2 py-1"
+          >
+            Kapat
+          </button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Enterprise Logistics</h1>
-          <p className="text-slate-500 font-medium">Item 6: Multi-Tenant Customer Portal & Tracking</p>
+          <p className="text-slate-500 font-medium">Multi-Tenant Consignment Operations & Customer Tracking</p>
         </div>
-        <button onClick={() => setModalOpen(true)} className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2"><Plus size={18} /> New Shipment</button>
+        <button 
+          onClick={() => {
+            if (isReadOnly) {
+              setShowReadOnlyNotice(true);
+            } else {
+              setModalOpen(true);
+            }
+          }} 
+          className={`px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all ${
+            isReadOnly 
+              ? 'bg-slate-200 text-slate-500 hover:bg-slate-300 cursor-pointer' 
+              : 'bg-slate-900 text-white hover:bg-slate-800'
+          }`}
+          title={isReadOnly ? 'Salt Okunur Demo Modu' : 'Yeni Sevkiyat Ekle'}
+        >
+          {isReadOnly ? <Lock size={16} /> : <Plus size={18} />} 
+          New Shipment {isReadOnly && <span className="text-[10px] opacity-75">(Korumalı)</span>}
+        </button>
       </div>
 
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
@@ -113,7 +174,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, onD
         </table>
       </div>
 
-      {/* Item 6: Public Portal Preview Modal */}
+      {/* Public Customer Portal Preview Modal */}
       {showPortalPreview && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95">
@@ -190,7 +251,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, onAdd, onD
                            <p className="text-[10px] font-black uppercase text-slate-400 mb-2">{opt.label}</p>
                            <h4 className="font-black text-lg text-slate-900">{opt.mode}</h4>
                            <p className="text-xs font-bold text-emerald-600 mt-2">{opt.estimatedEmissionsKg}kg CO2e</p>
-                           <p className="text-xs font-bold text-slate-900 mt-1">${opt.estimatedCost}</p>
+                           <p className="text-xs font-bold text-slate-900 mt-1">{formatEUR(opt.estimatedCost, 0)}</p>
                         </div>
                       ))}
                    </div>

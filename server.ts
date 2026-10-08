@@ -114,7 +114,7 @@ async function startServer() {
       try {
         const apiPromise = ai.models.generateContent({
           model: 'gemini-3.8-flash',
-          contents: `Compare SEA, AIR, ROAD, and RAIL transport for ${w} metric tonnes cargo from ${origin} to ${destination}. Return a JSON array with objects containing: mode (SEA/AIR/ROAD/RAIL), estimatedDays (number), estimatedCost (number USD), estimatedEmissionsKg (number), label (string), reasoning (string).`,
+          contents: `Compare SEA, AIR, ROAD, and RAIL transport for ${w} metric tonnes cargo from ${origin} to ${destination}. Return a JSON array with objects containing: mode (SEA/AIR/ROAD/RAIL), estimatedDays (number), estimatedCost (number in EUR), estimatedEmissionsKg (number), label (string), reasoning (string).`,
           config: {
             responseMimeType: 'application/json',
             responseSchema: {

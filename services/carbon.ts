@@ -23,6 +23,6 @@ export const calculateLegEmissions = (
 };
 
 export const getOffsetPrice = (emissionsKg: number): number => {
-  // Assuming $25 per tonne of CO2 offset
+  // Assuming €25 per tonne of CO2 offset
   return parseFloat(((emissionsKg / 1000) * 25).toFixed(2));
 };

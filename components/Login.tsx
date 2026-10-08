@@ -1,22 +1,110 @@
 
-import React, { useState } from 'react';
-import { Leaf, Lock, Mail, ArrowRight, AlertCircle, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Leaf, Lock, Mail, ArrowRight, AlertCircle, ShieldCheck, Sparkles, Building2, Award, Copy, Check, Info } from 'lucide-react';
 import { auth, signInWithEmailAndPassword } from '../services/firebase';
 
 interface LoginProps {
   onLoginSuccess: (user: any) => void;
 }
 
+export const createDemoProfile = (type: 'jury' | 'client') => {
+  if (type === 'jury') {
+    return {
+      uid: 'demo-nbg-seeds-jury-14d',
+      email: 'jury.evaluator@nbgseeds.demo',
+      displayName: 'NBG Seeds Jury & Evaluator',
+      isDemo: true,
+      demoType: 'jury',
+      isReadOnly: false,
+      role: 'evaluator',
+      daysRemaining: 14,
+      totalDays: 14,
+      membershipExpiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+    };
+  } else {
+    return {
+      uid: 'demo-client-preview-3d',
+      email: 'client.preview@ecofreight.eu',
+      displayName: 'Corporate Client Preview',
+      isDemo: true,
+      demoType: 'client',
+      isReadOnly: true,
+      role: 'client_readonly',
+      daysRemaining: 3,
+      totalDays: 3,
+      membershipExpiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+    };
+  }
+};
+
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [copiedLink, setCopiedLink] = useState<'jury' | 'client' | null>(null);
+
+  // Auto-login if ?demo=client or ?demo=jury is in URL
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const demoParam = params.get('demo') || params.get('mode');
+      if (demoParam === 'client') {
+        handleDemoSelect('client');
+      } else if (demoParam === 'jury' || demoParam === 'evaluator') {
+        handleDemoSelect('jury');
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const handleDemoSelect = (type: 'jury' | 'client') => {
+    const profile = createDemoProfile(type);
+    try {
+      localStorage.setItem('ecofreight_demo_user', JSON.stringify(profile));
+    } catch (e) {
+      console.warn('LocalStorage error:', e);
+    }
+    onLoginSuccess(profile);
+  };
+
+  const copyShareLink = (type: 'jury' | 'client') => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('demo', type);
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      setCopiedLink(type);
+      setTimeout(() => setCopiedLink(null), 2500);
+    });
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Pre-configured quick demo emails shortcut (works with or without Firebase Auth)
+    const trimmedEmail = email.trim().toLowerCase();
+    if (
+      trimmedEmail === 'jury@nbgseeds.demo' ||
+      trimmedEmail === 'jury@nbgseeds.dem' ||
+      trimmedEmail === 'evaluator@nbgseeds.demo' ||
+      trimmedEmail.includes('nbgseeds')
+    ) {
+      handleDemoSelect('jury');
+      setLoading(false);
+      return;
+    }
+    if (
+      trimmedEmail === 'client@ecofreight.eu' ||
+      trimmedEmail === 'demo@client.com' ||
+      trimmedEmail === 'client.preview@ecofreight.eu'
+    ) {
+      handleDemoSelect('client');
+      setLoading(false);
+      return;
+    }
+
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       onLoginSuccess(userCredential.user);
@@ -41,28 +129,121 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Arka plan dekoratif elementler */}
+      {/* Background decorative elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px]"></div>
 
-      <div className="w-full max-w-md z-10 animate-in fade-in zoom-in duration-500">
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[2.5rem] shadow-2xl">
-          <div className="flex flex-col items-center mb-10">
-            <div className="bg-emerald-500 p-4 rounded-3xl mb-6 shadow-lg shadow-emerald-500/20">
-              <Leaf className="text-white w-10 h-10" />
+      <div className="w-full max-w-xl z-10 animate-in fade-in zoom-in duration-500 py-6">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 sm:p-10 rounded-[2.5rem] shadow-2xl">
+          <div className="flex flex-col items-center mb-6">
+            <div className="bg-emerald-500 p-4 rounded-3xl mb-3 shadow-lg shadow-emerald-500/20">
+              <Leaf className="text-white w-9 h-9" />
             </div>
             <h1 className="text-3xl font-black text-white tracking-tight">EcoFreight</h1>
-            <p className="text-slate-400 mt-2 text-sm font-medium uppercase tracking-widest">Sustainability Portal</p>
+            <p className="text-slate-400 mt-1 text-xs font-semibold uppercase tracking-widest text-center">
+              Sustainability & Decarbonization Intelligence
+            </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-4">
+          {/* Demonstration Accounts Section */}
+          <div className="mb-6 space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <Sparkles size={14} /> Hızlı Demo ve Değerlendirme Girişleri
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">Şifresiz Tek Tık</span>
+            </div>
+
+            {/* Option 1: 14-Day NBG Seeds Competition Jury Access */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 border border-emerald-500/30 hover:border-emerald-500/50 transition-all">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300">
+                    <Award size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      NBG Seeds Yarışma & Jüri Girişi
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500 text-white">14 Gün</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300">Tam yetkili değerlendirme: Rota optimizasyonu, CBAM ve AI testleri açık</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyShareLink('jury')}
+                  className="text-slate-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-white/5 transition-all text-xs flex items-center gap-1"
+                  title="Jüri için doğrudan bağlantıyı kopyala"
+                >
+                  {copiedLink === 'jury' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDemoSelect('jury')}
+                className="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md shadow-emerald-500/20 flex items-center justify-between text-xs group active:scale-98"
+              >
+                <span>Jüri Olarak Başlat (14 Günlük Tam Erişim)</span>
+                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+
+            {/* Option 2: 3-Day Potential Client Read-Only Demo */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/15 via-sky-500/10 to-teal-500/15 border border-blue-500/30 hover:border-blue-500/50 transition-all">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-blue-500/20 text-blue-300">
+                    <Building2 size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      Potansiyel Müşteri Önizlemesi
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500 text-white">3 Gün • Read-Only</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300">Korumalı mod: 16 sevkiyat, harita ve analizleri inceler, veri değiştirilemez</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyShareLink('client')}
+                  className="text-slate-400 hover:text-blue-400 p-1.5 rounded-lg hover:bg-white/5 transition-all text-xs flex items-center gap-1"
+                  title="Müşteri için doğrudan bağlantıyı kopyala"
+                >
+                  {copiedLink === 'client' ? <Check size={14} className="text-blue-400" /> : <Copy size={14} />}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDemoSelect('client')}
+                className="w-full mt-2 bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-white border border-blue-400/30 font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-between text-xs group active:scale-98"
+              >
+                <span>Müşteri Önizlemesini Başlat (3 Gün • Salt Okunur)</span>
+                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+
+            {copiedLink && (
+              <div className="flex items-center justify-center gap-1.5 text-emerald-400 text-[11px] bg-emerald-500/10 py-1.5 rounded-lg border border-emerald-500/20 animate-in fade-in">
+                <Check size={12} />
+                <span>Paylaşım bağlantısı panoya kopyalandı! Doğrudan bu linki gönderebilirsiniz.</span>
+              </div>
+            )}
+          </div>
+
+          <div className="relative flex py-2 items-center mb-4">
+            <div className="flex-grow border-t border-white/10"></div>
+            <span className="flex-shrink mx-4 text-[10px] font-black uppercase tracking-widest text-slate-500">veya kurumsal hesapla giriş</span>
+            <div className="flex-grow border-t border-white/10"></div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-3">
+            <div className="space-y-2.5">
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                 <input
                   type="email"
                   placeholder="Email Address"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-xs transition-all"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -70,11 +251,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                 <input
                   type="password"
                   placeholder="Password"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-xs transition-all"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -83,8 +264,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 bg-red-400/10 p-4 rounded-xl text-xs font-medium border border-red-400/20">
-                <AlertCircle size={16} />
+              <div className="flex items-center gap-2 text-red-400 bg-red-400/10 p-3 rounded-xl text-xs font-medium border border-red-400/20">
+                <AlertCircle size={15} />
                 {error}
               </div>
             )}
@@ -92,21 +273,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 group"
+              className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800/50 text-white font-bold py-3 rounded-2xl transition-all border border-white/10 flex items-center justify-center gap-2 text-xs group"
             >
-              {loading ? 'Authenticating...' : 'Sign In'}
-              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              {loading ? 'Authenticating...' : 'Sign In with Firebase'}
+              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
 
-          <div className="mt-8 pt-8 border-t border-white/5 flex items-center justify-center gap-2 text-slate-500 text-xs">
-            <ShieldCheck size={14} />
-            <span>Secure Enterprise Access</span>
+          <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-center gap-2 text-slate-400 text-[11px] font-medium">
+            <ShieldCheck size={14} className="text-emerald-500" />
+            <span>TLS 1.3 Encrypted • Firebase Auth Verified</span>
           </div>
         </div>
         
-        <p className="text-center text-slate-500 text-xs mt-8">
-          Contact system administrator for account registration.
+        <p className="text-center text-slate-500 text-[11px] mt-4">
+          EcoFreight Logistics Intelligence • NBG Seeds Cohort
         </p>
       </div>
     </div>

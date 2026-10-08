@@ -131,9 +131,9 @@ const AIAssistant: React.FC = () => {
           <h1 className="text-4xl font-black text-slate-900 tracking-tight">AI Command Center</h1>
           <p className="text-slate-500 font-medium">Real-time Multimodal Logistics Intelligence with Google Gemini</p>
         </div>
-        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl border border-emerald-100 shadow-sm">
-          <ShieldCheck size={16} />
-          <span className="text-[10px] font-black uppercase tracking-widest">{status.model} Active</span>
+        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-2 rounded-2xl border border-emerald-200 shadow-sm">
+          <ShieldCheck size={16} className="text-emerald-600" />
+          <span className="text-[10px] font-black uppercase tracking-widest">TLS 1.3 / HTTPS Encrypted • Firebase Auth Verified</span>
         </div>
       </div>
 

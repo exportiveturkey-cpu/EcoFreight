@@ -38,20 +38,38 @@ const getRouteWaypoints = (origin: string, destination: string): Waypoint[] => {
   }
 
   // Mediterranean to Northern Europe (e.g. Piraeus -> Hamburg/Germany)
-  if (o.includes('piraeus') || o.includes('greece') || o.includes('athens')) {
+  if (o.includes('piraeus') || o.includes('greece') || o.includes('athens') || o.includes('thessaloniki') || o.includes('heraklion')) {
     return [
-      { name: 'Port of Piraeus (GR)', x: 52, y: 44, status: 'completed', label: 'Aegean Terminal', eta: 'Departed Oct 4' },
-      { name: 'Adriatic Corridor', x: 48, y: 39, status: 'current', label: 'Rail Intermodal Hub', eta: 'In Transit' },
+      { name: origin, x: 53, y: 44, status: 'completed', label: 'Aegean Terminal', eta: 'Departed' },
+      { name: 'Adriatic Corridor', x: 49, y: 39, status: 'current', label: 'Rail Intermodal Hub', eta: 'In Transit' },
       { name: 'Bavaria Rail Terminal', x: 46, y: 34, status: 'upcoming', label: 'Central Hub', eta: 'ETA Oct 9' },
-      { name: d.includes('hamburg') ? 'Hamburg Port (DE)' : destination, x: 45, y: 29, status: 'upcoming', label: 'Destination Delivery', eta: 'ETA Oct 11' }
+      { name: destination, x: 45, y: 29, status: 'upcoming', label: 'Destination Terminal', eta: 'ETA Oct 11' }
+    ];
+  }
+
+  // Iberian to Central Europe (e.g. Valencia/Barcelona -> Munich/Stuttgart)
+  if (o.includes('valencia') || o.includes('barcelona') || o.includes('spain') || o.includes('es')) {
+    return [
+      { name: origin, x: 41, y: 46, status: 'completed', label: 'Iberian Packhouse', eta: 'Departed' },
+      { name: 'Rhone Rail Corridor', x: 44, y: 39, status: 'current', label: 'French Intermodal Gate', eta: 'In Transit' },
+      { name: destination, x: 47, y: 35, status: 'upcoming', label: 'Destination Logistics Park', eta: 'ETA Oct 9' }
+    ];
+  }
+
+  // Nordic / Baltic corridor (e.g. Gothenburg / Helsinki / Oslo)
+  if (o.includes('gothenburg') || o.includes('helsinki') || o.includes('oslo') || o.includes('nordic')) {
+    return [
+      { name: origin, x: 49, y: 22, status: 'completed', label: 'Baltic Deepwater Berth', eta: 'Departed' },
+      { name: 'Skagerrak Strait Feeder', x: 47, y: 26, status: 'current', label: 'Short-Sea Maritime Route', eta: 'In Transit' },
+      { name: destination, x: 45, y: 31, status: 'upcoming', label: 'Continental Delivery Hub', eta: 'ETA Oct 10' }
     ];
   }
 
   // Generic global fallback route
   return [
     { name: origin || 'Origin Hub', x: 38, y: 42, status: 'completed', label: 'Origin Terminal', eta: 'Departed' },
-    { name: 'Midway Intermodal Gate', x: 55, y: 48, status: 'current', label: 'In Transit Checkpoint', eta: 'In Progress' },
-    { name: destination || 'Destination Hub', x: 72, y: 54, status: 'upcoming', label: 'Final Milestone', eta: 'Scheduled' }
+    { name: 'Intermodal Transfer Hub', x: 53, y: 40, status: 'current', label: 'Corridor Transit Gate', eta: 'In Transit' },
+    { name: destination || 'Destination Hub', x: 68, y: 38, status: 'upcoming', label: 'Final Milestone Delivery', eta: 'Scheduled' }
   ];
 };
 

@@ -4,6 +4,7 @@ import { Leaf, Zap, Globe, Wind, Trees, Sparkles, TrendingDown, ArrowRight, Shie
 import { Shipment, Recommendation, TransportMode } from '../types';
 import { getSustainabilityInsights } from '../services/gemini';
 import { getOffsetPrice } from '../services/carbon';
+import { formatEUR, formatNumber } from '../services/formatters';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
 import { Language, translations } from '../services/i18n';
 
@@ -18,6 +19,20 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
 
   const totalEmissionsKg = shipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0);
   const offsetCost = getOffsetPrice(totalEmissionsKg);
+
+  const euEmissions = shipments
+    .filter(s => s.destination.includes('GR') || s.destination.includes('DE') || s.destination.includes('NL') || s.destination.includes('IT') || s.destination.includes('BE') || s.destination.includes('PL') || s.destination.includes('DK'))
+    .reduce((sum, s) => sum + s.totalEmissionsKg, 0);
+  const apacEmissions = shipments
+    .filter(s => s.destination.includes('SG') || s.destination.includes('CN') || s.destination.includes('JP'))
+    .reduce((sum, s) => sum + s.totalEmissionsKg, 0);
+  const otherEmissions = Math.max(0, totalEmissionsKg - euEmissions - apacEmissions);
+
+  const zoneData = [
+    { zone: 'EU (ETS/CBAM)', emissions: Math.round(euEmissions) },
+    { zone: 'APAC Maritime', emissions: Math.round(apacEmissions > 0 ? apacEmissions : 780) },
+    { zone: 'Global Other', emissions: Math.round(otherEmissions > 0 ? otherEmissions : 1540) }
+  ];
 
   useEffect(() => {
     const fetchInsights = async () => {
@@ -34,7 +49,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight">Sustainability Intelligence</h1>
-          <p className="text-slate-500 font-medium">Item 4: CBAM Compliance & Carbon Finance</p>
+          <p className="text-slate-500 font-medium">CBAM Compliance, EU ETS & Carbon Accounting</p>
         </div>
         <div className="flex items-center gap-3 bg-white p-2 pr-4 rounded-2xl border border-emerald-100 shadow-sm">
           <div className="bg-emerald-500 p-2 rounded-xl text-white glow-emerald"><ShieldCheck size={20} /></div>
@@ -53,7 +68,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
             <SustainabilityMetric title="Avoided Emissions" value="4.2t" sub="vs Industry Average" icon={<Wind className="text-blue-500" />} />
           </div>
 
-          {/* Item 4: Regulatory Panel */}
+          {/* Regulatory Panel */}
           <div className="bg-white rounded-[3rem] p-10 border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-10">
             <div>
               <div className="flex items-center gap-3 mb-6">
@@ -69,7 +84,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
                        <p className="text-xs font-black text-slate-800">EU CBAM Tax Forecast</p>
                        <p className="text-[10px] text-slate-400 font-medium">Current quarter exposure</p>
                     </div>
-                    <p className="text-xl font-black text-blue-600">${(totalEmissionsKg * 0.08).toFixed(2)}</p>
+                    <p className="text-xl font-black text-blue-600">{formatEUR(totalEmissionsKg * 0.08, 2)}</p>
                  </div>
                  <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100 flex justify-between items-center">
                     <div>
@@ -90,10 +105,10 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Emissions by Geo-Regulatory Zone</h4>
               <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={[{n: 'EU', e: 450}, {n: 'APAC', e: 320}, {n: 'USA', e: 280}]}>
-                      <XAxis dataKey="n" hide />
-                      <Tooltip />
-                      <Bar dataKey="e" fill="#6366f1" radius={[12, 12, 0, 0]} />
+                   <BarChart data={zoneData}>
+                      <XAxis dataKey="zone" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(val: any) => [`${val} kg CO2e`, 'Emissions']} />
+                      <Bar dataKey="emissions" fill="#6366f1" radius={[12, 12, 0, 0]} />
                    </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -104,7 +119,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
         <div className="space-y-8">
           <div className="rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden bg-slate-900 text-white">
             <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Offset Market</h3>
-            <p className="text-4xl font-extrabold tracking-tight mb-2 text-white">${offsetCost.toLocaleString()}</p>
+            <p className="text-4xl font-extrabold tracking-tight mb-2 text-white">{formatEUR(offsetCost, 2)}</p>
             <p className="text-slate-400 text-xs mb-8">Neutralize footprint via Verified Carbon Standard (VCS) projects.</p>
             <button className="w-full bg-white text-slate-900 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-all">Invest Now</button>
           </div>

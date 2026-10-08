@@ -15,7 +15,7 @@ const NetworkManager: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight">Supplier Intelligence</h1>
-          <p className="text-slate-500 font-medium">Item 3: ESG Scorecard & Network Leaderboard</p>
+          <p className="text-slate-500 font-medium">Carrier ESG Scorecard & Global Network Leaderboard</p>
         </div>
       </div>
 
