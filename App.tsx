@@ -40,12 +40,30 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'shipments' | 'tracking' | 'sustainability' | 'network' | 'docs' | 'ai-assistant'>('dashboard');
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [lang, setLang] = useState<Language>('en');
+  const [lang, setLang] = useState<Language>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlLang = params.get('lang');
+      if (urlLang === 'el' || urlLang === 'gr') return 'el';
+      if (urlLang === 'tr') return 'tr';
+      if (urlLang === 'en') return 'en';
+      const saved = localStorage.getItem('ecofreight_lang') as Language;
+      if (saved === 'el' || saved === 'tr' || saved === 'en') return saved;
+    } catch (e) {}
+    return 'en';
+  });
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
+
+  const handleLangChange = (newLang: Language) => {
+    setLang(newLang);
+    try {
+      localStorage.setItem('ecofreight_lang', newLang);
+    } catch (e) {}
+  };
 
   useEffect(() => {
     // 1. Check URL query params for direct demo link (?demo=client or ?demo=jury)
@@ -143,7 +161,7 @@ const App: React.FC = () => {
   };
 
   if (authLoading) return <div className="h-screen w-full bg-[#0f172a] flex items-center justify-center"><div className="w-16 h-16 border-b-2 border-emerald-500 rounded-full animate-spin"></div></div>;
-  if (!user) return <Login onLoginSuccess={setUser} />;
+  if (!user) return <Login onLoginSuccess={setUser} lang={lang} onLangChange={handleLangChange} />;
 
   const isDemoExpired = user?.isDemo && user.daysRemaining !== undefined && user.daysRemaining <= 0;
 
@@ -161,7 +179,7 @@ const App: React.FC = () => {
           <NavItem icon={<LayoutGrid size={22} />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Truck size={22} />} label={t.shipments} active={activeTab === 'shipments'} onClick={() => setActiveTab('shipments')} collapsed={!isSidebarOpen} />
           <NavItem icon={<MapIcon size={22} />} label={t.tracking} active={activeTab === 'tracking'} onClick={() => setActiveTab('tracking')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Globe size={22} />} label="Global Network" active={activeTab === 'network'} onClick={() => setActiveTab('network')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Globe size={22} />} label={t.globalNetwork} active={activeTab === 'network'} onClick={() => setActiveTab('network')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Leaf size={22} />} label={t.sustainability} active={activeTab === 'sustainability'} onClick={() => setActiveTab('sustainability')} collapsed={!isSidebarOpen} />
           <NavItem icon={<MessageSquare size={22} />} label={t.aiAssistant} active={activeTab === 'ai-assistant'} onClick={() => setActiveTab('ai-assistant')} collapsed={!isSidebarOpen} />
         </div>
@@ -172,22 +190,28 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between mb-1.5 font-bold text-white">
                 <span className="flex items-center gap-1.5">
                   {user.isReadOnly ? <Building2 size={13} className="text-blue-400" /> : <Award size={13} className="text-emerald-400" />}
-                  {user.isReadOnly ? 'Müşteri Modu' : 'Jüri Modu'}
+                  {user.isReadOnly ? t.demoClient : t.demoJury}
                 </span>
-                <span className="text-[10px] text-emerald-400">{user.daysRemaining ?? (user.isReadOnly ? 3 : 14)}g kaldı</span>
+                <span className="text-[10px] text-emerald-400">
+                  {user.daysRemaining ?? (user.isReadOnly ? 3 : 14)} {t.daysRemaining}
+                </span>
               </div>
               <button
                 onClick={() => handleSwitchDemo(user.demoType === 'client' ? 'jury' : 'client')}
                 className="w-full text-left text-[11px] text-slate-400 hover:text-white flex items-center justify-between pt-1.5 border-t border-white/5"
               >
-                <span>{user.demoType === 'client' ? 'Jüri Moduna Geç (14g)' : 'Müşteri Moduna Geç (3g)'}</span>
+                <span>
+                  {user.demoType === 'client'
+                    ? (lang === 'el' ? 'Αλλαγή σε Κριτή (14ημ)' : lang === 'tr' ? 'Jüri Moduna Geç (14g)' : 'Switch to Jury (14d)')
+                    : (lang === 'el' ? 'Αλλαγή σε Πελάτη (3ημ)' : lang === 'tr' ? 'Müşteri Moduna Geç (3g)' : 'Switch to Client (3d)')}
+                </span>
                 <RotateCcw size={11} />
               </button>
             </div>
           )}
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all">
             <LogOut size={20} />
-            {isSidebarOpen && <span className="text-sm font-bold">Sign Out</span>}
+            {isSidebarOpen && <span className="text-sm font-bold">{t.signOut}</span>}
           </button>
         </div>
       </aside>
@@ -198,25 +222,25 @@ const App: React.FC = () => {
             <Search size={18} className="text-slate-400" />
             <input type="text" placeholder={t.search} className="bg-transparent border-none outline-none text-sm w-full font-medium" />
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
             {user && (
               user.isDemo ? (
                 user.isReadOnly ? (
                   // Potential Client Read-Only Demo (3 Days)
                   <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 text-xs font-medium shadow-sm">
                     <Building2 size={14} className="text-blue-600" />
-                    <span className="text-[11px] font-bold text-slate-800">Müşteri Önizleme</span>
+                    <span className="text-[11px] font-bold text-slate-800">{t.demoClient}</span>
                     <span className="text-[9px] uppercase px-2 py-0.5 rounded-md bg-blue-600 text-white font-black tracking-wider">
-                      {user.daysRemaining ?? 3} Gün • Read-Only
+                      {user.daysRemaining ?? 3} {t.days} • {t.readOnly}
                     </span>
                   </div>
                 ) : (
                   // NBG Seeds Jury Demo (14 Days)
                   <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-emerald-900 text-xs font-medium shadow-sm">
                     <Award size={14} className="text-emerald-600" />
-                    <span className="text-[11px] font-bold text-slate-800">NBG Seeds Jüri Erişimi</span>
+                    <span className="text-[11px] font-bold text-slate-800">{t.demoJury}</span>
                     <span className="text-[9px] uppercase px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black tracking-wider">
-                      {user.daysRemaining ?? 14} Gün Aktif
+                      {user.daysRemaining ?? 14} {t.days} {lang === 'el' ? 'Ενεργό' : lang === 'tr' ? 'Aktif' : 'Active'}
                     </span>
                   </div>
                 )
@@ -228,9 +252,47 @@ const App: React.FC = () => {
                 </div>
               )
             )}
-            <button onClick={toggleLanguage} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-[10px] font-black tracking-widest text-slate-500 uppercase">
-              <Languages size={14} className="text-emerald-500" /> {lang}
-            </button>
+
+            {/* Language Switcher with Flag Icons */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+              <button
+                type="button"
+                onClick={() => handleLangChange('en')}
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                  lang === 'en'
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="English"
+              >
+                🇬🇧 EN
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLangChange('el')}
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                  lang === 'el'
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="Ελληνικά"
+              >
+                🇬🇷 ΕΛ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLangChange('tr')}
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                  lang === 'tr'
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="Türkçe"
+              >
+                🇹🇷 TR
+              </button>
+            </div>
+
             <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showNotifications)}>
               <Bell size={22} className="text-slate-400" />
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
@@ -245,25 +307,25 @@ const App: React.FC = () => {
               <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600">
                 <AlertTriangle size={28} />
               </div>
-              <h2 className="text-xl font-black text-slate-900">Demo Süresi Tamamlandı</h2>
+              <h2 className="text-xl font-black text-slate-900">{t.demoExpired}</h2>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Bu demo oturumunun kullanım süresi dolmuştur. Tam yetkili kurumsal entegrasyon ve üyelik için EcoFreight ekibiyle iletişime geçebilirsiniz.
+                {t.demoExpiredDesc}
               </p>
               <div className="p-3 bg-slate-50 rounded-xl text-xs font-mono text-slate-600">
-                İletişim: Exportiveturkey@gmail.com
+                {t.contact}: Exportiveturkey@gmail.com
               </div>
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => handleSwitchDemo(user.demoType || 'jury')}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs"
                 >
-                  Demoyu Yenile
+                  {t.renewDemo}
                 </button>
                 <button
                   onClick={handleLogout}
                   className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2.5 px-4 rounded-xl text-xs"
                 >
-                  Çıkış Yap
+                  {t.signOut}
                 </button>
               </div>
             </div>
@@ -289,11 +351,6 @@ const App: React.FC = () => {
       </main>
     </div>
   );
-
-  function toggleLanguage() {
-    const languages: Language[] = ['en', 'tr', 'el'];
-    setLang(languages[(languages.indexOf(lang) + 1) % languages.length]);
-  }
 };
 
 const NavItem = ({ icon, label, active, onClick, collapsed }: any) => (

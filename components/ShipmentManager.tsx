@@ -89,14 +89,14 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
               <Lock size={18} />
             </div>
             <div>
-              <p className="text-xs font-bold">Müşteri Demo Önizlemesi (Salt Okunur Mod)</p>
+              <p className="text-xs font-bold">{t.readOnlyNoticeTitle}</p>
               <p className="text-[11px] text-blue-700">
-                16 aktif sevkiyat verisi, CBAM emisyonları ve müşteri takip portalı benchmark testi için açıktır. Referans veri setinin bütünlüğünü korumak adına sevkiyat ekleme kilitlenmiştir.
+                {t.readOnlyNoticeDesc}
               </p>
             </div>
           </div>
           <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-1 rounded-lg bg-blue-200/70 text-blue-800 shrink-0">
-            Read-Only
+            {t.readOnly}
           </span>
         </div>
       )}
@@ -106,14 +106,20 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
           <div className="flex items-center gap-3">
             <ShieldAlert size={18} className="text-amber-600 shrink-0" />
             <p className="text-xs font-medium">
-              <strong>İşlem Sınırlandırıldı:</strong> Müşteri demo oturumunda yeni sevkiyat oluşturulamaz. Canlı rota optimizasyonunu ve yeni kayıt test etmek için 14 günlük <strong>NBG Seeds Jüri Moduna</strong> geçebilirsiniz.
+              {lang === 'el' ? (
+                <><strong>Περιορισμένη Ενέργεια:</strong> Δεν μπορείτε να δημιουργήσετε νέα αποστολή στη λειτουργία προεπισκόπησης. Για πλήρη πρόσβαση δοκιμών, μεταβείτε στη <strong>Λειτουργία Κριτών NBG Seeds</strong>.</>
+              ) : lang === 'tr' ? (
+                <><strong>İşlem Sınırlandırıldı:</strong> Müşteri demo oturumunda yeni sevkiyat oluşturulamaz. Canlı rota optimizasyonunu ve yeni kayıt test etmek için 14 günlük <strong>NBG Seeds Jüri Moduna</strong> geçebilirsiniz.</>
+              ) : (
+                <><strong>Action Restricted:</strong> New shipment creation is disabled in client preview mode. For full simulation and multi-modal tests, please switch to <strong>NBG Seeds Jury Mode</strong>.</>
+              )}
             </p>
           </div>
           <button 
             onClick={() => setShowReadOnlyNotice(false)} 
             className="text-amber-700 hover:text-amber-900 text-xs font-bold px-2 py-1"
           >
-            Kapat
+            {t.cancel}
           </button>
         </div>
       )}
@@ -136,10 +142,10 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
               ? 'bg-slate-200 text-slate-500 hover:bg-slate-300 cursor-pointer' 
               : 'bg-slate-900 text-white hover:bg-slate-800'
           }`}
-          title={isReadOnly ? 'Salt Okunur Demo Modu' : 'Yeni Sevkiyat Ekle'}
+          title={isReadOnly ? t.readOnly : t.newShipment}
         >
           {isReadOnly ? <Lock size={16} /> : <Plus size={18} />} 
-          New Shipment {isReadOnly && <span className="text-[10px] opacity-75">(Korumalı)</span>}
+          {t.newShipment} {isReadOnly && <span className="text-[10px] opacity-75">({t.readOnly})</span>}
         </button>
       </div>
 

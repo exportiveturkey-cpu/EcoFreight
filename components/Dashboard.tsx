@@ -166,13 +166,13 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
         {/* Right: Dynamic Transport Distribution */}
         <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
-            <h3 className="font-bold text-slate-800 text-lg mb-1">Modal Split (By Weight)</h3>
+            <h3 className="font-bold text-slate-800 text-lg mb-1">{t.modalDistribution}</h3>
             <p className="text-slate-400 text-xs mb-6">Calculated across {formatWeight(totalCargoWeight)} total cargo</p>
             <div className="space-y-4">
-              <ProgressRow icon={<Ship size={14} className="text-blue-500" />} label="Maritime Deep/Short-Sea" value={seaPercent} color="bg-blue-500" />
-              <ProgressRow icon={<Train size={14} className="text-emerald-500" />} label="Electrified Rail Corridors" value={railPercent} color="bg-emerald-500" />
-              <ProgressRow icon={<Truck size={14} className="text-amber-500" />} label="Road Freight Drayage" value={roadPercent} color="bg-amber-500" />
-              <ProgressRow icon={<Plane size={14} className="text-indigo-500" />} label="Air Freight Express" value={airPercent} color="bg-indigo-500" />
+              <ProgressRow icon={<Ship size={14} className="text-blue-500" />} label={`${t.sea} (Deep/Short-Sea)`} value={seaPercent} color="bg-blue-500" />
+              <ProgressRow icon={<Train size={14} className="text-emerald-500" />} label={`${t.rail} (Electrified Corridors)`} value={railPercent} color="bg-emerald-500" />
+              <ProgressRow icon={<Truck size={14} className="text-amber-500" />} label={`${t.road} (Drayage)`} value={roadPercent} color="bg-amber-500" />
+              <ProgressRow icon={<Plane size={14} className="text-indigo-500" />} label={`${t.air} (Express)`} value={airPercent} color="bg-indigo-500" />
             </div>
           </div>
           <div className="pt-6 border-t border-slate-100 mt-6">
@@ -195,7 +195,7 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
             <p className="text-xs text-slate-400">Live operational snapshot of current multimodal consignment legs</p>
           </div>
           <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
-            {inTransitCount} In Transit
+            {inTransitCount} {t.inTransit}
           </span>
         </div>
 
@@ -203,12 +203,12 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <th className="pb-4">Consignment</th>
-                <th className="pb-4">Origin → Destination</th>
-                <th className="pb-4">Cargo / Weight</th>
-                <th className="pb-4">Status</th>
-                <th className="pb-4">Emissions</th>
-                <th className="pb-4 text-right">Freight Cost</th>
+                <th className="pb-4">{t.consignment}</th>
+                <th className="pb-4">{t.originDest}</th>
+                <th className="pb-4">{t.cargoWeight}</th>
+                <th className="pb-4">{t.status}</th>
+                <th className="pb-4">{t.emissions}</th>
+                <th className="pb-4 text-right">{t.freightCost}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -233,7 +233,11 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
                           ? 'bg-blue-50 text-blue-700' 
                           : 'bg-amber-50 text-amber-700'
                     }`}>
-                      {s.status}
+                      {s.status === ShipmentStatus.IN_TRANSIT 
+                        ? t.inTransit 
+                        : s.status === ShipmentStatus.DELIVERED 
+                          ? t.delivered 
+                          : t.booked}
                     </span>
                   </td>
                   <td className="py-4 font-bold text-slate-800 font-mono">
