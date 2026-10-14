@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   AreaChart, 
   Area, 
@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Ship, Globe, Leaf, Euro, ArrowUpRight, Activity, Train, Truck, Plane, CheckCircle2, Clock } from 'lucide-react';
 import { Shipment, TransportMode, ShipmentStatus } from '../types';
-import { Language, translations } from '../services/i18n';
+import { Language, translations, statusLabel } from '../services/i18n';
 import { formatEUR, formatNumber, formatWeight, formatEmissions } from '../services/formatters';
 
 interface DashboardProps {
@@ -23,8 +23,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
   const t = translations[lang];
-  const [timeRange, setTimeRange] = useState<'7d' | '30d'>('7d');
-
+  
   const totalEmissions = shipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0);
   const totalSpend = shipments.reduce((sum, s) => sum + s.totalCost, 0);
   const inTransitCount = shipments.filter(s => s.status === ShipmentStatus.IN_TRANSIT).length;
@@ -71,8 +70,8 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Executive Dashboard</h1>
-          <p className="text-slate-500 font-medium">Global Logistics & ESG Performance Monitoring ({shipments.length} Active Consignments)</p>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{t.dashTitle}</h1>
+          <p className="text-slate-500 font-medium">{t.dashSubtitle} ({shipments.length} {t.activeConsignments})</p>
         </div>
         <div className="flex gap-2">
           <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 flex items-center gap-2 text-sm font-bold shadow-sm">
@@ -86,9 +85,9 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
       {/* Top 4 KPI Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard 
-          title="Total Consignments" 
+          title={t.totalShipments} 
           value={shipments.length} 
-          subText={`${inTransitCount} In Transit • ${deliveredCount} Completed`}
+          subText={`${inTransitCount} ${t.inTransit} • ${deliveredCount} ${t.completed}`}
           change="+18.5%" 
           isPositive={true} 
           icon={<Ship size={20} />} 
@@ -113,9 +112,9 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
           color="indigo"
         />
         <MetricCard 
-          title="Intermodal Efficiency" 
+          title={t.intermodalEfficiency} 
           value="96.4%" 
-          subText="Rail/Sea Green Share"
+          subText={t.greenShare}
           change="+4.1%" 
           isPositive={true} 
           icon={<Globe size={20} />} 
@@ -129,17 +128,9 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
         <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h3 className="font-bold text-slate-800 text-lg">Emissions & Energy Consumption Curve</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Aggregated GHG emissions (kg CO2e) across all multimodal routes</p>
+              <h3 className="font-bold text-slate-800 text-lg">{t.emissionsCurve}</h3>
+              <p className="text-xs text-slate-400 mt-0.5">{t.emissionsCurveDesc}</p>
             </div>
-            <select 
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value as any)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none"
-            >
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-            </select>
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -179,8 +170,8 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
             <div className="flex items-center gap-3 p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
                <div className="bg-emerald-500 p-2 rounded-xl text-white shadow-sm"><Leaf size={18} /></div>
                <div>
-                 <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Modal Shift Benefit</p>
-                 <p className="text-xs font-bold text-emerald-950">Current rail/sea split saves ~64% CO2 vs all-road haulage.</p>
+                 <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">{t.modalShiftBenefit}</p>
+                 <p className="text-xs font-bold text-emerald-950">{t.modalShiftDesc}</p>
                </div>
             </div>
           </div>
@@ -191,7 +182,7 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-8 space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">Active Strategic Corridors</h3>
+            <h3 className="text-lg font-black text-slate-900 tracking-tight">{t.activeCorridors}</h3>
             <p className="text-xs text-slate-400">Live operational snapshot of current multimodal consignment legs</p>
           </div>
           <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
@@ -233,11 +224,7 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
                           ? 'bg-blue-50 text-blue-700' 
                           : 'bg-amber-50 text-amber-700'
                     }`}>
-                      {s.status === ShipmentStatus.IN_TRANSIT 
-                        ? t.inTransit 
-                        : s.status === ShipmentStatus.DELIVERED 
-                          ? t.delivered 
-                          : t.booked}
+                      {statusLabel(s.status, t)}
                     </span>
                   </td>
                   <td className="py-4 font-bold text-slate-800 font-mono">
