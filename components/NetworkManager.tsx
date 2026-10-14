@@ -1,8 +1,10 @@
 
 import React from 'react';
 import { Shield, Award, Leaf, Zap, Globe, Star, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Language, translations } from '../services/i18n';
 
-const NetworkManager: React.FC = () => {
+const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
+  const t = translations[lang];
   const carriers = [
     { name: "Global Maritime Group", esg: 94, fleet: "Green LNG", reliability: "99.2%", badge: "Eco-Leader" },
     { name: "Atlas Air Freight", esg: 78, fleet: "Modern Bio-Jet", reliability: "98.5%", badge: "Reliable" },
@@ -14,8 +16,8 @@ const NetworkManager: React.FC = () => {
     <div className="space-y-8 animate-in fade-in duration-700">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Supplier Intelligence</h1>
-          <p className="text-slate-500 font-medium">Carrier ESG Scorecard & Global Network Leaderboard</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t.netTitle}</h1>
+          <p className="text-slate-500 font-medium">{t.netSubtitle}</p>
         </div>
       </div>
 

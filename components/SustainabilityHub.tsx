@@ -34,6 +34,18 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
     { zone: 'Global Other', emissions: Math.round(otherEmissions > 0 ? otherEmissions : 1540) }
   ];
 
+  const exportReport = () => {
+    const header = ['ID', 'Customer', 'Origin', 'Destination', 'Weight (t)', 'Emissions (kg CO2e)', 'Cost (EUR)', 'Status'];
+    const rows = shipments.map(s => [s.id, s.customerName, s.origin, s.destination, s.weightTonnes, s.totalEmissionsKg, s.totalCost, s.status]);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ecofreight-csrd-cbam-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     const fetchInsights = async () => {
       setLoading(true);
@@ -48,14 +60,14 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
     <div className="space-y-8 animate-in fade-in duration-1000">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Sustainability Intelligence</h1>
-          <p className="text-slate-500 font-medium">CBAM Compliance, EU ETS & Carbon Accounting</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t.sustTitle}</h1>
+          <p className="text-slate-500 font-medium">{t.sustSubtitle}</p>
         </div>
         <div className="flex items-center gap-3 bg-white p-2 pr-4 rounded-2xl border border-emerald-100 shadow-sm">
           <div className="bg-emerald-500 p-2 rounded-xl text-white glow-emerald"><ShieldCheck size={20} /></div>
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ESG Score</p>
-            <p className="text-sm font-extrabold text-emerald-700">84 / 100</p>
+            <p className="text-sm font-extrabold text-emerald-700">{isNeutralized ? 92 : 84} / 100</p>
           </div>
         </div>
       </div>
@@ -74,7 +86,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
               <div className="flex items-center gap-3 mb-6">
                  <div className="bg-blue-600 p-3 rounded-2xl text-white"><Landmark size={22} /></div>
                  <div>
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Compliance Engine</h3>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">{t.complianceEngine}</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CBAM & EU Emissions Trading System (ETS)</p>
                  </div>
               </div>
@@ -95,14 +107,14 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
                        <div className="h-full bg-emerald-500 w-3/4"></div>
                     </div>
                  </div>
-                 <button className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">
-                    <FileText size={14} /> Export CSRD / CBAM Report
+                 <button onClick={exportReport} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">
+                    <FileText size={14} /> {t.exportReport}
                  </button>
               </div>
             </div>
 
             <div className="h-full min-h-[300px] flex flex-col justify-between">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Emissions by Geo-Regulatory Zone</h4>
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t.emissionsByZone}</h4>
               <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                    <BarChart data={zoneData}>
@@ -118,16 +130,16 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
 
         <div className="space-y-8">
           <div className="rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden bg-slate-900 text-white">
-            <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Offset Market</h3>
-            <p className="text-4xl font-extrabold tracking-tight mb-2 text-white">{formatEUR(offsetCost, 2)}</p>
-            <p className="text-slate-400 text-xs mb-8">Neutralize footprint via Verified Carbon Standard (VCS) projects.</p>
-            <button className="w-full bg-white text-slate-900 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-all">Invest Now</button>
+            <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">{t.offsetMarket}</h3>
+            <p className="text-4xl font-extrabold tracking-tight mb-2 text-white">{formatEUR(isNeutralized ? 0 : offsetCost, 2)}</p>
+            <p className="text-slate-400 text-xs mb-8">{t.offsetDesc}</p>
+            <button onClick={() => setIsNeutralized(true)} disabled={isNeutralized} className="w-full bg-white text-slate-900 py-4 rounded-2xl font-bold hover:bg-emerald-50 disabled:bg-emerald-500 disabled:text-white transition-all">{isNeutralized ? t.neutralized : t.investNow}</button>
           </div>
 
           <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-6">
               <Sparkles className="text-indigo-500" size={20} />
-              <h3 className="font-extrabold text-slate-800 uppercase tracking-wider text-xs">Sustainability Co-Pilot</h3>
+              <h3 className="font-extrabold text-slate-800 uppercase tracking-wider text-xs">{t.coPilot}</h3>
             </div>
             <div className="space-y-4">
               {loading ? <div className="animate-pulse h-24 bg-slate-50 rounded-2xl" /> : recommendations.map((rec, i) => (
