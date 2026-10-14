@@ -241,7 +241,7 @@ async function startServer() {
 
   // Document extract endpoint
   app.post('/api/gemini/document-extract', async (req, res) => {
-    const { imageBase64 } = req.body;
+    const { imageBase64, mimeType } = req.body;
 
     if (ai && imageBase64) {
       try {
@@ -250,7 +250,7 @@ async function startServer() {
           contents: {
             parts: [
               { text: 'Extract shipment details: customer, origin, destination, weight (in tonnes number), type, incoterms. Return JSON.' },
-              { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }
+              { inlineData: { mimeType: mimeType || 'image/jpeg', data: imageBase64 } }
             ]
           },
           config: { responseMimeType: 'application/json' }

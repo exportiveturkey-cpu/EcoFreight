@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert } from 'lucide-react';
 import { Shipment, ShipmentStatus, TransportMode } from '../types';
 import { calculateLegEmissions } from '../services/carbon';
-import { Language, translations } from '../services/i18n';
+import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
 import { formatEUR, formatNumber } from '../services/formatters';
@@ -30,9 +30,28 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [analyticsShipment, setAnalyticsShipment] = useState<Shipment | null>(null);
   const [showPortalPreview, setShowPortalPreview] = useState<Shipment | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [newShipment, setNewShipment] = useState({ customer: '', origin: '', destination: '', weight: 1, volume: 2.5, type: 'General Cargo', incoterms: 'CIF' });
+  const emptyShipment = { customer: '', origin: '', destination: '', weight: 1, volume: 2.5, type: 'General Cargo', incoterms: 'CIF' };
+  const [newShipment, setNewShipment] = useState(emptyShipment);
+  const canAnalyze = !!(newShipment.customer.trim() && newShipment.origin.trim() && newShipment.destination.trim() && newShipment.weight > 0);
+
+  const openNewShipment = () => {
+    setNewShipment(emptyShipment);
+    setRouteOptions([]);
+    setSelectedRoute(null);
+    setStep(1);
+    setModalOpen(true);
+  };
+
+  const copyTrackingLink = async (s: Shipment) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/?track=${encodeURIComponent(s.id)}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {}
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,14 +60,15 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
     const reader = new FileReader();
     reader.onload = async () => {
       const base64 = (reader.result as string).split(',')[1];
-      const extractedData = await processShipmentDocument(base64);
-      if (extractedData) setNewShipment({ ...newShipment, customer: extractedData.customer || '', origin: extractedData.origin || '', destination: extractedData.destination || '', weight: extractedData.weight || 1, type: extractedData.type || 'General Cargo' });
+      const extractedData = await processShipmentDocument(base64, file.type);
+      if (extractedData) setNewShipment(prev => ({ ...prev, customer: extractedData.customer || '', origin: extractedData.origin || '', destination: extractedData.destination || '', weight: Number(extractedData.weight) || 1, type: extractedData.type || 'General Cargo', incoterms: extractedData.incoterms || prev.incoterms }));
       setIsProcessing(false);
     };
     reader.readAsDataURL(file);
   };
 
   const handleAnalyze = async () => {
+    if (!canAnalyze || isAnalyzing) return;
     setIsAnalyzing(true);
     const options = await getRouteComparison(newShipment.origin, newShipment.destination, newShipment.weight);
     setRouteOptions(options);
@@ -126,15 +146,15 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
 
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Enterprise Logistics</h1>
-          <p className="text-slate-500 font-medium">Multi-Tenant Consignment Operations & Customer Tracking</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t.shipTitle}</h1>
+          <p className="text-slate-500 font-medium">{t.shipSubtitle}</p>
         </div>
         <button 
           onClick={() => {
             if (isReadOnly) {
               setShowReadOnlyNotice(true);
             } else {
-              setModalOpen(true);
+              openNewShipment();
             }
           }} 
           className={`px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all ${
@@ -153,10 +173,10 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID / Customer</th>
-              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Route</th>
-              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-              <th className="px-8 py-5 text-right">Actions</th>
+              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.idCustomer}</th>
+              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.route}</th>
+              <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.status}</th>
+              <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -167,15 +187,18 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                   <p className="text-xs text-slate-500 font-medium">{s.customerName}</p>
                 </td>
                 <td className="px-8 py-6 text-sm font-bold text-slate-700">{s.origin} → {s.destination}</td>
-                <td className="px-8 py-6"><span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest">{s.status}</span></td>
+                <td className="px-8 py-6"><span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest">{statusLabel(s.status, t)}</span></td>
                 <td className="px-8 py-6 text-right relative">
                    <div className="flex justify-end gap-2">
                       <button onClick={() => setShowPortalPreview(s)} className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-xl transition-all" title="Customer Portal View"><Share2 size={18} /></button>
-                      <button onClick={() => setAnalyticsShipment(s)} className="p-2 hover:bg-slate-100 text-slate-400 rounded-xl transition-all"><Eye size={18} /></button>
+                      <button onClick={() => setAnalyticsShipment(s)} className="p-2 hover:bg-slate-100 text-slate-400 rounded-xl transition-all" title={t.shipmentDetails}><Eye size={18} /></button>
                    </div>
                 </td>
               </tr>
             ))}
+            {shipments.length === 0 && (
+              <tr><td colSpan={4} className="px-8 py-10 text-center text-sm text-slate-400">{t.noShipments}</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -187,7 +210,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
              <div className="p-8 bg-emerald-600 text-white flex justify-between items-center">
                 <div className="flex items-center gap-2">
                    <Globe size={20} />
-                   <h2 className="text-lg font-black tracking-tight">Public Tracking Portal</h2>
+                   <h2 className="text-lg font-black tracking-tight">{t.publicPortal}</h2>
                 </div>
                 <button onClick={() => setShowPortalPreview(null)} className="p-2 bg-white/20 rounded-xl"><X size={20} /></button>
              </div>
@@ -207,7 +230,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                    <p className="text-sm font-bold text-slate-700 leading-relaxed">This shipment saved <span className="text-emerald-600">42.5kg of CO2</span> compared to industry average.</p>
                 </div>
                 <div className="space-y-4">
-                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Tracking History</p>
+                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{t.history}</p>
                    {showPortalPreview.trackingHistory.map((h, i) => (
                       <div key={i} className="flex gap-4">
                          <div className="w-px bg-slate-200 relative"><div className="absolute top-0 left-[-4px] w-2 h-2 rounded-full bg-emerald-500"></div></div>
@@ -218,8 +241,46 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                       </div>
                    ))}
                 </div>
-                <button className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-emerald-600/20">Copy Tracking Link</button>
+                <button onClick={() => copyTrackingLink(showPortalPreview)} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-emerald-600/20">{linkCopied ? t.copied : t.copyTrackingLink}</button>
              </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shipment Details Modal */}
+      {analyticsShipment && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md" onClick={() => setAnalyticsShipment(null)}>
+          <div className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-8 space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.shipmentDetails}</p>
+                <h2 className="text-2xl font-black text-slate-900">{analyticsShipment.id} · {analyticsShipment.customerName}</h2>
+                <p className="text-sm font-bold text-slate-500">{analyticsShipment.origin} → {analyticsShipment.destination} · {analyticsShipment.weightTonnes}t · {analyticsShipment.incoterms}</p>
+              </div>
+              <button onClick={() => setAnalyticsShipment(null)} className="p-2 hover:bg-slate-100 rounded-xl" title={t.close}><X size={20} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.totalCost}</p>
+                <p className="text-xl font-black text-slate-900">{formatEUR(analyticsShipment.totalCost, 0)}</p>
+              </div>
+              <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100">
+                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">{t.emissions}</p>
+                <p className="text-xl font-black text-emerald-800">{formatNumber(analyticsShipment.totalEmissionsKg)} kg CO2e</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.legs}</p>
+              {analyticsShipment.legs.map(l => (
+                <div key={l.id} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 text-xs">
+                  <span className="font-black text-slate-700 w-14">{l.mode}</span>
+                  <span className="flex-1 font-bold text-slate-600 truncate">{l.origin} → {l.destination}</span>
+                  <span className="font-mono text-slate-500 w-20 text-right">{formatNumber(l.distanceKm)} km</span>
+                  <span className="font-mono text-emerald-700 w-24 text-right">{formatNumber(l.emissionsKg)} kg</span>
+                  <span className="font-mono font-bold text-slate-900 w-20 text-right">{formatEUR(l.cost, 0)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -229,29 +290,30 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
            <div className="bg-white rounded-[3rem] w-full max-w-4xl shadow-2xl overflow-hidden p-10 space-y-8">
               <div className="flex justify-between items-center">
-                 <h2 className="text-2xl font-black text-slate-900">New Shipment Analysis</h2>
+                 <h2 className="text-2xl font-black text-slate-900">{t.newShipmentAnalysis}</h2>
                  <button onClick={() => setModalOpen(false)}><X /></button>
               </div>
               {step === 1 ? (
                 <div className="space-y-6">
                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-slate-200 p-10 rounded-[2.5rem] flex flex-col items-center cursor-pointer hover:bg-slate-50">
-                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                      <UploadCloud className="text-slate-400 mb-4" size={48} />
-                      <p className="text-sm font-bold text-slate-500">Drop BOL here to auto-fill</p>
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
+                      {isProcessing ? <Loader2 className="text-slate-400 mb-4 animate-spin" size={48} /> : <UploadCloud className="text-slate-400 mb-4" size={48} />}
+                      <p className="text-sm font-bold text-slate-500">{t.dropBol}</p>
                    </div>
                    <div className="grid grid-cols-2 gap-4">
-                      <input placeholder="Customer" value={newShipment.customer} onChange={e => setNewShipment({...newShipment, customer: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
-                      <input placeholder="Origin" value={newShipment.origin} onChange={e => setNewShipment({...newShipment, origin: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
-                      <input placeholder="Destination" value={newShipment.destination} onChange={e => setNewShipment({...newShipment, destination: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
-                      <input placeholder="Weight" type="number" value={newShipment.weight} onChange={e => setNewShipment({...newShipment, weight: parseFloat(e.target.value)})} className="p-4 bg-slate-50 rounded-2xl border" />
+                      <input placeholder={t.customer} value={newShipment.customer} onChange={e => setNewShipment({...newShipment, customer: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
+                      <input placeholder={t.origin} value={newShipment.origin} onChange={e => setNewShipment({...newShipment, origin: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
+                      <input placeholder={t.destination} value={newShipment.destination} onChange={e => setNewShipment({...newShipment, destination: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
+                      <input placeholder={t.weight} type="number" min="0" step="0.1" value={Number.isNaN(newShipment.weight) ? '' : newShipment.weight} onChange={e => setNewShipment({...newShipment, weight: parseFloat(e.target.value)})} className="p-4 bg-slate-50 rounded-2xl border" />
                    </div>
-                   <button onClick={handleAnalyze} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase tracking-widest text-xs flex justify-center gap-2">
-                      {isAnalyzing ? <Loader2 className="animate-spin" /> : <Sparkles size={16} />} Analyze Options
+                   {!canAnalyze && <p className="text-xs text-slate-400">{t.fillRequired}</p>}
+                   <button onClick={handleAnalyze} disabled={!canAnalyze || isAnalyzing} className="w-full py-4 bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold uppercase tracking-widest text-xs flex justify-center gap-2">
+                      {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {t.analyzeOptions}
                    </button>
                 </div>
               ) : (
                 <div className="space-y-6">
-                   <div className="grid grid-cols-3 gap-4">
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {routeOptions.map((opt: any, i) => (
                         <div key={i} onClick={() => setSelectedRoute(opt)} className={`p-6 rounded-[2rem] border-2 cursor-pointer ${selectedRoute?.mode === opt.mode ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100'}`}>
                            <p className="text-[10px] font-black uppercase text-slate-400 mb-2">{opt.label}</p>
@@ -261,7 +323,10 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                         </div>
                       ))}
                    </div>
-                   <button onClick={handleSubmit} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl">Book Now</button>
+                   <div className="flex gap-3">
+                      <button onClick={() => setStep(1)} className="px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black uppercase tracking-widest text-xs">{t.back}</button>
+                      <button onClick={handleSubmit} disabled={!selectedRoute} className="flex-1 py-4 bg-emerald-600 disabled:opacity-40 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl">{t.bookNow}</button>
+                   </div>
                 </div>
               )}
            </div>
