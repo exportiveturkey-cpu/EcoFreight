@@ -169,8 +169,8 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
         </button>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.idCustomer}</th>
