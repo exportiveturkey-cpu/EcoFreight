@@ -148,6 +148,8 @@ export interface Translations {
   qpFleet: string;
   qpFleetQ: string;
   notifications: string;
+  preferredCarrier: string;
+  preferredCarrierSet: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -294,7 +296,9 @@ export const translations: Record<Language, Translations> = {
     qpEmissionsQ: "Summarize the carbon emission reduction potential across Road vs Rail vs Sea under the GLEC framework.",
     qpFleet: "Fleet Optimization",
     qpFleetQ: "What operational strategies can our fleet adopt to minimize fuel consumption and comply with EU CBAM requirements?",
-    notifications: "Latest Updates"
+    notifications: "Latest Updates",
+    preferredCarrier: "Preferred Carrier",
+    preferredCarrierSet: "Preferred"
   },
   tr: {
     dashboard: "Panel",
@@ -439,7 +443,9 @@ export const translations: Record<Language, Translations> = {
     qpEmissionsQ: "GLEC çerçevesinde Karayolu, Demiryolu ve Deniz arasındaki karbon emisyonu azaltım potansiyelini özetle.",
     qpFleet: "Filo Optimizasyonu",
     qpFleetQ: "Filomuz yakıt tüketimini azaltmak ve AB CBAM gerekliliklerine uymak için hangi stratejileri benimseyebilir?",
-    notifications: "Son Güncellemeler"
+    notifications: "Son Güncellemeler",
+    preferredCarrier: "Tercih Edilen Taşıyıcı",
+    preferredCarrierSet: "Tercih Edildi"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -584,7 +590,9 @@ export const translations: Record<Language, Translations> = {
     qpEmissionsQ: "Σύνοψε το δυναμικό μείωσης εκπομπών άνθρακα μεταξύ Οδικών, Σιδηροδρομικών και Θαλάσσιων μεταφορών βάσει GLEC.",
     qpFleet: "Βελτιστοποίηση Στόλου",
     qpFleetQ: "Ποιες στρατηγικές μπορεί να υιοθετήσει ο στόλος μας για ελάχιστη κατανάλωση καυσίμου και συμμόρφωση με το EU CBAM;",
-    notifications: "Τελευταίες Ενημερώσεις"
+    notifications: "Τελευταίες Ενημερώσεις",
+    preferredCarrier: "Προτιμώμενος Μεταφορέας",
+    preferredCarrierSet: "Προτιμώμενος"
   }
 };
 
