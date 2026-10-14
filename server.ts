@@ -7,7 +7,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function callWithTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
+async function callWithTimeout<T>(promise: Promise<T>, timeoutMs = 20000): Promise<T> {
   let timer: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error('AI request timeout')), timeoutMs);
@@ -64,6 +64,8 @@ async function startServer() {
             }
           }
         }
+        // Gemini expects the conversation to start with a user turn
+        while (contents.length && contents[0].role === 'model') contents.shift();
         contents.push({
           role: 'user',
           parts: [{ text: String(message) }],
@@ -77,7 +79,7 @@ async function startServer() {
           },
         });
 
-        const response = await callWithTimeout(apiPromise, 3000);
+        const response = await callWithTimeout(apiPromise);
         if (response?.text) {
           return res.json({ text: response.text });
         }
@@ -135,7 +137,7 @@ async function startServer() {
           },
         });
 
-        const response = await callWithTimeout(apiPromise, 3000);
+        const response = await callWithTimeout(apiPromise);
         const parsed = JSON.parse(response?.text || '[]');
         if (Array.isArray(parsed) && parsed.length > 0) {
           return res.json(parsed);
@@ -208,7 +210,7 @@ async function startServer() {
           },
         });
 
-        const response = await callWithTimeout(apiPromise, 3000);
+        const response = await callWithTimeout(apiPromise);
         const parsed = JSON.parse(response?.text || '[]');
         if (Array.isArray(parsed) && parsed.length > 0) {
           return res.json(parsed);
@@ -253,7 +255,7 @@ async function startServer() {
           },
           config: { responseMimeType: 'application/json' }
         });
-        const response = await callWithTimeout(apiPromise, 3000);
+        const response = await callWithTimeout(apiPromise);
         if (response?.text) {
           return res.json(JSON.parse(response.text));
         }
@@ -285,7 +287,7 @@ async function startServer() {
             responseMimeType: 'application/json',
           },
         });
-        const response = await callWithTimeout(apiPromise, 3000);
+        const response = await callWithTimeout(apiPromise);
         const parsed = JSON.parse(response?.text || '[]');
         if (Array.isArray(parsed) && parsed.length > 0) {
           return res.json(parsed);
