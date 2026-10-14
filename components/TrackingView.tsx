@@ -6,7 +6,7 @@ import {
   Camera, UploadCloud, XCircle, CheckCircle, Compass, Anchor, Wind
 } from 'lucide-react';
 import { Shipment, Leg, TransportMode } from '../types';
-import { Language, translations } from '../services/i18n';
+import { Language, translations, statusLabel } from '../services/i18n';
 import { getLocationInsights, MapInsight, predictShipmentETA, getRiskAlerts, analyzeCargoDamage } from '../services/gemini';
 
 interface TrackingViewProps { shipments: Shipment[]; lang: Language; }
@@ -126,10 +126,10 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
     <div className="h-full flex flex-col gap-6 animate-in slide-in-from-right-4 duration-700">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Logistics Command Center</h1>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t.trackTitle}</h1>
           <p className="text-slate-500 font-medium flex items-center gap-2">
             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-            Real-time Geospatial Telemetry, AIS Corridor Tracking & AI Vision Audit
+            {t.trackSubtitle}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -147,7 +147,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
         {/* Left: Shipment Selector & Live Risks */}
         <div className="lg:col-span-3 space-y-4 overflow-y-auto custom-scrollbar">
           <div className="space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Active Vessels & Consignments</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">{t.activeConsignments}</p>
             {shipments.map(s => (
               <button 
                 key={s.id} 
@@ -163,7 +163,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                     {s.id}
                   </span>
                   <span className="text-[10px] font-bold text-slate-400 font-mono">
-                    {s.status}
+                    {statusLabel(s.status, t)}
                   </span>
                 </div>
                 <p className="text-sm font-black text-slate-900 truncate">{s.customerName}</p>
@@ -176,7 +176,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
           <div className="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-xl">
              <div className="flex items-center justify-between mb-4">
                <h3 className="text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                 <AlertOctagon size={14} /> Chokepoint Alerts
+                 <AlertOctagon size={14} /> {t.chokepointAlerts}
                </h3>
                {loadingRisks && <Loader2 size={12} className="animate-spin text-amber-400" />}
              </div>
@@ -239,7 +239,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
 
              {/* Dynamic Vector Route Canvas with SVG Line & Waypoint Beacons */}
              <div className="relative z-10 flex-1 my-4 flex items-center justify-center">
-                <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#10b981" />
@@ -247,7 +247,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                       <stop offset="100%" stopColor="#6366f1" />
                     </linearGradient>
                     <filter id="glow">
-                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                      <feGaussianBlur stdDeviation="0.6" result="coloredBlur"/>
                       <feMerge>
                         <feMergeNode in="coloredBlur"/>
                         <feMergeNode in="SourceGraphic"/>
@@ -260,22 +260,24 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                     <>
                       {/* Glow line */}
                       <path
-                        d={waypoints.map((w, idx) => `${idx === 0 ? 'M' : 'L'} ${w.x}% ${w.y}%`).join(' ')}
+                        d={waypoints.map((w, idx) => `${idx === 0 ? 'M' : 'L'} ${w.x} ${w.y}`).join(' ')}
                         fill="none"
                         stroke="#10b981"
                         strokeWidth="5"
                         strokeOpacity="0.3"
                         strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
                         filter="url(#glow)"
                       />
                       {/* Animated dashed line */}
                       <path
-                        d={waypoints.map((w, idx) => `${idx === 0 ? 'M' : 'L'} ${w.x}% ${w.y}%`).join(' ')}
+                        d={waypoints.map((w, idx) => `${idx === 0 ? 'M' : 'L'} ${w.x} ${w.y}`).join(' ')}
                         fill="none"
                         stroke="url(#routeGradient)"
                         strokeWidth="2.5"
                         strokeDasharray="6 4"
                         strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
                         className="animate-pulse"
                       />
                     </>
@@ -365,7 +367,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                 <div className="flex items-center gap-3">
                    <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-md shadow-indigo-500/20"><Camera size={18} /></div>
                    <div>
-                     <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">AI Computer Vision: Cargo Integrity Audit</h3>
+                     <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">{t.damageAudit}</h3>
                      <p className="text-[10px] text-slate-500 font-medium">Automatic damage and container seal inspection via Gemini Multimodal</p>
                    </div>
                 </div>
@@ -373,7 +375,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                   onClick={() => fileInputRef.current?.click()} 
                   className="text-[10px] font-black uppercase tracking-widest text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center gap-2 active:scale-95"
                 >
-                  <UploadCloud size={14} /> Upload Inspection Photo
+                  <UploadCloud size={14} /> {t.uploadPhoto}
                 </button>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleDamageAudit} />
              </div>
@@ -408,7 +410,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
         {/* Right: Detailed Telemetry & Route Legs */}
         <div className="lg:col-span-3 space-y-6">
           <div className="bg-white rounded-[2.5rem] p-7 border border-slate-200 shadow-sm">
-             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Consignment Metrics</h3>
+             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t.consignmentMetrics}</h3>
              <div className="space-y-4">
                 <StatRow icon={<Scale size={14}/>} label="Cargo Weight" value={`${selectedShipment?.weightTonnes} Tonnes`} />
                 <StatRow icon={<Gauge size={14}/>} label="GLEC CO2e" value={`${selectedShipment?.totalEmissionsKg} kg`} />
@@ -419,7 +421,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
           </div>
 
           <div className="bg-white rounded-[2.5rem] p-7 border border-slate-200 shadow-sm">
-             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Milestone History</h3>
+             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">{t.milestoneHistory}</h3>
              <div className="space-y-4">
                {selectedShipment?.trackingHistory?.map((th, i) => (
                  <div key={i} className="flex items-start gap-3 relative pb-3 border-b border-slate-100 last:border-0 last:pb-0">
