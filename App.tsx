@@ -6,6 +6,7 @@ import {
   Map as MapIcon,
   Leaf, 
   Settings, 
+  Menu,
   Search,
   Bell,
   BookOpen,
@@ -40,6 +41,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'shipments' | 'tracking' | 'sustainability' | 'network' | 'docs' | 'ai-assistant'>('dashboard');
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileNav, setMobileNav] = useState(false);
   const [lang, setLang] = useState<Language>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -181,7 +183,8 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#f1f5f9] overflow-hidden">
-      <aside className={`${isSidebarOpen ? 'w-72' : 'w-24'} glass-sidebar h-full transition-all duration-500 flex flex-col z-50`}>
+      {mobileNav && <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setMobileNav(false)} />}
+      <aside className={`${isSidebarOpen ? 'w-72' : 'w-24'} ${mobileNav ? '' : 'max-md:-translate-x-full'} max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:w-72 glass-sidebar h-full transition-all duration-500 flex flex-col z-50`}>
         <div className="p-8 flex items-center justify-between">
           <button type="button" onClick={() => setSidebarOpen(!isSidebarOpen)} className="flex items-center gap-3" title={isSidebarOpen ? 'Collapse' : 'Expand'}>
             <div className="bg-emerald-500 p-2.5 rounded-2xl shadow-lg shadow-emerald-500/40"><Leaf className="text-white w-6 h-6" /></div>
@@ -190,7 +193,7 @@ const App: React.FC = () => {
           {isSidebarOpen && <ChevronRight size={18} className="text-slate-500 rotate-180 cursor-pointer hover:text-white" onClick={() => setSidebarOpen(false)} />}
         </div>
 
-        <div className="px-6 py-6 flex-1 space-y-2 overflow-y-auto custom-scrollbar">
+        <div onClick={() => setMobileNav(false)} className="px-6 py-6 flex-1 space-y-2 overflow-y-auto custom-scrollbar">
           <NavItem icon={<LayoutGrid size={22} />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Truck size={22} />} label={t.shipments} active={activeTab === 'shipments'} onClick={() => setActiveTab('shipments')} collapsed={!isSidebarOpen} />
           <NavItem icon={<MapIcon size={22} />} label={t.tracking} active={activeTab === 'tracking'} onClick={() => setActiveTab('tracking')} collapsed={!isSidebarOpen} />
@@ -232,9 +235,10 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-24 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-12 z-40 shrink-0">
-           <div className="flex items-center gap-4 bg-slate-100/50 border border-slate-200 rounded-2xl px-5 py-2.5 w-96">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <header className="h-24 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between gap-3 px-4 md:px-12 z-40 shrink-0">
+           <button type="button" onClick={() => { setSidebarOpen(true); setMobileNav(true); }} className="md:hidden text-slate-600 shrink-0"><Menu size={24} /></button>
+           <div className="flex items-center gap-4 bg-slate-100/50 border border-slate-200 rounded-2xl px-5 py-2.5 w-96 max-md:flex-1 max-md:min-w-0 max-md:px-3">
             <Search size={18} className="text-slate-400" />
             <input
               type="text"
@@ -371,7 +375,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-12 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-12 custom-scrollbar">
           {activeTab === 'dashboard' && <Dashboard shipments={shipments} lang={lang} />}
           {activeTab === 'shipments' && (
             <ShipmentManager 
