@@ -59,8 +59,9 @@ const App: React.FC = () => {
 
   const t = translations[lang] || translations.en;
 
-  // Lets the browser apply language-specific casing (Turkish İ, Greek accents in uppercase)
-  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+  // Lets the browser drop accents on Greek uppercase. Turkish stays 'en': many labels are still
+  // English, and Turkish casing would dot their i's (HİGH İMPACT).
+  useEffect(() => { document.documentElement.lang = lang === 'tr' ? 'en' : lang; }, [lang]);
 
   const handleLangChange = (newLang: Language) => {
     setLang(newLang);
