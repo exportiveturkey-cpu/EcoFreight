@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Send, Sparkles, MessageSquare, Loader2, Volume2, ShieldCheck, Terminal, Bot, User, CheckCircle2 } from 'lucide-react';
 import { sendChatMessage, checkGeminiStatus } from '../services/gemini';
+import { Language, translations } from '../services/i18n';
 
-const AIAssistant: React.FC = () => {
-  const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([
-    {
-      role: 'model',
-      text: 'Welcome to the EcoFreight AI Command Center powered by Google Gemini. How can I assist you with route decarbonization, CBAM compliance, or multimodal logistics today?'
-    }
-  ]);
+const VOICE_LANG: Record<Language, string> = { en: 'en-US', el: 'el-GR', tr: 'tr-TR' };
+
+const AIAssistant: React.FC<{ lang: Language }> = ({ lang }) => {
+  const t = translations[lang];
+  // The welcome bubble is rendered separately so it follows the language switch and is not sent as history
+  const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
@@ -23,24 +23,6 @@ const AIAssistant: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
-
-  const handleQuickAction = (label: string) => {
-    let query = "";
-    switch(label) {
-      case "Check Suez Delays": 
-        query = "What is the current status of Suez Canal and Red Sea maritime traffic, and how should we mitigate delays and emissions?"; 
-        break;
-      case "Emission Summary": 
-        query = "Summarize the carbon emission reduction potential across multimodal transport modes (Road vs Rail vs Sea) under the GLEC framework."; 
-        break;
-      case "Fleet Optimization": 
-        query = "What operational strategies can our fleet adopt to minimize fuel consumption and comply with EU CBAM requirements?"; 
-        break;
-      default: 
-        query = label;
-    }
-    sendMessage(query);
-  };
 
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
@@ -60,12 +42,13 @@ const AIAssistant: React.FC = () => {
       if (isVoiceActive && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(reply.slice(0, 300));
         utterance.rate = 1.05;
+        utterance.lang = VOICE_LANG[lang];
         window.speechSynthesis.speak(utterance);
       }
     } catch (err: any) {
       setMessages([
         ...updatedMessages,
-        { role: 'model', text: 'Operational notice: Gemini model response could not be completed. Please verify connection.' }
+        { role: 'model', text: t.aiError }
       ]);
     } finally {
       setIsLoading(false);
@@ -86,7 +69,7 @@ const AIAssistant: React.FC = () => {
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Voice input is not supported in this browser. Please type your message.");
+      alert(t.voiceUnsupported);
       return;
     }
 
@@ -94,7 +77,7 @@ const AIAssistant: React.FC = () => {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
-      recognition.lang = 'en-US';
+      recognition.lang = VOICE_LANG[lang];
 
       recognition.onstart = () => {
         setIsVoiceActive(true);
@@ -128,8 +111,8 @@ const AIAssistant: React.FC = () => {
     <div className="h-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight">AI Command Center</h1>
-          <p className="text-slate-500 font-medium">Real-time Multimodal Logistics Intelligence with Google Gemini</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t.aiTitle}</h1>
+          <p className="text-slate-500 font-medium">{t.aiSubtitle}</p>
         </div>
         <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-2 rounded-2xl border border-emerald-200 shadow-sm">
           <ShieldCheck size={16} className="text-emerald-600" />
@@ -156,12 +139,12 @@ const AIAssistant: React.FC = () => {
               onClick={toggleVoiceOps}
               className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 ${isVoiceActive ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' : 'bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-900/10'}`}
             >
-              {isVoiceActive ? <><MicOff size={18} /> Listening...</> : <><Mic size={18} /> Voice Input</>}
+              {isVoiceActive ? <><MicOff size={18} /> {t.listening}</> : <><Mic size={18} /> {t.voiceInput}</>}
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
-            {messages.map((m, i) => (
+            {[{ role: 'model' as const, text: t.aiWelcome }, ...messages].map((m, i) => (
               <div key={i} className={`flex items-start gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {m.role === 'model' && (
                   <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-1">
@@ -190,7 +173,7 @@ const AIAssistant: React.FC = () => {
                 </div>
                 <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-[2rem] rounded-tl-none flex items-center gap-3 text-slate-600 text-sm">
                   <Loader2 className="animate-spin text-emerald-600" size={18} />
-                  <span>Gemini is analyzing multimodal logistics data...</span>
+                  <span>{t.aiThinking}</span>
                 </div>
               </div>
             )}
@@ -203,7 +186,7 @@ const AIAssistant: React.FC = () => {
                   type="text" 
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask Gemini about multimodal routes, CBAM carbon tariffs, or emissions..." 
+                  placeholder={t.aiPlaceholder}
                   className="flex-1 bg-transparent px-6 py-2 outline-none text-sm font-medium text-slate-800 placeholder-slate-400" 
                   disabled={isLoading}
                 />
@@ -222,12 +205,12 @@ const AIAssistant: React.FC = () => {
           <div className="bg-slate-900 rounded-[3rem] p-8 text-white shadow-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
              <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-               <Terminal size={14} /> Quick AI Prompts
+               <Terminal size={14} /> {t.quickPrompts}
              </h3>
              <div className="space-y-3">
-               <QuickActionButton label="Check Suez Delays" onClick={() => handleQuickAction("Check Suez Delays")} />
-               <QuickActionButton label="Emission Summary" onClick={() => handleQuickAction("Emission Summary")} />
-               <QuickActionButton label="Fleet Optimization" onClick={() => handleQuickAction("Fleet Optimization")} />
+               <QuickActionButton label={t.qpSuez} onClick={() => sendMessage(t.qpSuezQ)} />
+               <QuickActionButton label={t.qpEmissions} onClick={() => sendMessage(t.qpEmissionsQ)} />
+               <QuickActionButton label={t.qpFleet} onClick={() => sendMessage(t.qpFleetQ)} />
              </div>
           </div>
 

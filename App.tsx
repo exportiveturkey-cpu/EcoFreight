@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const t = translations[lang] || translations.en;
 
@@ -163,16 +164,26 @@ const App: React.FC = () => {
   if (authLoading) return <div className="h-screen w-full bg-[#0f172a] flex items-center justify-center"><div className="w-16 h-16 border-b-2 border-emerald-500 rounded-full animate-spin"></div></div>;
   if (!user) return <Login onLoginSuccess={setUser} lang={lang} onLangChange={handleLangChange} />;
 
+  const q = searchQuery.trim().toLowerCase();
+  const visibleShipments = q
+    ? shipments.filter(s => [s.id, s.customerName, s.origin, s.destination, s.cargoType].some(v => v.toLowerCase().includes(q)))
+    : shipments;
+  const latestEvents = shipments
+    .flatMap(s => s.trackingHistory.map(e => ({ ...e, shipmentId: s.id })))
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    .slice(0, 5);
+
   const isDemoExpired = user?.isDemo && user.daysRemaining !== undefined && user.daysRemaining <= 0;
 
   return (
     <div className="flex h-screen bg-[#f1f5f9] overflow-hidden">
       <aside className={`${isSidebarOpen ? 'w-72' : 'w-24'} glass-sidebar h-full transition-all duration-500 flex flex-col z-50`}>
         <div className="p-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <button type="button" onClick={() => setSidebarOpen(!isSidebarOpen)} className="flex items-center gap-3" title={isSidebarOpen ? 'Collapse' : 'Expand'}>
             <div className="bg-emerald-500 p-2.5 rounded-2xl shadow-lg shadow-emerald-500/40"><Leaf className="text-white w-6 h-6" /></div>
             {isSidebarOpen && <span className="font-extrabold text-2xl text-white tracking-tight">EcoFreight</span>}
-          </div>
+          </button>
+          {isSidebarOpen && <ChevronRight size={18} className="text-slate-500 rotate-180 cursor-pointer hover:text-white" onClick={() => setSidebarOpen(false)} />}
         </div>
 
         <div className="px-6 py-6 flex-1 space-y-2 overflow-y-auto custom-scrollbar">
@@ -220,7 +231,17 @@ const App: React.FC = () => {
         <header className="h-24 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-12 z-40 shrink-0">
            <div className="flex items-center gap-4 bg-slate-100/50 border border-slate-200 rounded-2xl px-5 py-2.5 w-96">
             <Search size={18} className="text-slate-400" />
-            <input type="text" placeholder={t.search} className="bg-transparent border-none outline-none text-sm w-full font-medium" />
+            <input
+              type="text"
+              placeholder={t.search}
+              value={searchQuery}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                if (activeTab !== 'shipments' && activeTab !== 'tracking') setActiveTab('shipments');
+              }}
+              className="bg-transparent border-none outline-none text-sm w-full font-medium"
+            />
+            {searchQuery && <button type="button" onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-700"><X size={16} /></button>}
           </div>
           <div className="flex items-center gap-4">
             {user && (
@@ -293,9 +314,22 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showNotifications)}>
-              <Bell size={22} className="text-slate-400" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
+            <div className="relative">
+              <button type="button" className="relative block" onClick={() => setShowNotifications(!showNotifications)} title={t.notifications}>
+                <Bell size={22} className="text-slate-400 hover:text-slate-700" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 top-10 w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 z-50 space-y-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.notifications}</p>
+                  {latestEvents.map((e, i) => (
+                    <div key={i} className="text-xs border-b border-slate-100 last:border-0 pb-2 last:pb-0">
+                      <p className="font-bold text-slate-800"><span className="font-mono text-emerald-700">{e.shipmentId}</span> · {e.status}</p>
+                      <p className="text-slate-500">{e.location} · {new Date(e.timestamp).toLocaleDateString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -336,17 +370,17 @@ const App: React.FC = () => {
           {activeTab === 'dashboard' && <Dashboard shipments={shipments} lang={lang} />}
           {activeTab === 'shipments' && (
             <ShipmentManager 
-              shipments={shipments} 
+              shipments={visibleShipments} 
               isReadOnly={user?.isReadOnly || false}
               onAdd={s => setShipments([s, ...shipments])} 
               onDelete={id => setShipments(shipments.filter(s => s.id !== id))} 
               lang={lang} 
             />
           )}
-          {activeTab === 'tracking' && <TrackingView shipments={shipments} lang={lang} />}
-          {activeTab === 'network' && <NetworkManager />}
+          {activeTab === 'tracking' && <TrackingView key={q} shipments={visibleShipments} lang={lang} />}
+          {activeTab === 'network' && <NetworkManager lang={lang} />}
           {activeTab === 'sustainability' && <SustainabilityHub shipments={shipments} lang={lang} />}
-          {activeTab === 'ai-assistant' && <AIAssistant />}
+          {activeTab === 'ai-assistant' && <AIAssistant lang={lang} />}
         </div>
       </main>
     </div>

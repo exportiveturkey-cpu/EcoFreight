@@ -153,12 +153,12 @@ export const getSustainabilityInsights = async (shipments: Shipment[]): Promise<
   }
 };
 
-export const processShipmentDocument = async (base64Image: string): Promise<any> => {
+export const processShipmentDocument = async (base64Image: string, mimeType = "image/jpeg"): Promise<any> => {
   try {
     const res = await fetch("/api/gemini/document-extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64: base64Image }),
+      body: JSON.stringify({ imageBase64: base64Image, mimeType }),
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     return await res.json();
