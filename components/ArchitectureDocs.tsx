@@ -35,8 +35,8 @@ const ArchitectureDocs: React.FC = () => {
                 <Zap size={20} className="text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-800">Cloud Run Microservices</p>
-                <p className="text-xs text-slate-500 mt-1">Full-stack Express gateway with TLS 1.3 containerized on Google Cloud.</p>
+                <p className="text-sm font-bold text-slate-800">Vercel</p>
+                <p className="text-xs text-slate-500 mt-1">Vite static frontend with the Express API gateway deployed as a serverless function.</p>
               </div>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">

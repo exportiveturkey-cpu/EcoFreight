@@ -59,6 +59,9 @@ const App: React.FC = () => {
 
   const t = translations[lang] || translations.en;
 
+  // Lets the browser apply language-specific casing (Turkish İ, Greek accents in uppercase)
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+
   const handleLangChange = (newLang: Language) => {
     setLang(newLang);
     try {
@@ -193,6 +196,7 @@ const App: React.FC = () => {
           <NavItem icon={<Globe size={22} />} label={t.globalNetwork} active={activeTab === 'network'} onClick={() => setActiveTab('network')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Leaf size={22} />} label={t.sustainability} active={activeTab === 'sustainability'} onClick={() => setActiveTab('sustainability')} collapsed={!isSidebarOpen} />
           <NavItem icon={<MessageSquare size={22} />} label={t.aiAssistant} active={activeTab === 'ai-assistant'} onClick={() => setActiveTab('ai-assistant')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<BookOpen size={22} />} label={t.docs} active={activeTab === 'docs'} onClick={() => setActiveTab('docs')} collapsed={!isSidebarOpen} />
         </div>
 
         <div className="p-6 border-t border-white/5 space-y-2">
@@ -381,6 +385,7 @@ const App: React.FC = () => {
           {activeTab === 'network' && <NetworkManager lang={lang} />}
           {activeTab === 'sustainability' && <SustainabilityHub shipments={shipments} lang={lang} />}
           {activeTab === 'ai-assistant' && <AIAssistant lang={lang} />}
+          {activeTab === 'docs' && <ArchitectureDocs />}
         </div>
       </main>
     </div>

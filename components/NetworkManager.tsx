@@ -1,10 +1,13 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Shield, Award, Leaf, Zap, Globe, Star, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { Language, translations } from '../services/i18n';
 
 const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
   const t = translations[lang];
+  const [preferred, setPreferred] = useState<string[]>([]);
+  const togglePreferred = (name: string) =>
+    setPreferred(p => (p.includes(name) ? p.filter(n => n !== name) : [...p, name]));
   const carriers = [
     { name: "Global Maritime Group", esg: 94, fleet: "Green LNG", reliability: "99.2%", badge: "Eco-Leader" },
     { name: "Atlas Air Freight", esg: 78, fleet: "Modern Bio-Jet", reliability: "98.5%", badge: "Reliable" },
@@ -51,8 +54,13 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
                 </div>
              </div>
 
-             <button className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">
-                Preferred Carrier <ArrowUpRight size={14} />
+             <button
+                onClick={() => togglePreferred(c.name)}
+                className={`w-full mt-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                  preferred.includes(c.name) ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-slate-900 text-white hover:bg-black'
+                }`}
+             >
+                {preferred.includes(c.name) ? <>{t.preferredCarrierSet} <CheckCircle2 size={14} /></> : <>{t.preferredCarrier} <ArrowUpRight size={14} /></>}
              </button>
           </div>
         ))}
