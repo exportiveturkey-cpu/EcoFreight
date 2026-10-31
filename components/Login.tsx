@@ -9,7 +9,23 @@ interface LoginProps {
   onLangChange?: (lang: Language) => void;
 }
 
-export const createDemoProfile = (type: 'jury' | 'client') => {
+export type DemoType = 'jury' | 'client' | 'demo';
+
+export const createDemoProfile = (type: DemoType) => {
+  if (type === 'demo') {
+    return {
+      uid: 'demo-account',
+      email: 'demo@ecofreight.eu',
+      displayName: 'EcoFreight Demo',
+      isDemo: true,
+      demoType: 'demo',
+      isReadOnly: false,
+      role: 'demo',
+      daysRemaining: 30,
+      totalDays: 30,
+      membershipExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    };
+  }
   if (type === 'jury') {
     return {
       uid: 'demo-nbg-seeds-jury-14d',
@@ -70,7 +86,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
       else if (langParam === 'tr') handleLanguageChange('tr');
       else if (langParam === 'en') handleLanguageChange('en');
 
-      if (demoParam === 'client') {
+      if (demoParam === 'demo' || demoParam === '1') {
+        handleDemoSelect('demo');
+      } else if (demoParam === 'client') {
         handleDemoSelect('client');
       } else if (demoParam === 'jury' || demoParam === 'evaluator') {
         handleDemoSelect('jury');
@@ -80,7 +98,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
     }
   }, []);
 
-  const handleDemoSelect = (type: 'jury' | 'client') => {
+  const handleDemoSelect = (type: DemoType) => {
     const profile = createDemoProfile(type);
     try {
       localStorage.setItem('ecofreight_demo_user', JSON.stringify(profile));
@@ -235,6 +253,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
               Sustainability & Decarbonization Intelligence
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={() => handleDemoSelect('demo')}
+            className="w-full mb-6 bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 px-5 rounded-2xl transition-all shadow-lg shadow-emerald-500/30 flex items-center justify-between group"
+          >
+            <span className="flex items-center gap-2 text-left">
+              <Sparkles size={18} />
+              <span>
+                <span className="block text-sm">{t.tryDemo}</span>
+                <span className="block text-[11px] font-medium text-emerald-50">{t.tryDemoDesc}</span>
+              </span>
+            </span>
+            <ArrowRight size={18} className="shrink-0 group-hover:translate-x-1 transition-transform" />
+          </button>
 
           {/* Demonstration Accounts Section */}
           <div className="mb-6 space-y-3">
