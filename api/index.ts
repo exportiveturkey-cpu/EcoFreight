@@ -86,11 +86,11 @@ app.post('/api/gemini/chat', async (req, res) => {
   const lower = String(message).toLowerCase();
   let reply = `[EcoFreight AI Engine] Multimodal assessment for "${message}": Transitioning freight corridors to multimodal electrified rail and short-sea shipping delivers significant GHG emission reductions (up to 70%) while ensuring full compliance with EU CBAM and GLEC reporting standards.`;
 
-  if (lower.includes('suez') || lower.includes('red sea') || lower.includes('delays')) {
+  if (/suez|red sea|delays|σουέζ|ερυθρ|süveyş|kızıldeniz/.test(lower)) {
     reply = `**Suez Canal & Red Sea Transit Assessment:**\n• Current Status: Cape of Good Hope reroutings continue to extend Asia-Europe transit by 10-14 days.\n• Carbon Impact: +35% bunker fuel consumption per voyage; EU ETS maritime surcharges apply.\n• EcoFreight Recommendation: Utilize Sea-Rail intermodal routes via Mediterranean gateways (Piraeus / Rotterdam) to recover up to 4 days transit time while keeping Scope 3 emissions audited under GLEC standards.`;
-  } else if (lower.includes('emission') || lower.includes('carbon') || lower.includes('glec')) {
+  } else if (/emission|carbon|glec|εκπομπ|άνθρακ|emisyon|karbon/.test(lower)) {
     reply = `**Fleet Carbon Accounting Summary (GLEC Framework & EN 16258):**\n• Average Maritime Intensity: ~12-18 g CO2e / tonne-km.\n• Electrified Rail Intensity: ~14-22 g CO2e / tonne-km (82% lower than standard road freight).\n• Heavy-Duty Road (Euro 6): ~62-85 g CO2e / tonne-km.\n• Next Action: Shifting 25% of current road legs to intermodal rail will avert ~4.2 tonnes of CO2e this quarter.`;
-  } else if (lower.includes('fleet') || lower.includes('optimiz') || lower.includes('cbam')) {
+  } else if (/fleet|optimiz|cbam|στόλ|filo/.test(lower)) {
     reply = `**Fleet Optimization & EU CBAM Compliance:**\n1. **Dynamic Modal Splitting:** Combine maritime deep-sea legs with electric rail hinterland connections.\n2. **CBAM Embedded Emission Tracking:** Ensure direct supplier emission factors are collected for iron, steel, and aluminum shipments entering the EU.\n3. **Biofuel (HVO100) Allocation:** Deploy low-carbon biofuels on last-mile delivery legs to achieve immediate 85% lifecycle GHG cuts.`;
   } else if (lower.includes('türkçe') || lower.includes('merhaba') || lower.includes('nasılsın')) {
     reply = `**EcoFreight AI Lojistik Asistanı:**\nMerhaba! EcoFreight çok modlu sürdürülebilir lojistik platformuna hoş geldiniz. Taşımalarınızın karbon ayak izini GLEC ve EN 16258 standartlarına göre hesaplayabilir, AB CBAM (Sınırda Karbon Düzenleme Mekanizması) uyumluluğu sağlayabilir ve deniz-demiryolu yeşil koridorları ile emisyonlarınızı %70'e varan oranda azaltabilirsiniz. Size nasıl yardımcı olabilirim?`;

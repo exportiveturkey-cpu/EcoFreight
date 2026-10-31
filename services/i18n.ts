@@ -42,6 +42,9 @@ export interface Translations {
   // Demo & Roles
   demoJury: string;
   demoClient: string;
+  demoAccount: string;
+  tryDemo: string;
+  tryDemoDesc: string;
   readOnly: string;
   readOnlyNoticeTitle: string;
   readOnlyNoticeDesc: string;
@@ -193,6 +196,9 @@ export const translations: Record<Language, Translations> = {
     
     demoJury: "NBG Seeds Jury Access",
     demoClient: "Client Preview",
+    demoAccount: "Demo Account",
+    tryDemo: "Try Demo",
+    tryDemoDesc: "Instant access with sample data, no sign-up",
     readOnly: "Read-Only",
     readOnlyNoticeTitle: "Client Preview Mode (Read-Only)",
     readOnlyNoticeDesc: "Creating and deleting shipments is disabled in this preview mode. All 16 sample shipments and AI insights are available for review.",
@@ -340,6 +346,9 @@ export const translations: Record<Language, Translations> = {
     
     demoJury: "NBG Seeds Jüri Erişimi",
     demoClient: "Müşteri Önizleme",
+    demoAccount: "Demo Hesabı",
+    tryDemo: "Demo'yu Dene",
+    tryDemoDesc: "Örnek verilerle anında erişim, kayıt gerekmez",
     readOnly: "Salt Okunur",
     readOnlyNoticeTitle: "Müşteri Önizleme Modu (Salt Okunur)",
     readOnlyNoticeDesc: "Bu önizleme modunda sevkiyat ekleme ve silme işlemleri devre dışıdır. 16 gerçekçi örnek sevkiyat ve AI analizleri incelenebilir.",
@@ -487,6 +496,9 @@ export const translations: Record<Language, Translations> = {
     
     demoJury: "Πρόσβαση Κριτικής Επιτροπής NBG Seeds",
     demoClient: "Προεπισκόπηση Πελάτη",
+    demoAccount: "Λογαριασμός Demo",
+    tryDemo: "Δοκιμή Demo",
+    tryDemoDesc: "Άμεση πρόσβαση με ενδεικτικά δεδομένα, χωρίς εγγραφή",
     readOnly: "Μόνο Ανάγνωση",
     readOnlyNoticeTitle: "Λειτουργία Προεπισκόπησης Πελάτη (Μόνο Ανάγνωση)",
     readOnlyNoticeDesc: "Η δημιουργία και διαγραφή αποστολών είναι απενεργοποιημένη σε αυτήν την προεπισκόπηση. Όλες οι 16 ενδεικτικές αποστολές και οι αναλύσεις AI είναι διαθέσιμες προς αξιολόγηση.",

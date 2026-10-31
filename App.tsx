@@ -31,7 +31,7 @@ import ArchitectureDocs from './components/ArchitectureDocs';
 import TrackingView from './components/TrackingView';
 import AIAssistant from './components/AIAssistant';
 import NetworkManager from './components/NetworkManager';
-import Login, { createDemoProfile } from './components/Login';
+import Login, { createDemoProfile, DemoType } from './components/Login';
 import { Shipment, ShipmentStatus, TransportMode } from './types';
 import { Language, translations } from './services/i18n';
 import { auth, onAuthStateChanged, signOut } from './services/firebase';
@@ -77,7 +77,14 @@ const App: React.FC = () => {
     try {
       const params = new URLSearchParams(window.location.search);
       const demoParam = params.get('demo') || params.get('mode');
-      if (demoParam === 'client') {
+      if (demoParam === 'demo' || demoParam === '1') {
+        const demoProfile = createDemoProfile('demo');
+        localStorage.setItem('ecofreight_demo_user', JSON.stringify(demoProfile));
+        setUser(demoProfile);
+        setAuthLoading(false);
+        setShipments(INITIAL_SAMPLE_SHIPMENTS);
+        return;
+      } else if (demoParam === 'client') {
         const clientProfile = createDemoProfile('client');
         localStorage.setItem('ecofreight_demo_user', JSON.stringify(clientProfile));
         setUser(clientProfile);
@@ -161,7 +168,7 @@ const App: React.FC = () => {
     setUser(null);
   };
 
-  const handleSwitchDemo = (type: 'jury' | 'client') => {
+  const handleSwitchDemo = (type: DemoType) => {
     const profile = createDemoProfile(type);
     localStorage.setItem('ecofreight_demo_user', JSON.stringify(profile));
     setUser(profile);
@@ -179,6 +186,7 @@ const App: React.FC = () => {
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     .slice(0, 5);
 
+  const demoLabel = user?.demoType === 'demo' ? t.demoAccount : user?.isReadOnly ? t.demoClient : t.demoJury;
   const isDemoExpired = user?.isDemo && user.daysRemaining !== undefined && user.daysRemaining <= 0;
 
   return (
@@ -209,13 +217,13 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between mb-1.5 font-bold text-white">
                 <span className="flex items-center gap-1.5">
                   {user.isReadOnly ? <Building2 size={13} className="text-blue-400" /> : <Award size={13} className="text-emerald-400" />}
-                  {user.isReadOnly ? t.demoClient : t.demoJury}
+                  {demoLabel}
                 </span>
                 <span className="text-[10px] text-emerald-400">
                   {user.daysRemaining ?? (user.isReadOnly ? 3 : 14)} {t.daysRemaining}
                 </span>
               </div>
-              <button
+              {user.demoType !== 'demo' && <button
                 onClick={() => handleSwitchDemo(user.demoType === 'client' ? 'jury' : 'client')}
                 className="w-full text-left text-[11px] text-slate-400 hover:text-white flex items-center justify-between pt-1.5 border-t border-white/5"
               >
@@ -225,7 +233,7 @@ const App: React.FC = () => {
                     : (lang === 'el' ? 'Αλλαγή σε Πελάτη (3ημ)' : lang === 'tr' ? 'Müşteri Moduna Geç (3g)' : 'Switch to Client (3d)')}
                 </span>
                 <RotateCcw size={11} />
-              </button>
+              </button>}
             </div>
           )}
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all">
@@ -268,7 +276,7 @@ const App: React.FC = () => {
                   // NBG Seeds Jury Demo (14 Days)
                   <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-emerald-900 text-xs font-medium shadow-sm">
                     <Award size={14} className="text-emerald-600" />
-                    <span className="text-[11px] font-bold text-slate-800">{t.demoJury}</span>
+                    <span className="text-[11px] font-bold text-slate-800">{demoLabel}</span>
                     <span className="text-[9px] uppercase px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black tracking-wider">
                       {user.daysRemaining ?? 14} {t.days} {lang === 'el' ? 'Ενεργό' : lang === 'tr' ? 'Aktif' : 'Active'}
                     </span>
