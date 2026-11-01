@@ -47,9 +47,9 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
     });
   });
 
-  const seaPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.SEA] / totalCargoWeight) * 100) : 58;
-  const railPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.RAIL] / totalCargoWeight) * 100) : 26;
-  const roadPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.ROAD] / totalCargoWeight) * 100) : 12;
+  const seaPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.SEA] / totalCargoWeight) * 100) : 0;
+  const railPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.RAIL] / totalCargoWeight) * 100) : 0;
+  const roadPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.ROAD] / totalCargoWeight) * 100) : 0;
   const airPercent = Math.max(0, 100 - (seaPercent + railPercent + roadPercent));
 
   // Dynamic weekly trend data scaled to actual total portfolio

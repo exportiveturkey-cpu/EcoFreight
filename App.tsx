@@ -133,7 +133,6 @@ const App: React.FC = () => {
       setAuthLoading(false);
     });
 
-    setShipments(INITIAL_SAMPLE_SHIPMENTS);
     return () => unsubscribe();
   }, []);
 
@@ -149,6 +148,11 @@ const App: React.FC = () => {
     localStorage.setItem('ecofreight_demo_user', JSON.stringify(profile));
     setUser(profile);
   };
+
+  // Sample data is for demo accounts only. Corporate sign-ins start empty.
+  useEffect(() => {
+    setShipments(user?.isDemo ? INITIAL_SAMPLE_SHIPMENTS : []);
+  }, [user?.isDemo]);
 
   if (authLoading) return <div className="h-screen w-full bg-[#0f172a] flex items-center justify-center"><div className="w-16 h-16 border-b-2 border-emerald-500 rounded-full animate-spin"></div></div>;
   if (!user) return <Login onLoginSuccess={setUser} lang={lang} onLangChange={handleLangChange} />;
