@@ -1,56 +1,34 @@
-import React from 'react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar,
-  Cell
+import React, { useState } from 'react';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
 } from 'recharts';
-import { Ship, Globe, Leaf, Euro, ArrowUpRight, Activity, Train, Truck, Plane, CheckCircle2, Clock } from 'lucide-react';
-import { Shipment, TransportMode, ShipmentStatus } from '../types';
+import { Ship, Leaf, Euro, Activity } from 'lucide-react';
+import { Shipment, ShipmentStatus } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
-import { formatEUR, formatNumber, formatWeight, formatEmissions } from '../services/formatters';
+import { formatEUR, formatNumber, formatEmissions } from '../services/formatters';
 
 interface DashboardProps {
   shipments: Shipment[];
   lang: Language;
 }
 
+type DashboardSection = 'overview' | 'corridors';
+
 const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
   const t = translations[lang];
-  
+  const [section, setSection] = useState<DashboardSection>('overview');
+
   const totalEmissions = shipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0);
   const totalSpend = shipments.reduce((sum, s) => sum + s.totalCost, 0);
+  const totalCargoWeight = shipments.reduce((sum, s) => sum + s.weightTonnes, 0);
   const inTransitCount = shipments.filter(s => s.status === ShipmentStatus.IN_TRANSIT).length;
   const deliveredCount = shipments.filter(s => s.status === ShipmentStatus.DELIVERED).length;
-
-  // Compute dynamic modal distribution from shipment weight
-  const modeWeights: Record<string, number> = {
-    [TransportMode.SEA]: 0,
-    [TransportMode.RAIL]: 0,
-    [TransportMode.ROAD]: 0,
-    [TransportMode.AIR]: 0
-  };
-
-  let totalCargoWeight = 0;
-  shipments.forEach(s => {
-    totalCargoWeight += s.weightTonnes;
-    const legModes = Array.from(new Set(s.legs.map(l => l.mode)));
-    const weightPerMode = s.weightTonnes / Math.max(1, legModes.length);
-    legModes.forEach(m => {
-      modeWeights[m] = (modeWeights[m] || 0) + weightPerMode;
-    });
-  });
-
-  const seaPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.SEA] / totalCargoWeight) * 100) : 0;
-  const railPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.RAIL] / totalCargoWeight) * 100) : 0;
-  const roadPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.ROAD] / totalCargoWeight) * 100) : 0;
-  const airPercent = Math.max(0, 100 - (seaPercent + railPercent + roadPercent));
 
   // Dynamic weekly trend data scaled to actual total portfolio
   const baseAvgDailyEmissions = totalEmissions / 7;
@@ -66,6 +44,11 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
     { name: 'Sun', emissions: Math.round(baseAvgDailyEmissions * 0.35), cost: Math.round(baseAvgDailySpend * 0.45) },
   ];
 
+  const sections: { id: DashboardSection; label: string }[] = [
+    { id: 'overview', label: lang === 'el' ? 'Επισκόπηση' : 'Overview' },
+    { id: 'corridors', label: lang === 'el' ? 'Ενεργές διαδρομές' : 'Active corridors' },
+  ];
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex justify-between items-center">
@@ -73,164 +56,153 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{t.dashTitle}</h1>
           <p className="text-slate-500 font-medium">{t.dashSubtitle} ({shipments.length} {t.activeConsignments})</p>
         </div>
-        <div className="flex gap-2">
-          <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 flex items-center gap-2 text-sm font-bold shadow-sm">
-            <Activity size={16} className="text-emerald-500" />
-            <span className="text-slate-600 uppercase tracking-wider text-[10px]">System Status:</span>
-            <span className="text-emerald-600 font-mono">Telemetry Synced</span>
-          </div>
+        <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 flex items-center gap-2 text-sm font-bold shadow-sm">
+          <Activity size={16} className="text-emerald-500" />
+          <span className="text-slate-600 uppercase tracking-wider text-[10px]">System Status:</span>
+          <span className="text-emerald-600 font-mono">Telemetry Synced</span>
         </div>
       </div>
 
-      {/* Top 4 KPI Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard 
-          title={t.totalShipments} 
-          value={shipments.length} 
-          subText={`${inTransitCount} ${t.inTransit} • ${deliveredCount} ${t.completed}`}
-          icon={<Ship size={20} />} 
-          color="blue"
-        />
-        <MetricCard 
-          title={t.carbonFootprint} 
-          value={formatEmissions(totalEmissions)} 
-          subText={t.carbonEstimate}
-          icon={<Leaf size={20} />} 
-          color="emerald"
-        />
-        <MetricCard 
-          title={t.freightSpend} 
-          value={formatEUR(totalSpend, 0)} 
-          subText={`Avg ${formatEUR(totalSpend / Math.max(1, shipments.length), 0)} / order`}
-          icon={<Euro size={20} />} 
-          color="indigo"
-        />
-        <MetricCard
-          title={t.intermodalEfficiency}
-          value={totalCargoWeight > 0 ? `${seaPercent + railPercent}%` : '—'}
-          subText={t.greenShare}
-          icon={<Globe size={20} />}
-          color="amber"
-        />
+      {/* Section switch: one topic on screen at a time */}
+      <div className="inline-flex bg-white border border-slate-200 p-1 rounded-2xl shadow-sm">
+        {sections.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSection(s.id)}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
+              section === s.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* Left: Emissions & Cost Trend */}
-        <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
-          <div className="flex justify-between items-center mb-8">
-            <div>
+      {section === 'overview' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <MetricCard
+              title={t.totalShipments}
+              value={shipments.length}
+              subText={`${inTransitCount} ${t.inTransit} • ${deliveredCount} ${t.completed}`}
+              icon={<Ship size={20} />}
+              color="blue"
+            />
+            <MetricCard
+              title={t.carbonFootprint}
+              value={formatEmissions(totalEmissions)}
+              subText={t.carbonEstimate}
+              icon={<Leaf size={20} />}
+              color="emerald"
+            />
+            <MetricCard
+              title={t.freightSpend}
+              value={formatEUR(totalSpend, 0)}
+              subText={`Avg ${formatEUR(totalSpend / Math.max(1, shipments.length), 0)} / order`}
+              icon={<Euro size={20} />}
+              color="indigo"
+            />
+            <MetricCard
+              title={lang === 'el' ? 'Εκπομπές ανά τόνο' : 'Emissions per tonne'}
+              value={totalCargoWeight > 0 ? formatNumber(totalEmissions / totalCargoWeight, 0) + ' kg' : '—'}
+              subText={`${formatNumber(totalCargoWeight, 1)} t`}
+              icon={<Leaf size={20} />}
+              color="amber"
+            />
+          </div>
+
+          <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
+            <div className="mb-8">
               <h3 className="font-bold text-slate-800 text-xl">{t.emissionsCurve}</h3>
               <p className="text-xs text-slate-400 mt-0.5">{t.emissionsCurveDesc}</p>
             </div>
-          </div>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="colorEm" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                <Tooltip 
-                  formatter={(val: any) => [`${formatNumber(val)} kg CO2e`, 'Emissions']}
-                  contentStyle={{ borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Area type="monotone" dataKey="emissions" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorEm)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Right: Dynamic Transport Distribution */}
-        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="font-bold text-slate-800 text-xl mb-1">{t.modalDistribution}</h3>
-            <p className="text-slate-400 text-xs mb-6">Calculated across {formatWeight(totalCargoWeight)} total cargo</p>
-            <div className="space-y-4">
-              <ProgressRow icon={<Ship size={14} className="text-blue-500" />} label={`${t.sea} (Deep/Short-Sea)`} value={seaPercent} color="bg-blue-500" />
-              <ProgressRow icon={<Train size={14} className="text-emerald-500" />} label={`${t.rail} (Electrified Corridors)`} value={railPercent} color="bg-emerald-500" />
-              <ProgressRow icon={<Truck size={14} className="text-amber-500" />} label={`${t.road} (Drayage)`} value={roadPercent} color="bg-amber-500" />
-              <ProgressRow icon={<Plane size={14} className="text-indigo-500" />} label={`${t.air} (Express)`} value={airPercent} color="bg-indigo-500" />
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="colorEm" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                  <Tooltip
+                    formatter={(val: any) => [`${formatNumber(val)} kg CO2e`, 'Emissions']}
+                    contentStyle={{ borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Area type="monotone" dataKey="emissions" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorEm)" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
-          <div className="pt-6 border-t border-slate-100 mt-6">
-            <div className="flex items-center gap-3 p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
-               <div className="bg-emerald-500 p-2 rounded-xl text-white shadow-sm"><Leaf size={18} /></div>
-               <div>
-                 <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">{t.modalShiftBenefit}</p>
-                 <p className="text-xs font-bold text-emerald-950">{t.modalShiftDesc}</p>
-               </div>
+        </>
+      )}
+
+      {section === 'corridors' && (
+        <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-8 space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 tracking-tight">{t.activeCorridors}</h3>
+              <p className="text-xs text-slate-400">Live operational snapshot of current multimodal consignment legs</p>
             </div>
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+              {inTransitCount} {t.inTransit}
+            </span>
           </div>
-        </div>
-      </div>
 
-      {/* Portfolio Recent Corridors Summary Table */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-8 space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">{t.activeCorridors}</h3>
-            <p className="text-xs text-slate-400">Live operational snapshot of current multimodal consignment legs</p>
-          </div>
-          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
-            {inTransitCount} {t.inTransit}
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <th className="pb-4">{t.consignment}</th>
-                <th className="pb-4">{t.originDest}</th>
-                <th className="pb-4">{t.cargoWeight}</th>
-                <th className="pb-4">{t.status}</th>
-                <th className="pb-4">{t.emissions}</th>
-                <th className="pb-4 text-right">{t.freightCost}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {shipments.slice(0, 6).map(s => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-4">
-                    <p className="font-extrabold text-slate-900 font-mono">{s.id}</p>
-                    <p className="text-[11px] text-slate-500">{s.customerName}</p>
-                  </td>
-                  <td className="py-4 font-bold text-slate-700">
-                    {s.origin} → {s.destination}
-                  </td>
-                  <td className="py-4">
-                    <span className="font-bold text-slate-900">{s.weightTonnes}t</span>
-                    <span className="text-[11px] text-slate-400 block truncate max-w-[140px]">{s.cargoType}</span>
-                  </td>
-                  <td className="py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                      s.status === ShipmentStatus.IN_TRANSIT 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : s.status === ShipmentStatus.DELIVERED 
-                          ? 'bg-blue-50 text-blue-700' 
-                          : 'bg-amber-50 text-amber-700'
-                    }`}>
-                      {statusLabel(s.status, t)}
-                    </span>
-                  </td>
-                  <td className="py-4 font-bold text-slate-800 font-mono">
-                    {formatEmissions(s.totalEmissionsKg)}
-                  </td>
-                  <td className="py-4 text-right font-black text-slate-900 font-mono">
-                    {formatEUR(s.totalCost, 0)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <th className="pb-4">{t.consignment}</th>
+                  <th className="pb-4">{t.originDest}</th>
+                  <th className="pb-4">{t.cargoWeight}</th>
+                  <th className="pb-4">{t.status}</th>
+                  <th className="pb-4">{t.emissions}</th>
+                  <th className="pb-4 text-right">{t.freightCost}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {shipments.slice(0, 6).map(s => (
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-4">
+                      <p className="font-extrabold text-slate-900 font-mono">{s.id}</p>
+                      <p className="text-[11px] text-slate-500">{s.customerName}</p>
+                    </td>
+                    <td className="py-4 font-bold text-slate-700">
+                      {s.origin} → {s.destination}
+                    </td>
+                    <td className="py-4">
+                      <span className="font-bold text-slate-900">{s.weightTonnes}t</span>
+                      <span className="text-[11px] text-slate-400 block truncate max-w-[140px]">{s.cargoType}</span>
+                    </td>
+                    <td className="py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        s.status === ShipmentStatus.IN_TRANSIT
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : s.status === ShipmentStatus.DELIVERED
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {statusLabel(s.status, t)}
+                      </span>
+                    </td>
+                    <td className="py-4 font-bold text-slate-800 font-mono">
+                      {formatEmissions(s.totalEmissionsKg)}
+                    </td>
+                    <td className="py-4 text-right font-black text-slate-900 font-mono">
+                      {formatEUR(s.totalCost, 0)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -256,17 +228,5 @@ const MetricCard = ({ title, value, subText, icon, color }: any) => {
     </div>
   );
 };
-
-const ProgressRow = ({ icon, label, value, color }: any) => (
-  <div className="space-y-1.5">
-    <div className="flex justify-between items-center text-xs font-bold">
-      <span className="text-slate-700 flex items-center gap-1.5">{icon} {label}</span>
-      <span className="text-slate-900 font-mono">{value}%</span>
-    </div>
-    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-      <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${value}%` }}></div>
-    </div>
-  </div>
-);
 
 export default Dashboard;
