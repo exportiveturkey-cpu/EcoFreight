@@ -17,6 +17,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
   const [loading, setLoading] = useState(true);
   const [showCertificate, setShowCertificate] = useState(false);
   const [isNeutralized, setIsNeutralized] = useState(false);
+  const [section, setSection] = useState<'overview' | 'compliance' | 'offset' | 'advice'>('overview');
 
   const totalEmissionsKg = shipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0);
   const offsetCost = getOffsetPrice(totalEmissionsKg);
@@ -77,8 +78,27 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
         </div>
       </div>
 
+      <div className="inline-flex bg-white border border-slate-200 p-1 rounded-2xl shadow-sm flex-wrap">
+        {([
+          ['overview', lang === 'el' ? 'Επισκόπηση' : 'Overview'],
+          ['compliance', lang === 'el' ? 'Συμμόρφωση' : 'Compliance'],
+          ['offset', lang === 'el' ? 'Αντιστάθμιση' : 'Offsets'],
+          ['advice', lang === 'el' ? 'Προτάσεις AI' : 'AI advice'],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSection(id)}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${section === id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3 space-y-8">
+          {section === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <SustainabilityMetric
               title="Trees Equivalent"
@@ -99,8 +119,10 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
               icon={<Wind className="text-blue-500" />}
             />
           </div>
+          )}
 
           {/* Regulatory Panel */}
+          {section === 'compliance' && (
           <div className="bg-white rounded-[3rem] p-10 border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-10">
             <div>
               <div className="flex items-center gap-3 mb-6">
@@ -146,16 +168,19 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
               </div>
             </div>
           </div>
+          )}
         </div>
 
         <div className="space-y-8">
+          {section === 'offset' && (
           <div className="rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden bg-slate-900 text-white">
             <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">{t.offsetMarket}</h3>
             <p className="text-4xl font-extrabold tracking-tight mb-2 text-white">{formatEUR(isNeutralized ? 0 : offsetCost, 2)}</p>
             <p className="text-slate-400 text-xs mb-8">{t.offsetDesc}</p>
             <button onClick={() => setIsNeutralized(true)} disabled={isNeutralized} className="w-full bg-white text-slate-900 py-4 rounded-2xl font-bold hover:bg-emerald-50 disabled:bg-emerald-500 disabled:text-white transition-all">{isNeutralized ? t.neutralized : t.investNow}</button>
           </div>
-
+          )}
+          {section === 'advice' && (
           <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-6">
               <Sparkles className="text-indigo-500" size={20} />
@@ -171,6 +196,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
               ))}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

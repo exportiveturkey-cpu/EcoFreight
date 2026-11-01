@@ -77,6 +77,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
   const t = translations[lang];
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(shipments[0] || null);
   const [activeLegId, setActiveLegId] = useState<string | null>(null);
+  const [section, setSection] = useState<'map' | 'risks' | 'damage' | 'telemetry'>('map');
   const [activeWaypoint, setActiveWaypoint] = useState<Waypoint | null>(null);
   const [risks, setRisks] = useState<any[]>([]);
   const [loadingRisks, setLoadingRisks] = useState(false);
@@ -143,6 +144,24 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
         </div>
       </div>
 
+      <div className="inline-flex bg-white border border-slate-200 p-1 rounded-2xl shadow-sm flex-wrap self-start">
+        {([
+          ['map', lang === 'el' ? 'Χάρτης' : 'Map'],
+          ['risks', lang === 'el' ? 'Κίνδυνοι' : 'Risks'],
+          ['damage', lang === 'el' ? 'Έλεγχος φορτίου' : 'Cargo check'],
+          ['telemetry', lang === 'el' ? 'Τηλεμετρία' : 'Telemetry'],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSection(id)}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${section === id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-0">
         {/* Left: Shipment Selector & Live Risks */}
         <div className="lg:col-span-3 space-y-4 overflow-y-auto custom-scrollbar">
@@ -173,6 +192,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
           </div>
           
           {/* Risk Intelligence Panel */}
+          {section === 'risks' && (
           <div className="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-xl">
              <div className="flex items-center justify-between mb-4">
                <h3 className="text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -192,10 +212,12 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                ))}
              </div>
           </div>
+          )}
         </div>
 
         {/* Center: Interactive Tactical Vector Map */}
         <div className="lg:col-span-6 flex flex-col gap-6">
+          {section === 'map' && (
           <div className="flex-[2] relative bg-[#090d16] rounded-[3.5rem] border-[6px] border-white shadow-2xl overflow-hidden min-h-[460px] flex flex-col justify-between p-6">
              {/* Tactical Radar / Nautical Grid Background */}
              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{
@@ -360,8 +382,10 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                 </div>
              </div>
           </div>
+          )}
           
           {/* AI Vision Damage Audit */}
+          {section === 'damage' && (
           <div className="bg-white rounded-[2.5rem] p-7 border border-slate-200 shadow-sm flex flex-col">
              <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
@@ -405,9 +429,11 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                 )}
              </div>
           </div>
+          )}
         </div>
 
         {/* Right: Detailed Telemetry & Route Legs */}
+        {section === 'telemetry' && (
         <div className="lg:col-span-3 space-y-6">
           <div className="bg-white rounded-[2.5rem] p-7 border border-slate-200 shadow-sm">
              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t.consignmentMetrics}</h3>
@@ -436,6 +462,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
              </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
