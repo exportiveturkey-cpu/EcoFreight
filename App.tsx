@@ -31,6 +31,8 @@ import ArchitectureDocs from './components/ArchitectureDocs';
 import TrackingView from './components/TrackingView';
 import AIAssistant from './components/AIAssistant';
 import NetworkManager from './components/NetworkManager';
+import VerticalSelect from './components/VerticalSelect';
+import RoadApp from './verticals/road/RoadApp';
 import Login, { createDemoProfile, DemoType } from './components/Login';
 import { Shipment, ShipmentStatus, TransportMode } from './types';
 import { Language, translations } from './services/i18n';
@@ -58,6 +60,7 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [vertical, setVertical] = useState<'maritime' | 'road' | null>(null);
 
   const t = translations[lang] || translations.en;
 
@@ -120,38 +123,10 @@ const App: React.FC = () => {
       }
     }
 
+    // Real Firebase accounts are used as-is. Demo roles come only from createDemoProfile().
     const unsubscribe = onAuthStateChanged(auth, (currentUser: any) => {
       if (currentUser) {
-        const userEmail = (currentUser.email || '').toLowerCase();
-        if (userEmail.includes('jury') || userEmail.includes('nbgseeds')) {
-          const juryProfile = {
-            ...currentUser,
-            displayName: currentUser.displayName || 'NBG Seeds Jury & Evaluator',
-            isDemo: true,
-            demoType: 'jury',
-            isReadOnly: false,
-            role: 'evaluator',
-            daysRemaining: 14,
-            totalDays: 14,
-            membershipExpiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
-          };
-          setUser(juryProfile);
-        } else if (userEmail.includes('client') || userEmail.includes('ecofreight.eu')) {
-          const clientProfile = {
-            ...currentUser,
-            displayName: currentUser.displayName || 'Corporate Client Preview',
-            isDemo: true,
-            demoType: 'client',
-            isReadOnly: true,
-            role: 'client_readonly',
-            daysRemaining: 3,
-            totalDays: 3,
-            membershipExpiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-          };
-          setUser(clientProfile);
-        } else {
-          setUser(currentUser);
-        }
+        setUser(currentUser);
       } else if (!localStorage.getItem('ecofreight_demo_user')) {
         setUser(null);
       }
@@ -166,6 +141,7 @@ const App: React.FC = () => {
     localStorage.removeItem('ecofreight_demo_user');
     signOut(auth);
     setUser(null);
+    setVertical(null);
   };
 
   const handleSwitchDemo = (type: DemoType) => {
@@ -176,6 +152,8 @@ const App: React.FC = () => {
 
   if (authLoading) return <div className="h-screen w-full bg-[#0f172a] flex items-center justify-center"><div className="w-16 h-16 border-b-2 border-emerald-500 rounded-full animate-spin"></div></div>;
   if (!user) return <Login onLoginSuccess={setUser} lang={lang} onLangChange={handleLangChange} />;
+  if (!vertical) return <VerticalSelect lang={lang} onSelect={setVertical} />;
+  if (vertical === 'road') return <RoadApp lang={lang} onSwitchVertical={() => setVertical(null)} onLogout={handleLogout} />;
 
   const q = searchQuery.trim().toLowerCase();
   const visibleShipments = q

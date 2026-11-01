@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Leaf, Lock, Mail, ArrowRight, AlertCircle, ShieldCheck, Sparkles, Building2, Award, Copy, Check, Info, Languages } from 'lucide-react';
+import { Leaf, Lock, Mail, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
 import { auth, signInWithEmailAndPassword } from '../services/firebase';
 import { Language, translations } from '../services/i18n';
 
@@ -66,7 +66,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [copiedLink, setCopiedLink] = useState<'jury' | 'client' | null>(null);
 
   const t = translations[currentLang] || translations.en;
 
@@ -108,42 +107,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
     onLoginSuccess(profile);
   };
 
-  const copyShareLink = (type: 'jury' | 'client') => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('demo', type);
-    if (currentLang !== 'en') url.searchParams.set('lang', currentLang);
-    navigator.clipboard.writeText(url.toString()).then(() => {
-      setCopiedLink(type);
-      setTimeout(() => setCopiedLink(null), 2500);
-    });
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    // Pre-configured quick demo emails shortcut (works with or without Firebase Auth)
-    const trimmedEmail = email.trim().toLowerCase();
-    if (
-      trimmedEmail === 'jury@nbgseeds.demo' ||
-      trimmedEmail === 'jury@nbgseeds.dem' ||
-      trimmedEmail === 'evaluator@nbgseeds.demo' ||
-      trimmedEmail.includes('nbgseeds')
-    ) {
-      handleDemoSelect('jury');
-      setLoading(false);
-      return;
-    }
-    if (
-      trimmedEmail === 'client@ecofreight.eu' ||
-      trimmedEmail === 'demo@client.com' ||
-      trimmedEmail === 'client.preview@ecofreight.eu'
-    ) {
-      handleDemoSelect('client');
-      setLoading(false);
-      return;
-    }
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -195,18 +162,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px]"></div>
 
-      <div className="w-full max-w-xl z-10 animate-in fade-in zoom-in duration-500 py-6">
+      <div className="w-full max-w-md z-10 animate-in fade-in zoom-in duration-500 py-6">
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 sm:p-10 rounded-[2.5rem] shadow-2xl">
-          {/* Top header with Language Switcher */}
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
-                EcoFreight System v2.4
-              </span>
-            </div>
-
-            {/* Language Selection Buttons */}
+          {/* Top bar: language switcher only */}
+          <div className="flex justify-end mb-6">
             <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
               <button
                 type="button"
@@ -244,7 +203,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
             </div>
           </div>
 
-          <div className="flex flex-col items-center mb-6">
+          <div className="flex flex-col items-center mb-8">
             <div className="bg-emerald-500 p-4 rounded-3xl mb-3 shadow-lg shadow-emerald-500/20">
               <Leaf className="text-white w-9 h-9" />
             </div>
@@ -254,10 +213,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
             </p>
           </div>
 
+          {/* The only top-level action: demo */}
           <button
             type="button"
             onClick={() => handleDemoSelect('demo')}
-            className="w-full mb-6 bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 px-5 rounded-2xl transition-all shadow-lg shadow-emerald-500/30 flex items-center justify-between group"
+            className="w-full mb-8 bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 px-5 rounded-2xl transition-all shadow-lg shadow-emerald-500/30 flex items-center justify-between group"
           >
             <span className="flex items-center gap-2 text-left">
               <Sparkles size={18} />
@@ -269,96 +229,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
             <ArrowRight size={18} className="shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
 
-          {/* Demonstration Accounts Section */}
-          <div className="mb-6 space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                <Sparkles size={14} /> {t.quickDemoAccess}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">{t.instantAccess}</span>
-            </div>
-
-            {/* Option 1: 14-Day NBG Seeds Competition Jury Access */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 border border-emerald-500/30 hover:border-emerald-500/50 transition-all">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300">
-                    <Award size={18} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      {t.juryCardTitle}
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500 text-white">
-                        14 {t.days}
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-slate-300">{t.juryCardDesc}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => copyShareLink('jury')}
-                  className="text-slate-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-white/5 transition-all text-xs flex items-center gap-1"
-                  title={currentLang === 'el' ? 'Αντιγραφή συνδέσμου κριτή' : 'Copy jury link'}
-                >
-                  {copiedLink === 'jury' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDemoSelect('jury')}
-                className="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md shadow-emerald-500/20 flex items-center justify-between text-xs group active:scale-98"
-              >
-                <span>{t.startJury}</span>
-                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-
-            {/* Option 2: 3-Day Potential Client Read-Only Demo */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/15 via-sky-500/10 to-teal-500/15 border border-blue-500/30 hover:border-blue-500/50 transition-all">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-blue-500/20 text-blue-300">
-                    <Building2 size={18} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      {t.clientCardTitle}
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500 text-white">
-                        3 {t.days} • {t.readOnly}
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-slate-300">{t.clientCardDesc}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => copyShareLink('client')}
-                  className="text-slate-400 hover:text-blue-400 p-1.5 rounded-lg hover:bg-white/5 transition-all text-xs flex items-center gap-1"
-                  title={currentLang === 'el' ? 'Αντιγραφή συνδέσμου πελάτη' : 'Copy client link'}
-                >
-                  {copiedLink === 'client' ? <Check size={14} className="text-blue-400" /> : <Copy size={14} />}
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDemoSelect('client')}
-                className="w-full mt-2 bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-white border border-blue-400/30 font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-between text-xs group active:scale-98"
-              >
-                <span>{t.startClient}</span>
-                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-
-            {copiedLink && (
-              <div className="flex items-center justify-center gap-1.5 text-emerald-400 text-[11px] bg-emerald-500/10 py-1.5 rounded-lg border border-emerald-500/20 animate-in fade-in">
-                <Check size={12} />
-                <span>{t.linkCopied}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="relative flex py-2 items-center mb-4">
+          <div className="relative flex py-2 items-center mb-5">
             <div className="flex-grow border-t border-white/10"></div>
             <span className="flex-shrink mx-4 text-[10px] font-black uppercase tracking-widest text-slate-500">
               {t.orCorporate}
@@ -415,15 +286,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
               )}
             </button>
           </form>
-
-          <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-center gap-2 text-slate-400 text-[11px] font-medium">
-            <ShieldCheck size={14} className="text-emerald-500" />
-            <span>TLS 1.3 • Firebase Auth Verified</span>
-          </div>
         </div>
-        
+
         <p className="text-center text-slate-500 text-[11px] mt-4">
-          EcoFreight Logistics Intelligence • NBG Seeds Cohort
+          EcoFreight Logistics Intelligence
         </p>
       </div>
     </div>

@@ -413,7 +413,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t.consignmentMetrics}</h3>
              <div className="space-y-4">
                 <StatRow icon={<Scale size={14}/>} label="Cargo Weight" value={`${selectedShipment?.weightTonnes} Tonnes`} />
-                <StatRow icon={<Gauge size={14}/>} label="GLEC CO2e" value={`${selectedShipment?.totalEmissionsKg} kg`} />
+                <StatRow icon={<Gauge size={14}/>} label="CO2e (est.)" value={`${selectedShipment?.totalEmissionsKg} kg`} />
                 <StatRow icon={<Clock size={14}/>} label="ETA Schedule" value="On Schedule (ETA Oct 14)" />
                 <StatRow icon={<Wind size={14}/>} label="Weather / Sea" value="Sea State 2 (Calm)" />
                 <StatRow icon={<Shield size={14}/>} label="Incoterms" value={selectedShipment?.incoterms || 'DAP'} />
