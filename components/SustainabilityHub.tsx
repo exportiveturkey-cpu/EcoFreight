@@ -5,6 +5,7 @@ import { Shipment, Recommendation, TransportMode } from '../types';
 import { getSustainabilityInsights } from '../services/gemini';
 import { getOffsetPrice } from '../services/carbon';
 import { formatEUR, formatNumber } from '../services/formatters';
+import { toCsv } from '../services/csv';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
 import { Language, translations } from '../services/i18n';
 
@@ -37,7 +38,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
   const exportReport = () => {
     const header = ['ID', 'Customer', 'Origin', 'Destination', 'Weight (t)', 'Emissions (kg CO2e)', 'Cost (EUR)', 'Status'];
     const rows = shipments.map(s => [s.id, s.customerName, s.origin, s.destination, s.weightTonnes, s.totalEmissionsKg, s.totalCost, s.status]);
-    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = toCsv([header, ...rows]);
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
