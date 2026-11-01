@@ -11,7 +11,7 @@ import {
   Bar,
   Cell
 } from 'recharts';
-import { TrendingUp, TrendingDown, Ship, Globe, Leaf, Euro, ArrowUpRight, Activity, Train, Truck, Plane, CheckCircle2, Clock } from 'lucide-react';
+import { Ship, Globe, Leaf, Euro, ArrowUpRight, Activity, Train, Truck, Plane, CheckCircle2, Clock } from 'lucide-react';
 import { Shipment, TransportMode, ShipmentStatus } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
 import { formatEUR, formatNumber, formatWeight, formatEmissions } from '../services/formatters';
@@ -47,9 +47,9 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
     });
   });
 
-  const seaPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.SEA] / totalCargoWeight) * 100) : 58;
-  const railPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.RAIL] / totalCargoWeight) * 100) : 26;
-  const roadPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.ROAD] / totalCargoWeight) * 100) : 12;
+  const seaPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.SEA] / totalCargoWeight) * 100) : 0;
+  const railPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.RAIL] / totalCargoWeight) * 100) : 0;
+  const roadPercent = totalCargoWeight > 0 ? Math.round((modeWeights[TransportMode.ROAD] / totalCargoWeight) * 100) : 0;
   const airPercent = Math.max(0, 100 - (seaPercent + railPercent + roadPercent));
 
   // Dynamic weekly trend data scaled to actual total portfolio
@@ -88,17 +88,13 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
           title={t.totalShipments} 
           value={shipments.length} 
           subText={`${inTransitCount} ${t.inTransit} • ${deliveredCount} ${t.completed}`}
-          change="+18.5%" 
-          isPositive={true} 
           icon={<Ship size={20} />} 
           color="blue"
         />
         <MetricCard 
           title={t.carbonFootprint} 
           value={formatEmissions(totalEmissions)} 
-          subText="GLEC / EN 16258 Audited"
-          change="-8.4%" 
-          isPositive={false} 
+          subText={t.carbonEstimate}
           icon={<Leaf size={20} />} 
           color="emerald"
         />
@@ -106,8 +102,6 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
           title={t.freightSpend} 
           value={formatEUR(totalSpend, 0)} 
           subText={`Avg ${formatEUR(totalSpend / Math.max(1, shipments.length), 0)} / order`}
-          change="-3.2%" 
-          isPositive={false} 
           icon={<Euro size={20} />} 
           color="indigo"
         />
@@ -115,24 +109,22 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
           title={t.intermodalEfficiency} 
           value="96.4%" 
           subText={t.greenShare}
-          change="+4.1%" 
-          isPositive={true} 
           icon={<Globe size={20} />} 
           color="amber"
         />
       </div>
 
       {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         {/* Left: Emissions & Cost Trend */}
         <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h3 className="font-bold text-slate-800 text-lg">{t.emissionsCurve}</h3>
+              <h3 className="font-bold text-slate-800 text-xl">{t.emissionsCurve}</h3>
               <p className="text-xs text-slate-400 mt-0.5">{t.emissionsCurveDesc}</p>
             </div>
           </div>
-          <div className="h-72">
+          <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData}>
                 <defs>
@@ -157,7 +149,7 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
         {/* Right: Dynamic Transport Distribution */}
         <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
-            <h3 className="font-bold text-slate-800 text-lg mb-1">{t.modalDistribution}</h3>
+            <h3 className="font-bold text-slate-800 text-xl mb-1">{t.modalDistribution}</h3>
             <p className="text-slate-400 text-xs mb-6">Calculated across {formatWeight(totalCargoWeight)} total cargo</p>
             <div className="space-y-4">
               <ProgressRow icon={<Ship size={14} className="text-blue-500" />} label={`${t.sea} (Deep/Short-Sea)`} value={seaPercent} color="bg-blue-500" />
@@ -243,7 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
   );
 };
 
-const MetricCard = ({ title, value, subText, change, isPositive, icon, color }: any) => {
+const MetricCard = ({ title, value, subText, icon, color }: any) => {
   const colorMap: any = {
     blue: 'bg-blue-50 text-blue-600 border-blue-100',
     emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -255,10 +247,6 @@ const MetricCard = ({ title, value, subText, change, isPositive, icon, color }: 
     <div className="bg-white p-6 rounded-[2rem] border border-slate-200 card-shadow">
       <div className="flex justify-between items-start mb-4">
         <div className={`p-3 rounded-2xl border ${colorMap[color]}`}>{icon}</div>
-        <div className={`flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-          {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-          {change}
-        </div>
       </div>
       <div>
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>

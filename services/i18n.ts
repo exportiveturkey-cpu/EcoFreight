@@ -130,6 +130,34 @@ export interface Translations {
   offsetDesc: string;
   investNow: string;
   neutralized: string;
+  verticalTitle: string;
+  verticalSub: string;
+  verticalMaritime: string;
+  verticalMaritimeDesc: string;
+  verticalRoad: string;
+  verticalRoadDesc: string;
+  comingSoon: string;
+  roadFleet: string;
+  roadRoutes: string;
+  roadDrivers: string;
+  roadCarbon: string;
+  roadCompliance: string;
+  switchVertical: string;
+  vehicleType: string;
+  distanceKm: string;
+  emissionsResult: string;
+  indicativeFactors: string;
+  placeholderNote: string;
+  vtVan: string;
+  vtTruck7: string;
+  vtTruck18: string;
+  vtTruck40: string;
+  vtEVan: string;
+  carbonEstimate: string;
+  cbamLabel: string;
+  cbamSub: string;
+  complianceSub: string;
+  targetProgress: string;
   coPilot: string;
   emissionsByZone: string;
   netTitle: string;
@@ -275,13 +303,41 @@ export const translations: Record<Language, Translations> = {
     uploadPhoto: "Upload Inspection Photo",
     noShipments: "No shipments match your search.",
     sustTitle: "Sustainability Intelligence",
-    sustSubtitle: "CBAM Compliance, EU ETS & Carbon Accounting",
+    sustSubtitle: "Emissions analytics & decarbonization planning",
     complianceEngine: "Compliance Engine",
-    exportReport: "Export CSRD / CBAM Report",
+    exportReport: "Export shipments CSV",
     offsetMarket: "Offset Market",
-    offsetDesc: "Neutralize footprint via Verified Carbon Standard (VCS) projects.",
-    investNow: "Invest Now",
-    neutralized: "Footprint neutralized ✓",
+    offsetDesc: "Simulation only. No credits are bought. Real offsets need a certified registry.",
+    investNow: "Simulate offset",
+    neutralized: "Offset simulated (no purchase)",
+    verticalTitle: "Choose your vertical",
+    verticalSub: "Pick the module you want to open.",
+    verticalMaritime: "Maritime",
+    verticalMaritimeDesc: "Ocean & multimodal freight",
+    verticalRoad: "Road",
+    verticalRoadDesc: "Fleet & road freight (preview)",
+    comingSoon: "Coming soon",
+    roadFleet: "Fleet overview",
+    roadRoutes: "Routes",
+    roadDrivers: "Drivers",
+    roadCarbon: "Carbon",
+    roadCompliance: "Compliance",
+    switchVertical: "Switch vertical",
+    vehicleType: "Vehicle type",
+    distanceKm: "Distance (km)",
+    emissionsResult: "Estimated CO₂e (kg)",
+    indicativeFactors: "Indicative factors, not verified. Confirm the source before use.",
+    placeholderNote: "This section is a preview. No data yet.",
+    vtVan: "Van",
+    vtTruck7: "Truck 7.5 t",
+    vtTruck18: "Truck 18 t",
+    vtTruck40: "Truck 40 t",
+    vtEVan: "Electric van",
+    carbonEstimate: "ISO 14083 method · unverified",
+    cbamLabel: "Indicative carbon cost (demo)",
+    cbamSub: "Not a CBAM or ETS calculation",
+    complianceSub: "Indicative only, not a regulatory filing",
+    targetProgress: "Reduction target progress (sample)",
     coPilot: "Sustainability Co-Pilot",
     emissionsByZone: "Emissions by Regulatory Zone",
     netTitle: "Supplier Intelligence",
@@ -425,13 +481,41 @@ export const translations: Record<Language, Translations> = {
     uploadPhoto: "Denetim Fotoğrafı Yükle",
     noShipments: "Aramanızla eşleşen sevkiyat yok.",
     sustTitle: "Sürdürülebilirlik Zekası",
-    sustSubtitle: "CBAM Uyumu, AB ETS ve Karbon Muhasebesi",
+    sustSubtitle: "Emisyon analitiği ve karbonsuzlaştırma planlaması",
     complianceEngine: "Uyum Motoru",
-    exportReport: "CSRD / CBAM Raporu İndir",
+    exportReport: "Gönderileri CSV olarak indir",
     offsetMarket: "Dengeleme Pazarı",
-    offsetDesc: "Ayak izinizi VCS sertifikalı projelerle dengeleyin.",
-    investNow: "Şimdi Yatırım Yap",
-    neutralized: "Ayak izi dengelendi ✓",
+    offsetDesc: "Yalnızca simülasyon. Kredi satın alınmaz. Gerçek dengeleme için sertifikalı bir kayıt gerekir.",
+    investNow: "Dengelemeyi simüle et",
+    neutralized: "Dengeleme simüle edildi (satın alma yok)",
+    verticalTitle: "Dikey pazarınızı seçin",
+    verticalSub: "Açmak istediğiniz modülü seçin.",
+    verticalMaritime: "Denizcilik",
+    verticalMaritimeDesc: "Deniz ve çok modlu taşımacılık",
+    verticalRoad: "Karayolu",
+    verticalRoadDesc: "Filo & karayolu taşımacılığı (önizleme)",
+    comingSoon: "Yakında",
+    roadFleet: "Filo genel bakış",
+    roadRoutes: "Rotalar",
+    roadDrivers: "Sürücüler",
+    roadCarbon: "Karbon",
+    roadCompliance: "Uyumluluk",
+    switchVertical: "Dikey değiştir",
+    vehicleType: "Araç tipi",
+    distanceKm: "Mesafe (km)",
+    emissionsResult: "Tahmini CO₂e (kg)",
+    indicativeFactors: "Gösterge niteliğinde faktörler, doğrulanmamış. Kullanımdan önce kaynağı teyit edin.",
+    placeholderNote: "Bu bölüm bir önizlemedir. Henüz veri yok.",
+    vtVan: "Panelvan",
+    vtTruck7: "Kamyon 7,5 t",
+    vtTruck18: "Kamyon 18 t",
+    vtTruck40: "Kamyon 40 t",
+    vtEVan: "Elektrikli van",
+    carbonEstimate: "ISO 14083 yöntemi · doğrulanmamış",
+    cbamLabel: "Gösterge niteliğinde karbon maliyeti (demo)",
+    cbamSub: "CBAM veya ETS hesabı değildir",
+    complianceSub: "Yalnızca gösterge niteliğinde, resmi bildirim değildir",
+    targetProgress: "Azaltım hedefi ilerlemesi (örnek)",
     coPilot: "Sürdürülebilirlik Yardımcısı",
     emissionsByZone: "Düzenleyici Bölgeye Göre Emisyonlar",
     netTitle: "Tedarikçi Zekası",
@@ -575,13 +659,41 @@ export const translations: Record<Language, Translations> = {
     uploadPhoto: "Μεταφόρτωση Φωτογραφίας",
     noShipments: "Καμία αποστολή δεν ταιριάζει με την αναζήτηση.",
     sustTitle: "Ευφυΐα Βιωσιμότητας",
-    sustSubtitle: "Συμμόρφωση CBAM, EU ETS & Λογιστική Άνθρακα",
+    sustSubtitle: "Ανάλυση εκπομπών & σχεδιασμός απανθρακοποίησης",
     complianceEngine: "Μηχανή Συμμόρφωσης",
-    exportReport: "Εξαγωγή Αναφοράς CSRD / CBAM",
+    exportReport: "Εξαγωγή αποστολών (CSV)",
     offsetMarket: "Αγορά Αντιστάθμισης",
-    offsetDesc: "Ουδετεροποιήστε το αποτύπωμα μέσω έργων Verified Carbon Standard (VCS).",
-    investNow: "Επένδυση Τώρα",
-    neutralized: "Το αποτύπωμα ουδετεροποιήθηκε ✓",
+    offsetDesc: "Μόνο προσομοίωση. Δεν αγοράζονται πιστώσεις. Τα πραγματικά offsets θέλουν πιστοποιημένο μητρώο.",
+    investNow: "Προσομοίωση αντιστάθμισης",
+    neutralized: "Προσομοίωση ολοκληρώθηκε (καμία αγορά)",
+    verticalTitle: "Επιλέξτε κατακόρυφο",
+    verticalSub: "Επιλέξτε την ενότητα που θέλετε να ανοίξετε.",
+    verticalMaritime: "Θαλάσσια",
+    verticalMaritimeDesc: "Θαλάσσια & πολυτροπική μεταφορά",
+    verticalRoad: "Οδική",
+    verticalRoadDesc: "Στόλος & οδική μεταφορά (προεπισκόπηση)",
+    comingSoon: "Σύντομα",
+    roadFleet: "Επισκόπηση στόλου",
+    roadRoutes: "Διαδρομές",
+    roadDrivers: "Οδηγοί",
+    roadCarbon: "Άνθρακας",
+    roadCompliance: "Συμμόρφωση",
+    switchVertical: "Αλλαγή κατακόρυφου",
+    vehicleType: "Τύπος οχήματος",
+    distanceKm: "Απόσταση (km)",
+    emissionsResult: "Εκτιμώμενο CO₂e (kg)",
+    indicativeFactors: "Ενδεικτικοί συντελεστές, μη επαληθευμένοι. Επιβεβαιώστε την πηγή πριν τη χρήση.",
+    placeholderNote: "Η ενότητα είναι προεπισκόπηση. Δεν υπάρχουν ακόμα δεδομένα.",
+    vtVan: "Van",
+    vtTruck7: "Φορτηγό 7,5 t",
+    vtTruck18: "Φορτηγό 18 t",
+    vtTruck40: "Φορτηγό 40 t",
+    vtEVan: "Ηλεκτρικό van",
+    carbonEstimate: "Μέθοδος ISO 14083 · μη επαληθευμένο",
+    cbamLabel: "Ενδεικτικό κόστος άνθρακα (demo)",
+    cbamSub: "Δεν είναι υπολογισμός CBAM ή ETS",
+    complianceSub: "Μόνο ενδεικτικά, όχι επίσημη υποβολή",
+    targetProgress: "Πρόοδος στόχου μείωσης (δείγμα)",
     coPilot: "Συγκυβερνήτης Βιωσιμότητας",
     emissionsByZone: "Εκπομπές ανά Ρυθμιστική Ζώνη",
     netTitle: "Ευφυΐα Προμηθευτών",
