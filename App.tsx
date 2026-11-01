@@ -116,6 +116,10 @@ const App: React.FC = () => {
         if (parsed.membershipExpiresAt) {
           const diffMs = new Date(parsed.membershipExpiresAt).getTime() - Date.now();
           const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+          if (diffDays === 0) {
+            localStorage.removeItem('ecofreight_demo_user');
+            return;
+          }
           parsed.daysRemaining = diffDays;
         }
         setUser(parsed);
