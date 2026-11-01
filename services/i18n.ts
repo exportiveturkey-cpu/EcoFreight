@@ -147,6 +147,8 @@ export interface Translations {
   distanceKm: string;
   emissionsResult: string;
   indicativeFactors: string;
+  routeEstimate: string;
+  routeAssumptions: string;
   placeholderNote: string;
   vtVan: string;
   vtTruck7: string;
@@ -327,6 +329,8 @@ export const translations: Record<Language, Translations> = {
     distanceKm: "Distance (km)",
     emissionsResult: "Estimated CO₂e (kg)",
     indicativeFactors: "Indicative factors, not verified. Confirm the source before use.",
+    routeEstimate: "Estimated drive time and fuel (straight-line distance)",
+    routeAssumptions: "Assumptions: road factor 1.35, average 25 km/h, 10 l/100 km, diesel 1.80 €/l",
     placeholderNote: "This section is a preview. No data yet.",
     vtVan: "Van",
     vtTruck7: "Truck 7.5 t",
@@ -505,6 +509,8 @@ export const translations: Record<Language, Translations> = {
     distanceKm: "Mesafe (km)",
     emissionsResult: "Tahmini CO₂e (kg)",
     indicativeFactors: "Gösterge niteliğinde faktörler, doğrulanmamış. Kullanımdan önce kaynağı teyit edin.",
+    routeEstimate: "Tahmini sürüş süresi ve yakıt (kuş uçuşu mesafe)",
+    routeAssumptions: "Varsayımlar: yol faktörü 1,35, ortalama 25 km/s, 10 l/100 km, dizel 1,80 €/l",
     placeholderNote: "Bu bölüm bir önizlemedir. Henüz veri yok.",
     vtVan: "Panelvan",
     vtTruck7: "Kamyon 7,5 t",
@@ -683,6 +689,8 @@ export const translations: Record<Language, Translations> = {
     distanceKm: "Απόσταση (km)",
     emissionsResult: "Εκτιμώμενο CO₂e (kg)",
     indicativeFactors: "Ενδεικτικοί συντελεστές, μη επαληθευμένοι. Επιβεβαιώστε την πηγή πριν τη χρήση.",
+    routeEstimate: "Εκτιμώμενος χρόνος και καύσιμο (ευθεία απόσταση)",
+    routeAssumptions: "Παραδοχές: συντελεστής δρόμου 1,35, μέση ταχύτητα 25 km/h, 10 l/100 km, πετρέλαιο 1,80 €/l",
     placeholderNote: "Η ενότητα είναι προεπισκόπηση. Δεν υπάρχουν ακόμα δεδομένα.",
     vtVan: "Van",
     vtTruck7: "Φορτηγό 7,5 t",

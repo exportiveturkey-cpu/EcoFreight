@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Translations } from '../../services/i18n';
 import { formatNumber } from '../../services/formatters';
+import { estimateRoute, formatDuration } from '../../services/estimate';
 
 // Indicative kg CO2e per km per vehicle. Not verified: the source must be confirmed before any client use.
 export const ROAD_FACTORS = {
@@ -28,6 +29,7 @@ const RoadCarbon = ({ t }: { t: Translations }) => {
   const [vehicle, setVehicle] = useState<VehicleKey>('van');
   const [distanceKm, setDistanceKm] = useState(100);
   const emissionsKg = calculateRoadEmissionsKg(vehicle, distanceKm);
+  const route = estimateRoute(distanceKm, 0);
 
   return (
     <div className="max-w-xl bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
@@ -60,7 +62,13 @@ const RoadCarbon = ({ t }: { t: Translations }) => {
         <p className="text-3xl font-extrabold text-slate-900 tracking-tight">{formatNumber(emissionsKg, 1)}</p>
       </div>
 
+      <div className="text-sm text-slate-700 space-y-1">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.routeEstimate}</p>
+        <p>{formatDuration(route.minutes)} · {formatNumber(route.litres, 1)} l · {formatNumber(route.fuelCost, 2)} €</p>
+      </div>
+
       <p className="text-[11px] text-slate-500">{t.indicativeFactors}</p>
+      <p className="text-[11px] text-slate-500">{t.routeAssumptions}</p>
     </div>
   );
 };
