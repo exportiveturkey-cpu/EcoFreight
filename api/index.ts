@@ -69,7 +69,7 @@ app.post('/api/gemini/chat', async (req, res) => {
         model: 'gemini-3.8-flash',
         contents,
         config: {
-          systemInstruction: `You are the EcoFreight AI Logistics Intelligence Co-Pilot. You specialize in sustainable multimodal supply chains (Sea, Rail, Road, Air), freight routing, carbon footprint accounting (GLEC framework, EN 16258, ISO 14083), and EU Green Deal compliance (CBAM, EU ETS, CSRD). Keep answers clear, data-driven, structured, and practical. If the user writes in Turkish, Greek, or English, respond fluently in that language.`,
+          systemInstruction: `You are the EcoFreight AI Logistics Intelligence Co-Pilot. You specialize in sustainable multimodal supply chains (Sea, Rail, Road, Air), freight routing, carbon footprint accounting (GLEC framework, EN 16258, ISO 14083), and EU sustainability reporting (EU ETS for maritime, CSRD). Note: EU CBAM applies to imported goods (steel, cement, aluminium, etc.), not to transport services. Keep answers clear, data-driven, structured, and practical. If the user writes in Turkish, Greek, or English, respond fluently in that language.`,
         },
       });
 
@@ -84,18 +84,18 @@ app.post('/api/gemini/chat', async (req, res) => {
 
   // High quality domain intelligence fallback
   const lower = String(message).toLowerCase();
-  let reply = `[EcoFreight AI Engine] Multimodal assessment for "${message}": Transitioning freight corridors to multimodal electrified rail and short-sea shipping delivers significant GHG emission reductions (up to 70%) while ensuring full compliance with EU CBAM and GLEC reporting standards.`;
+  let reply = `[EcoFreight AI Engine] Multimodal assessment for "${message}": Transitioning freight corridors to multimodal electrified rail and short-sea shipping delivers significant GHG emission reductions (up to 70%), measurable under GLEC framework and EN 16258 standards.`;
 
   if (/suez|red sea|delays|σουέζ|ερυθρ|süveyş|kızıldeniz/.test(lower)) {
     reply = `**Suez Canal & Red Sea Transit Assessment:**\n• Current Status: Cape of Good Hope reroutings continue to extend Asia-Europe transit by 10-14 days.\n• Carbon Impact: +35% bunker fuel consumption per voyage; EU ETS maritime surcharges apply.\n• EcoFreight Recommendation: Utilize Sea-Rail intermodal routes via Mediterranean gateways (Piraeus / Rotterdam) to recover up to 4 days transit time while keeping Scope 3 emissions audited under GLEC standards.`;
   } else if (/emission|carbon|glec|εκπομπ|άνθρακ|emisyon|karbon/.test(lower)) {
     reply = `**Fleet Carbon Accounting Summary (GLEC Framework & EN 16258):**\n• Average Maritime Intensity: ~12-18 g CO2e / tonne-km.\n• Electrified Rail Intensity: ~14-22 g CO2e / tonne-km (82% lower than standard road freight).\n• Heavy-Duty Road (Euro 6): ~62-85 g CO2e / tonne-km.\n• Next Action: Shifting 25% of current road legs to intermodal rail will avert ~4.2 tonnes of CO2e this quarter.`;
   } else if (/fleet|optimiz|cbam|στόλ|filo/.test(lower)) {
-    reply = `**Fleet Optimization & EU CBAM Compliance:**\n1. **Dynamic Modal Splitting:** Combine maritime deep-sea legs with electric rail hinterland connections.\n2. **CBAM Embedded Emission Tracking:** Ensure direct supplier emission factors are collected for iron, steel, and aluminum shipments entering the EU.\n3. **Biofuel (HVO100) Allocation:** Deploy low-carbon biofuels on last-mile delivery legs to achieve immediate 85% lifecycle GHG cuts.`;
+    reply = `**Fleet Optimization & EU Sustainability:**\n1. **Dynamic Modal Splitting:** Combine maritime deep-sea legs with electric rail hinterland connections.\n2. **CSRD Scope 3 Reporting:** Collect verified emission factors from carriers for accurate EU CSRD disclosure.\n3. **Biofuel (HVO100) Allocation:** Deploy low-carbon biofuels on last-mile delivery legs to achieve immediate 85% lifecycle GHG cuts.\n\n_Note: EU CBAM covers imported goods (steel, cement, aluminium), not transport services._`;
   } else if (lower.includes('türkçe') || lower.includes('merhaba') || lower.includes('nasılsın')) {
-    reply = `**EcoFreight AI Lojistik Asistanı:**\nMerhaba! EcoFreight çok modlu sürdürülebilir lojistik platformuna hoş geldiniz. Taşımalarınızın karbon ayak izini GLEC ve EN 16258 standartlarına göre hesaplayabilir, AB CBAM (Sınırda Karbon Düzenleme Mekanizması) uyumluluğu sağlayabilir ve deniz-demiryolu yeşil koridorları ile emisyonlarınızı %70'e varan oranda azaltabilirsiniz. Size nasıl yardımcı olabilirim?`;
+    reply = `**EcoFreight AI Lojistik Asistanı:**\nMerhaba! EcoFreight çok modlu sürdürülebilir lojistik platformuna hoş geldiniz. Taşımalarınızın karbon ayak izini GLEC ve EN 16258 standartlarına göre hesaplayabilir, CSRD raporlaması için Kapsam 3 emisyon verilerini takip edebilir ve deniz-demiryolu yeşil koridorları ile emisyonlarınızı %70'e varan oranda azaltabilirsiniz. Size nasıl yardımcı olabilirim?`;
   } else if (lower.includes('γεια') || lower.includes('καλημέρα')) {
-    reply = `**EcoFreight AI Intelligence:**\nΓεια σας! Είμαι ο έξυπνος βοηθός της EcoFreight για τη βιώσιμη εφοδιαστική αλυσίδα. Μπορώ να αναλύσω τις πολυτροπικές διαδρομές σας, να υπολογίσω το αποτύπωμα άνθρακα (GLEC / CBAM) και να προτείνω πράσινες συνδυασμένες μεταφορές (Σιδηρόδρομος - Ναυτιλία).`;
+    reply = `**EcoFreight AI Intelligence:**\nΓεια σας! Είμαι ο έξυπνος βοηθός της EcoFreight για τη βιώσιμη εφοδιαστική αλυσίδα. Μπορώ να αναλύσω τις πολυτροπικές διαδρομές σας, να υπολογίσω το αποτύπωμα άνθρακα (GLEC / EN 16258) και να προτείνω πράσινες συνδυασμένες μεταφορές (Σιδηρόδρομος - Ναυτιλία).`;
   }
 
   return res.json({ text: reply });
