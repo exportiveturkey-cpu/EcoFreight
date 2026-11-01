@@ -67,8 +67,12 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
         <div className="flex items-center gap-3 bg-white p-2 pr-4 rounded-2xl border border-emerald-100 shadow-sm">
           <div className="bg-emerald-500 p-2 rounded-xl text-white glow-emerald"><ShieldCheck size={20} /></div>
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ESG Score</p>
-            <p className="text-sm font-extrabold text-emerald-700">{isNeutralized ? 92 : 84} / 100</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carbon Intensity</p>
+            <p className="text-sm font-extrabold text-emerald-700">
+              {shipments.length > 0
+                ? `${(totalEmissionsKg / Math.max(1, shipments.reduce((s, x) => s + x.weightTonnes * (x.legs?.reduce((a, l) => a + l.distanceKm, 0) ?? 0), 0) || 1)).toFixed(2)} kg/t·km`
+                : '—'}
+            </p>
           </div>
         </div>
       </div>
@@ -76,9 +80,24 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <SustainabilityMetric title="Trees to Plant" value={isNeutralized ? "0" : "1,240"} sub="Neutralization Goal" icon={<Trees className="text-emerald-500" />} />
-            <SustainabilityMetric title="Carbon Intensity" value="0.42" sub="kg CO2 / Tonne-Km" icon={<Zap className="text-amber-500" />} />
-            <SustainabilityMetric title="Avoided Emissions" value="4.2t" sub="vs Industry Average" icon={<Wind className="text-blue-500" />} />
+            <SustainabilityMetric
+              title="Trees Equivalent"
+              value={isNeutralized ? "0" : (shipments.length > 0 ? String(Math.round(totalEmissionsKg / 22)) : "—")}
+              sub="at 22 kg CO₂/tree/yr"
+              icon={<Trees className="text-emerald-500" />}
+            />
+            <SustainabilityMetric
+              title="Total Emissions"
+              value={shipments.length > 0 ? `${(totalEmissionsKg / 1000).toFixed(1)} t` : "—"}
+              sub="CO₂e this period"
+              icon={<Zap className="text-amber-500" />}
+            />
+            <SustainabilityMetric
+              title="Shipments Tracked"
+              value={String(shipments.length)}
+              sub="in selected period"
+              icon={<Wind className="text-blue-500" />}
+            />
           </div>
 
           {/* Regulatory Panel */}
@@ -102,10 +121,10 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
                  <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100 flex justify-between items-center">
                     <div>
                        <p className="text-xs font-black text-slate-800">{t.targetProgress}</p>
-                       <p className="text-[10px] text-slate-400 font-medium">Progress towards target</p>
+                       <p className="text-[10px] text-slate-400 font-medium">Set a reduction target to track progress</p>
                     </div>
                     <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
-                       <div className="h-full bg-emerald-500 w-3/4"></div>
+                       <div className="h-full bg-slate-300"></div>
                     </div>
                  </div>
                  <button onClick={exportReport} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">

@@ -233,7 +233,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
 
                 <div className="bg-slate-900/80 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 text-right">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Cargo Vessel</span>
-                  <span className="text-xs font-mono font-bold text-white">EVER-GREEN / IMO 9811000</span>
+                  <span className="text-xs font-mono font-bold text-white">Vessel / IMO — Demo</span>
                 </div>
              </div>
 

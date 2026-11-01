@@ -71,7 +71,7 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12">
             <div>
                <h2 className="text-3xl font-black mb-4">Network Compliance Summary</h2>
-               <p className="text-slate-400 leading-relaxed mb-8">92% of your global carriers have active decarbonization targets. Your current strategy is aligned with the Science Based Targets initiative (SBTi).</p>
+               <p className="text-slate-400 leading-relaxed mb-8">Connect your carrier data to see decarbonization target coverage across your network. Carrier sustainability data is sourced from self-reported disclosures.</p>
                <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                      <p className="text-xs text-slate-500 font-bold uppercase mb-1">Total Carriers</p>

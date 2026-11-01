@@ -39,7 +39,7 @@ export const sendChatMessage = async (
     return data.text || "No response received.";
   } catch (err: any) {
     console.error("Chat error:", err);
-    return `[EcoFreight AI Engine] Analysis for "${message}": Transitioning freight corridors to multimodal electrified rail and short-sea shipping delivers significant GHG emission reductions (up to 70%) while ensuring full compliance with EU CBAM and GLEC reporting standards.`;
+    return `[EcoFreight AI] Unable to reach the AI service. General note: multimodal and electrified rail options typically reduce freight GHG emissions compared to road or air transport.`;
   }
 };
 

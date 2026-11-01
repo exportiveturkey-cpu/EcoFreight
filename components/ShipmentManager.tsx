@@ -89,7 +89,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       weightTonnes: newShipment.weight,
       volumeCbm: newShipment.volume,
       status: ShipmentStatus.BOOKED,
-      legs: [{ id: 'L1', mode: selectedRoute.mode as any, origin: newShipment.origin, destination: newShipment.destination, distanceKm: 4500, cost: selectedRoute.estimatedCost, emissionsKg: selectedRoute.estimatedEmissionsKg }],
+      legs: [{ id: 'L1', mode: selectedRoute.mode as any, origin: newShipment.origin, destination: newShipment.destination, distanceKm: 0, cost: selectedRoute.estimatedCost, emissionsKg: selectedRoute.estimatedEmissionsKg }],
       costBreakdown: { freight: selectedRoute.estimatedCost * 0.85, fuelSurcharge: 0, portFees: 0, insurance: 0, customs: 0 },
       totalCost: selectedRoute.estimatedCost,
       totalEmissionsKg: selectedRoute.estimatedEmissionsKg,

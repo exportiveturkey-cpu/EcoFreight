@@ -105,11 +105,11 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
           icon={<Euro size={20} />} 
           color="indigo"
         />
-        <MetricCard 
-          title={t.intermodalEfficiency} 
-          value="96.4%" 
+        <MetricCard
+          title={t.intermodalEfficiency}
+          value={totalCargoWeight > 0 ? `${seaPercent + railPercent}%` : '—'}
           subText={t.greenShare}
-          icon={<Globe size={20} />} 
+          icon={<Globe size={20} />}
           color="amber"
         />
       </div>
