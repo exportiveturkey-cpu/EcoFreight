@@ -31,8 +31,8 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
 
   const zoneData = [
     { zone: 'EU routes', emissions: Math.round(euEmissions) },
-    { zone: 'APAC Maritime', emissions: Math.round(apacEmissions > 0 ? apacEmissions : 780) },
-    { zone: 'Global Other', emissions: Math.round(otherEmissions > 0 ? otherEmissions : 1540) }
+    { zone: 'APAC Maritime', emissions: Math.round(apacEmissions) },
+    { zone: 'Global Other', emissions: Math.round(otherEmissions) }
   ];
 
   const exportReport = () => {
