@@ -191,6 +191,10 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
             ))}
           </div>
           
+        </div>
+
+        {/* Center: Interactive Tactical Vector Map */}
+        <div className="lg:col-span-9 flex flex-col gap-6">
           {/* Risk Intelligence Panel */}
           {section === 'risks' && (
           <div className="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-xl">
@@ -213,10 +217,6 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
              </div>
           </div>
           )}
-        </div>
-
-        {/* Center: Interactive Tactical Vector Map */}
-        <div className="lg:col-span-6 flex flex-col gap-6">
           {section === 'map' && (
           <div className="flex-[2] relative bg-[#090d16] rounded-[3.5rem] border-[6px] border-white shadow-2xl overflow-hidden min-h-[460px] flex flex-col justify-between p-6">
              {/* Tactical Radar / Nautical Grid Background */}
@@ -430,11 +430,9 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
              </div>
           </div>
           )}
-        </div>
 
-        {/* Right: Detailed Telemetry & Route Legs */}
-        {section === 'telemetry' && (
-        <div className="lg:col-span-3 space-y-6">
+          {section === 'telemetry' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           <div className="bg-white rounded-[2.5rem] p-7 border border-slate-200 shadow-sm">
              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t.consignmentMetrics}</h3>
              <div className="space-y-4">
@@ -461,8 +459,10 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                ))}
              </div>
           </div>
+          </div>
+          )}
         </div>
-        )}
+
       </div>
     </div>
   );

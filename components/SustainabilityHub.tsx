@@ -96,8 +96,8 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-3 space-y-8">
+      <div className="space-y-8">
+        <div className="space-y-8">
           {section === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <SustainabilityMetric
@@ -173,7 +173,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
 
         <div className="space-y-8">
           {section === 'offset' && (
-          <div className="rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden bg-slate-900 text-white">
+          <div className="max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden bg-slate-900 text-white">
             <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">{t.offsetMarket}</h3>
             <p className="text-4xl font-extrabold tracking-tight mb-2 text-white">{formatEUR(isNeutralized ? 0 : offsetCost, 2)}</p>
             <p className="text-slate-400 text-xs mb-8">{t.offsetDesc}</p>
