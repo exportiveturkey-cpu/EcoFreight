@@ -161,8 +161,17 @@ const App: React.FC = () => {
   }, [user?.isDemo]);
 
   if (authLoading) return <div className="h-screen w-full bg-[#0f172a] flex items-center justify-center"><div className="w-16 h-16 border-b-2 border-emerald-500 rounded-full animate-spin"></div></div>;
-  if (!user) return <Login onLoginSuccess={setUser} lang={lang} onLangChange={handleLangChange} />;
   if (!vertical) return <VerticalSelect lang={lang} onSelect={setVertical} />;
+  if (!user) return (
+    <>
+      <div className="min-h-[100dvh] blur-md pointer-events-none select-none" aria-hidden="true">
+        <VerticalSelect lang={lang} onSelect={() => {}} />
+      </div>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+        <Login onLoginSuccess={setUser} lang={lang} onLangChange={handleLangChange} onClose={() => setVertical(null)} />
+      </div>
+    </>
+  );
   if (vertical === 'road') return <RoadApp lang={lang} onSwitchVertical={() => setVertical(null)} onLogout={handleLogout} />;
 
   const q = searchQuery.trim().toLowerCase();

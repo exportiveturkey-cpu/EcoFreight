@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Leaf, Lock, Mail, ArrowRight, AlertCircle, Sparkles, Ship, Truck } from 'lucide-react';
+import { Leaf, Lock, Mail, ArrowRight, AlertCircle, Sparkles, Ship, Truck, X } from 'lucide-react';
 import { auth, signInWithEmailAndPassword } from '../services/firebase';
 import { Language, translations } from '../services/i18n';
 
@@ -7,6 +7,8 @@ interface LoginProps {
   onLoginSuccess: (user: any) => void;
   lang?: Language;
   onLangChange?: (lang: Language) => void;
+  /** Set when shown as a pop-up over the vertical picker. */
+  onClose?: () => void;
 }
 
 export type DemoType = 'jury' | 'client' | 'demo';
@@ -55,7 +57,8 @@ export const createDemoProfile = (type: DemoType) => {
   }
 };
 
-const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en', onLangChange }) => {
+const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en', onLangChange, onClose }) => {
+  const isModal = !!onClose;
   const [currentLang, setCurrentLang] = useState<Language>(() => {
     const saved = localStorage.getItem('ecofreight_lang') as Language;
     if (saved === 'el' || saved === 'tr' || saved === 'en') return saved;
@@ -157,9 +160,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#080e14] flex flex-col md:flex-row overflow-hidden">
+    <div className={isModal
+      ? 'relative w-full max-w-[420px] bg-[#080e14] flex flex-col rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl'
+      : 'min-h-[100dvh] bg-[#080e14] flex flex-col md:flex-row overflow-hidden'}>
+      {isModal && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 z-20 p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/5"
+          aria-label="Close"
+        >
+          <X size={18} />
+        </button>
+      )}
       {/* ── Left hero panel: Maritime ── */}
-      <div className="hidden md:flex md:w-[45%] relative overflow-hidden flex-col justify-end pb-16 px-12 select-none pointer-events-none">
+      <div className={isModal ? 'hidden' : 'hidden md:flex md:w-[45%] relative overflow-hidden flex-col justify-end pb-16 px-12 select-none pointer-events-none'}>
         {/* Background */}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(155deg, #0a2a1a 0%, #062018 40%, #031410 70%, #080e14 100%)' }} />
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 60% at 20% 75%, rgba(16,185,129,0.22) 0%, transparent 65%)' }} />
@@ -188,7 +203,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
       </div>
 
       {/* ── Right hero panel: Road ── */}
-      <div className="hidden md:flex md:w-[calc(55%-420px)] relative overflow-hidden flex-col justify-end pb-16 px-10 select-none pointer-events-none">
+      <div className={isModal ? 'hidden' : 'hidden md:flex md:w-[calc(55%-420px)] relative overflow-hidden flex-col justify-end pb-16 px-10 select-none pointer-events-none'}>
         <div className="absolute inset-0" style={{ background: 'linear-gradient(155deg, #0a1525 0%, #071020 40%, #040d1a 70%, #080e14 100%)' }} />
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 60% at 70% 75%, rgba(59,130,246,0.18) 0%, transparent 65%)' }} />
         <div className="absolute inset-0 opacity-[0.025]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.8) 2px, rgba(255,255,255,0.8) 3px)' }} />
@@ -212,7 +227,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
       </div>
 
       {/* ── Auth card ── */}
-      <div className="flex-1 md:w-[420px] md:min-w-[420px] md:max-w-[420px] flex flex-col items-center justify-center relative z-10 px-6 py-10 bg-[#080e14] md:border-l md:border-white/[0.06]">
+      <div className={`flex-1 md:w-[420px] md:min-w-[420px] md:max-w-[420px] flex flex-col items-center justify-center relative z-10 px-6 py-10 bg-[#080e14] ${isModal ? '' : 'md:border-l md:border-white/[0.06]'}`}>
         {/* Top: logo + lang */}
         <div className="w-full max-w-sm flex items-center justify-between mb-10">
           <div className="flex items-center gap-2.5">
