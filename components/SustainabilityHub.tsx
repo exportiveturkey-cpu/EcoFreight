@@ -29,7 +29,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
   const otherEmissions = Math.max(0, totalEmissionsKg - euEmissions - apacEmissions);
 
   const zoneData = [
-    { zone: 'EU (ETS/CBAM)', emissions: Math.round(euEmissions) },
+    { zone: 'EU routes', emissions: Math.round(euEmissions) },
     { zone: 'APAC Maritime', emissions: Math.round(apacEmissions > 0 ? apacEmissions : 780) },
     { zone: 'Global Other', emissions: Math.round(otherEmissions > 0 ? otherEmissions : 1540) }
   ];
@@ -41,7 +41,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ecofreight-csrd-cbam-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `ecofreight-shipments-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -87,20 +87,20 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
                  <div className="bg-blue-600 p-3 rounded-2xl text-white"><Landmark size={22} /></div>
                  <div>
                     <h3 className="text-xl font-black text-slate-900 tracking-tight">{t.complianceEngine}</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CBAM & EU Emissions Trading System (ETS)</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.complianceSub}</p>
                  </div>
               </div>
               <div className="space-y-4">
                  <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100 flex justify-between items-center">
                     <div>
-                       <p className="text-xs font-black text-slate-800">EU CBAM Tax Forecast</p>
-                       <p className="text-[10px] text-slate-400 font-medium">Current quarter exposure</p>
+                       <p className="text-xs font-black text-slate-800">{t.cbamLabel}</p>
+                       <p className="text-[10px] text-slate-400 font-medium">{t.cbamSub}</p>
                     </div>
                     <p className="text-xl font-black text-blue-600">{formatEUR(totalEmissionsKg * 0.08, 2)}</p>
                  </div>
                  <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100 flex justify-between items-center">
                     <div>
-                       <p className="text-xs font-black text-slate-800">SBTi Alignment</p>
+                       <p className="text-xs font-black text-slate-800">{t.targetProgress}</p>
                        <p className="text-[10px] text-slate-400 font-medium">Progress towards target</p>
                     </div>
                     <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">

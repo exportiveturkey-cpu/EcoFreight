@@ -3,7 +3,7 @@ import { TransportMode } from '../types';
 
 /**
  * Average CO2e emission factors (kg CO2e per tonne-km)
- * Based on GLEC (Global Logistics Emissions Council) framework defaults
+ * Indicative factors, NOT GLEC-verified. Confirm the source before client use.
  */
 const EMISSION_FACTORS = {
   [TransportMode.AIR]: 1.13,   // Long-haul air freight
