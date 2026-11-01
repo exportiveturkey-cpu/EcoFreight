@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Leaf, Lock, Mail, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
+import { Leaf, Lock, Mail, ArrowRight, AlertCircle, Sparkles, Ship, Truck } from 'lucide-react';
 import { auth, signInWithEmailAndPassword } from '../services/firebase';
 import { Language, translations } from '../services/i18n';
 
@@ -157,116 +157,158 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background decorative elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[120px]"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px]"></div>
+    <div className="min-h-[100dvh] bg-[#080e14] flex flex-col md:flex-row overflow-hidden">
+      {/* ── Left hero panel: Maritime ── */}
+      <div className="hidden md:flex md:w-[45%] relative overflow-hidden flex-col justify-end pb-16 px-12 select-none pointer-events-none">
+        {/* Background */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(155deg, #0a2a1a 0%, #062018 40%, #031410 70%, #080e14 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 60% at 20% 75%, rgba(16,185,129,0.22) 0%, transparent 65%)' }} />
+        {/* Scan lines */}
+        <div className="absolute inset-0 opacity-[0.025]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.8) 2px, rgba(255,255,255,0.8) 3px)' }} />
+        {/* Right edge divider */}
+        <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent" />
 
-      <div className="w-full max-w-md z-10 animate-in fade-in zoom-in duration-500 py-6">
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 sm:p-10 rounded-[2.5rem] shadow-2xl">
-          {/* Top bar: language switcher only */}
-          <div className="flex justify-end mb-6">
-            <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
-              <button
-                type="button"
-                onClick={() => handleLanguageChange('en')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                  currentLang === 'en'
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                🇬🇧 EN
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLanguageChange('el')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                  currentLang === 'el'
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                🇬🇷 ΕΛ
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLanguageChange('tr')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                  currentLang === 'tr'
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                🇹🇷 TR
-              </button>
+        {/* Content */}
+        <div className="relative z-10">
+          <div className="mb-5 inline-flex">
+            <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30">
+              <Ship className="text-emerald-300 w-7 h-7" />
             </div>
           </div>
+          <div className="mb-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400/60">Vertical 01</span>
+          </div>
+          <h2 className="text-3xl font-black text-white tracking-tight leading-none mb-2">
+            {t.verticalMaritime || 'Maritime'}
+          </h2>
+          <p className="text-slate-500 text-xs leading-relaxed max-w-[220px]">
+            {t.verticalMaritimeDesc || 'Emissions, ETS compliance & green corridor routing'}
+          </p>
+        </div>
+      </div>
 
-          <div className="flex flex-col items-center mb-8">
-            <div className="bg-emerald-500 p-4 rounded-3xl mb-3 shadow-lg shadow-emerald-500/20">
-              <Leaf className="text-white w-9 h-9" />
+      {/* ── Right hero panel: Road ── */}
+      <div className="hidden md:flex md:w-[calc(55%-420px)] relative overflow-hidden flex-col justify-end pb-16 px-10 select-none pointer-events-none">
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(155deg, #0a1525 0%, #071020 40%, #040d1a 70%, #080e14 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 60% at 70% 75%, rgba(59,130,246,0.18) 0%, transparent 65%)' }} />
+        <div className="absolute inset-0 opacity-[0.025]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.8) 2px, rgba(255,255,255,0.8) 3px)' }} />
+
+        <div className="relative z-10">
+          <div className="mb-5 inline-flex">
+            <div className="p-3.5 rounded-2xl bg-blue-500/15 border border-blue-500/30">
+              <Truck className="text-blue-300 w-7 h-7" />
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">EcoFreight</h1>
-            <p className="text-slate-400 mt-1 text-xs font-semibold uppercase tracking-widest text-center">
-              Sustainability & Decarbonization Intelligence
+          </div>
+          <div className="mb-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400/60">Vertical 02</span>
+          </div>
+          <h2 className="text-3xl font-black text-white tracking-tight leading-none mb-2">
+            {t.verticalRoad || 'Road'}
+          </h2>
+          <p className="text-slate-500 text-xs leading-relaxed max-w-[200px]">
+            {t.verticalRoadDesc || 'Fleet carbon, CSRD reporting & route optimization'}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Auth card ── */}
+      <div className="flex-1 md:w-[420px] md:min-w-[420px] md:max-w-[420px] flex flex-col items-center justify-center relative z-10 px-6 py-10 bg-[#080e14] md:border-l md:border-white/[0.06]">
+        {/* Top: logo + lang */}
+        <div className="w-full max-w-sm flex items-center justify-between mb-10">
+          <div className="flex items-center gap-2.5">
+            <div className="bg-emerald-500 p-2 rounded-xl shadow-lg shadow-emerald-500/30">
+              <Leaf className="text-white w-4 h-4" />
+            </div>
+            <span className="font-black text-lg text-white tracking-tight">EcoFreight</span>
+          </div>
+          {/* Language switcher */}
+          <div className="flex items-center gap-0.5 bg-white/5 p-1 rounded-xl border border-white/10">
+            {(['en', 'el', 'tr'] as Language[]).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => handleLanguageChange(l)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${
+                  currentLang === l
+                    ? 'bg-emerald-500 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {l === 'en' ? '🇬🇧 EN' : l === 'el' ? '🇬🇷 ΕΛ' : '🇹🇷 TR'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Card body */}
+        <div className="w-full max-w-sm">
+          {/* Headline */}
+          <div className="mb-8">
+            <h1 className="text-2xl font-black text-white tracking-tight leading-tight mb-1">
+              {currentLang === 'el' ? 'Σύνδεση' : currentLang === 'tr' ? 'Giriş Yap' : 'Sign in'}
+            </h1>
+            <p className="text-slate-500 text-xs">
+              {currentLang === 'el'
+                ? 'Sustainability & Decarbonization Intelligence'
+                : currentLang === 'tr'
+                ? 'Sürdürülebilirlik ve Dekarbonizasyon'
+                : 'Sustainability & Decarbonization Intelligence'}
             </p>
           </div>
 
-          {/* The only top-level action: demo */}
+          {/* Demo CTA */}
           <button
             type="button"
             onClick={() => handleDemoSelect('demo')}
-            className="w-full mb-8 bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 px-5 rounded-2xl transition-all shadow-lg shadow-emerald-500/30 flex items-center justify-between group"
+            className="w-full mb-6 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-white font-black py-3.5 px-5 rounded-2xl transition-all shadow-lg shadow-emerald-500/30 flex items-center justify-between group"
           >
             <span className="flex items-center gap-2 text-left">
-              <Sparkles size={18} />
+              <Sparkles size={16} />
               <span>
                 <span className="block text-sm">{t.tryDemo}</span>
-                <span className="block text-[11px] font-medium text-emerald-50">{t.tryDemoDesc}</span>
+                <span className="block text-[10px] font-medium text-emerald-100/80">{t.tryDemoDesc}</span>
               </span>
             </span>
-            <ArrowRight size={18} className="shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight size={16} className="shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
 
-          <div className="relative flex py-2 items-center mb-5">
-            <div className="flex-grow border-t border-white/10"></div>
-            <span className="flex-shrink mx-4 text-[10px] font-black uppercase tracking-widest text-slate-500">
+          {/* Divider */}
+          <div className="relative flex items-center mb-5">
+            <div className="flex-grow border-t border-white/[0.08]" />
+            <span className="flex-shrink mx-4 text-[10px] font-black uppercase tracking-widest text-slate-600">
               {t.orCorporate}
             </span>
-            <div className="flex-grow border-t border-white/10"></div>
+            <div className="flex-grow border-t border-white/[0.08]" />
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-3">
-            <div className="space-y-2.5">
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                <input
-                  type="email"
-                  placeholder={t.emailPlaceholder}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-xs transition-all"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                <input
-                  type="password"
-                  placeholder={t.passwordPlaceholder}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-xs transition-all"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
+          {/* Sign-in form */}
+          <form onSubmit={handleLogin} className="space-y-2.5">
+            <div className="relative">
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+              <input
+                type="email"
+                placeholder={t.emailPlaceholder}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-sm transition-all"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="relative">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+              <input
+                type="password"
+                placeholder={t.passwordPlaceholder}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-sm transition-all"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
 
             {error && (
               <div className="flex items-center gap-2 text-red-400 bg-red-400/10 p-3 rounded-xl text-xs font-medium border border-red-400/20">
-                <AlertCircle size={15} />
+                <AlertCircle size={14} />
                 {error}
               </div>
             )}
@@ -274,10 +316,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800/50 text-white font-bold py-3 rounded-2xl transition-all border border-white/10 flex items-center justify-center gap-2 text-xs group"
+              className="w-full mt-1 bg-white/[0.06] hover:bg-white/[0.09] active:scale-[0.98] disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all border border-white/[0.08] flex items-center justify-center gap-2 text-sm group"
             >
               {loading ? (
-                <span>...</span>
+                <span className="opacity-60">...</span>
               ) : (
                 <>
                   <span>{t.signInBtn}</span>
@@ -286,11 +328,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, lang: initialLang = 'en',
               )}
             </button>
           </form>
+
+          {/* Mobile: vertical badges */}
+          <div className="flex md:hidden gap-3 mt-8">
+            <div className="flex-1 flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+              <Ship className="text-emerald-400 w-4 h-4 shrink-0" />
+              <span className="text-emerald-300 text-[11px] font-bold">{t.verticalMaritime || 'Maritime'}</span>
+            </div>
+            <div className="flex-1 flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2">
+              <Truck className="text-blue-400 w-4 h-4 shrink-0" />
+              <span className="text-blue-300 text-[11px] font-bold">{t.verticalRoad || 'Road'}</span>
+            </div>
+          </div>
         </div>
 
-        <p className="text-center text-slate-500 text-[11px] mt-4">
-          EcoFreight Logistics Intelligence
-        </p>
+        <p className="text-slate-700 text-[10px] mt-10">EcoFreight Logistics Intelligence</p>
       </div>
     </div>
   );

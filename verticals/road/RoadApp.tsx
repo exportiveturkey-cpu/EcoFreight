@@ -26,14 +26,18 @@ const RoadApp: React.FC<RoadAppProps> = ({ lang, onSwitchVertical, onLogout }) =
   const current = items.find(i => i.id === tab) ?? items[0];
 
   return (
-    <div className="flex h-screen bg-[#f1f5f9] overflow-hidden">
+    <div className="flex min-h-[100dvh] h-screen bg-[#0a1525] overflow-hidden">
       <aside className="w-72 glass-sidebar h-full flex flex-col z-50">
         <div className="p-8">
           <div className="flex items-center gap-3">
             <div className="bg-blue-500 p-2.5 rounded-2xl shadow-lg shadow-blue-500/30"><Truck className="text-white w-6 h-6" /></div>
             <span className="font-extrabold text-2xl text-white tracking-tight">EcoFreight</span>
           </div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-blue-300 mt-3">{t.verticalRoad}</p>
+          {/* Road vertical badge */}
+          <div className="mt-4 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center gap-2">
+            <Truck size={14} className="text-blue-400 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-400">{t.verticalRoad}</span>
+          </div>
         </div>
 
         <nav className="px-6 py-6 flex-1 space-y-2 overflow-y-auto">
@@ -43,33 +47,43 @@ const RoadApp: React.FC<RoadAppProps> = ({ lang, onSwitchVertical, onLogout }) =
               type="button"
               onClick={() => setTab(item.id)}
               className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${
-                tab === item.id ? 'bg-blue-500 text-white font-bold shadow-xl shadow-blue-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'
+                tab === item.id
+                  ? 'bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30 shadow-lg shadow-blue-500/10'
+                  : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
               }`}
             >
               {item.icon}
               <span className="text-sm tracking-wide flex-1 text-left">{item.label}</span>
-              {item.soon && <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/10 text-slate-300">{t.comingSoon}</span>}
+              {item.soon && <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/8 text-slate-500">{t.comingSoon}</span>}
             </button>
           ))}
         </nav>
 
         <div className="p-6 border-t border-white/5 space-y-2">
-          <button type="button" onClick={onSwitchVertical} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+          <button type="button" onClick={onSwitchVertical} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-all">
             <RotateCcw size={18} />
             <span className="text-sm font-bold">{t.switchVertical}</span>
           </button>
-          <button type="button" onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all">
+          <button type="button" onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-all">
             <LogOut size={20} />
             <span className="text-sm font-bold">{t.signOut}</span>
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 overflow-y-auto p-6 md:p-12">
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-8">{current.label}</h1>
+      <main
+        className="flex-1 min-w-0 overflow-y-auto p-6 md:p-12 custom-scrollbar"
+        style={{ background: 'linear-gradient(160deg, #080e14 0%, #0a1525 40%, #060d1a 100%)' }}
+      >
+        <h1 className="text-4xl font-black text-white tracking-tight mb-8">{current.label}</h1>
         {tab === 'carbon'
           ? <RoadCarbon t={t} />
-          : <div className="bg-white rounded-[2rem] border border-slate-200 p-10 text-center text-slate-500 text-sm">{t.placeholderNote}</div>}
+          : (
+            <div className="rounded-[2rem] border border-white/8 p-10 text-center text-slate-500 text-sm"
+              style={{ background: 'rgba(255,255,255,0.03)' }}>
+              {t.placeholderNote}
+            </div>
+          )}
       </main>
     </div>
   );

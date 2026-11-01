@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutGrid, 
-  Truck, 
+import {
+  LayoutGrid,
+  Truck,
   Map as MapIcon,
-  Leaf, 
-  Settings, 
+  Leaf,
+  Settings,
   Menu,
   Search,
   Bell,
@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   Building2,
   Award,
-  RotateCcw
+  RotateCcw,
+  Ship,
+  Anchor
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ShipmentManager from './components/ShipmentManager';
@@ -172,8 +174,8 @@ const App: React.FC = () => {
   const isDemoExpired = user?.isDemo && user.daysRemaining !== undefined && user.daysRemaining <= 0;
 
   return (
-    <div className="flex h-screen bg-[#f1f5f9] overflow-hidden">
-      {mobileNav && <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setMobileNav(false)} />}
+    <div className="flex h-screen bg-[#0a1628] overflow-hidden">
+      {mobileNav && <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setMobileNav(false)} />}
       <aside className={`${isSidebarOpen ? 'w-72' : 'w-24'} ${mobileNav ? '' : 'max-md:-translate-x-full'} max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:w-72 glass-sidebar h-full transition-all duration-500 flex flex-col z-50`}>
         <div className="p-8 flex items-center justify-between">
           <button type="button" onClick={() => setSidebarOpen(!isSidebarOpen)} className="flex items-center gap-3" title={isSidebarOpen ? 'Collapse' : 'Expand'}>
@@ -182,6 +184,12 @@ const App: React.FC = () => {
           </button>
           {isSidebarOpen && <ChevronRight size={18} className="text-slate-500 rotate-180 cursor-pointer hover:text-white" onClick={() => setSidebarOpen(false)} />}
         </div>
+        {isSidebarOpen && (
+          <div className="mx-6 mb-4 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+            <Ship size={14} className="text-emerald-400 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-400">Maritime</span>
+          </div>
+        )}
 
         <div onClick={() => setMobileNav(false)} className="px-6 py-6 flex-1 space-y-2 overflow-y-auto custom-scrollbar">
           <NavItem icon={<LayoutGrid size={22} />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={!isSidebarOpen} />
@@ -226,10 +234,10 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <header className="h-24 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between gap-3 px-4 md:px-12 z-40 shrink-0">
-           <button type="button" onClick={() => { setSidebarOpen(true); setMobileNav(true); }} className="md:hidden text-slate-600 shrink-0"><Menu size={24} /></button>
-           <div className="flex items-center gap-4 bg-slate-100/50 border border-slate-200 rounded-2xl px-5 py-2.5 w-96 max-md:flex-1 max-md:min-w-0 max-md:px-3">
-            <Search size={18} className="text-slate-400" />
+        <header className="h-20 bg-[#080e14]/90 backdrop-blur-md border-b border-white/5 flex items-center justify-between gap-3 px-4 md:px-12 z-40 shrink-0">
+           <button type="button" onClick={() => { setSidebarOpen(true); setMobileNav(true); }} className="md:hidden text-slate-400 shrink-0"><Menu size={24} /></button>
+           <div className="flex items-center gap-3 bg-white/5 border border-white/8 rounded-2xl px-5 py-2.5 w-96 max-md:flex-1 max-md:min-w-0 max-md:px-3">
+            <Search size={18} className="text-slate-500" />
             <input
               type="text"
               placeholder={t.search}
@@ -238,7 +246,7 @@ const App: React.FC = () => {
                 setSearchQuery(e.target.value);
                 if (activeTab !== 'shipments' && activeTab !== 'tracking') setActiveTab('shipments');
               }}
-              className="bg-transparent border-none outline-none text-sm w-full font-medium"
+              className="bg-transparent border-none outline-none text-sm w-full font-medium text-slate-200 placeholder:text-slate-500"
             />
             {searchQuery && <button type="button" onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-700"><X size={16} /></button>}
           </div>
@@ -247,41 +255,41 @@ const App: React.FC = () => {
               user.isDemo ? (
                 user.isReadOnly ? (
                   // Potential Client Read-Only Demo (3 Days)
-                  <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 text-xs font-medium shadow-sm">
-                    <Building2 size={14} className="text-blue-600" />
-                    <span className="text-[11px] font-bold text-slate-800">{t.demoClient}</span>
-                    <span className="text-[9px] uppercase px-2 py-0.5 rounded-md bg-blue-600 text-white font-black tracking-wider">
+                  <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs font-medium">
+                    <Building2 size={14} className="text-blue-400" />
+                    <span className="text-[11px] font-bold text-slate-300">{t.demoClient}</span>
+                    <span className="text-[9px] uppercase px-2 py-0.5 rounded-md bg-blue-500/30 text-blue-300 font-black tracking-wider">
                       {user.daysRemaining ?? 3} {t.days} • {t.readOnly}
                     </span>
                   </div>
                 ) : (
                   // NBG Seeds Jury Demo (14 Days)
-                  <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-emerald-900 text-xs font-medium shadow-sm">
-                    <Award size={14} className="text-emerald-600" />
-                    <span className="text-[11px] font-bold text-slate-800">{demoLabel}</span>
-                    <span className="text-[9px] uppercase px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black tracking-wider">
+                  <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium">
+                    <Award size={14} className="text-emerald-400" />
+                    <span className="text-[11px] font-bold text-slate-300">{demoLabel}</span>
+                    <span className="text-[9px] uppercase px-2 py-0.5 rounded-md bg-emerald-500/30 text-emerald-300 font-black tracking-wider">
                       {user.daysRemaining ?? 14} {t.days} {lang === 'el' ? 'Ενεργό' : lang === 'tr' ? 'Aktif' : 'Active'}
                     </span>
                   </div>
                 )
               ) : (
-                <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
-                  <ShieldCheck size={14} className="text-emerald-600" />
-                  <span className="text-[11px] font-mono font-bold text-slate-700">{user.email || 'Authenticated'}</span>
-                  <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-emerald-200/70 text-emerald-900 font-black tracking-wider">Firebase Auth</span>
+                <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium">
+                  <ShieldCheck size={14} className="text-emerald-400" />
+                  <span className="text-[11px] font-mono font-bold text-slate-300">{user.email || 'Authenticated'}</span>
+                  <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-black tracking-wider">Firebase Auth</span>
                 </div>
               )
             )}
 
             {/* Language Switcher with Flag Icons */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+            <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/8">
               <button
                 type="button"
                 onClick={() => handleLangChange('en')}
                 className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
                   lang === 'en'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
+                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                    : 'text-slate-500 hover:text-slate-300'
                 }`}
                 title="English"
               >
@@ -292,8 +300,8 @@ const App: React.FC = () => {
                 onClick={() => handleLangChange('el')}
                 className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
                   lang === 'el'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
+                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                    : 'text-slate-500 hover:text-slate-300'
                 }`}
                 title="Ελληνικά"
               >
@@ -304,8 +312,8 @@ const App: React.FC = () => {
                 onClick={() => handleLangChange('tr')}
                 className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
                   lang === 'tr'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
+                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                    : 'text-slate-500 hover:text-slate-300'
                 }`}
                 title="Türkçe"
               >
@@ -315,15 +323,15 @@ const App: React.FC = () => {
 
             <div className="relative">
               <button type="button" className="relative block" onClick={() => setShowNotifications(!showNotifications)} title={t.notifications}>
-                <Bell size={22} className="text-slate-400 hover:text-slate-700" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
+                <Bell size={22} className="text-slate-500 hover:text-slate-200" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#080e14]"></span>
               </button>
               {showNotifications && (
-                <div className="absolute right-0 top-10 w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 z-50 space-y-3">
+                <div className="absolute right-0 top-10 w-80 bg-[#0d1b2a] rounded-2xl border border-white/10 shadow-2xl shadow-black/40 p-4 z-50 space-y-3">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.notifications}</p>
                   {latestEvents.map((e, i) => (
-                    <div key={i} className="text-xs border-b border-slate-100 last:border-0 pb-2 last:pb-0">
-                      <p className="font-bold text-slate-800"><span className="font-mono text-emerald-700">{e.shipmentId}</span> · {e.status}</p>
+                    <div key={i} className="text-xs border-b border-white/5 last:border-0 pb-2 last:pb-0">
+                      <p className="font-bold text-slate-200"><span className="font-mono text-emerald-400">{e.shipmentId}</span> · {e.status}</p>
                       <p className="text-slate-500">{e.location} · {new Date(e.timestamp).toLocaleDateString()}</p>
                     </div>
                   ))}
@@ -365,7 +373,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-12 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-12 custom-scrollbar" style={{background: 'linear-gradient(160deg, #080e14 0%, #0a1628 40%, #060d19 100%)'}}>
           {activeTab === 'dashboard' && <Dashboard shipments={shipments} lang={lang} />}
           {activeTab === 'shipments' && (
             <ShipmentManager 
