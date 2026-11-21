@@ -213,6 +213,15 @@ export interface Translations {
   applyTerminalFeesAllModes: string;
   portFeesActiveNote: string;
   shipmentLedgerTitle: string;
+
+  // TEU-km Metrics (Distance x Containers)
+  containersTeu: string;
+  teuKm: string;
+  teuKmFormula: string;
+  costPerTeuKm: string;
+  co2PerTeuKm: string;
+  totalTeuKm: string;
+  unitCostTeuKm: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -423,7 +432,14 @@ export const translations: Record<Language, Translations> = {
     autoEstimatePorts: "Auto-Estimate",
     applyTerminalFeesAllModes: "Include terminal handling fees on Rail / Road / Air",
     portFeesActiveNote: "Active on Sea & Intermodal · Optional on inland/air",
-    shipmentLedgerTitle: "Shipment Cost Ledger"
+    shipmentLedgerTitle: "Shipment Cost Ledger",
+    containersTeu: "Containers (TEU)",
+    teuKm: "TEU-km",
+    teuKmFormula: "distance × containers",
+    costPerTeuKm: "€/TEU-km",
+    co2PerTeuKm: "CO2 / TEU-km",
+    totalTeuKm: "Total TEU-km",
+    unitCostTeuKm: "Unit Cost / TEU-km"
   },
   tr: {
     dashboard: "Panel",
@@ -632,7 +648,14 @@ export const translations: Record<Language, Translations> = {
     autoEstimatePorts: "Otomatik Tahmin",
     applyTerminalFeesAllModes: "Demiryolu / Karayolu / Havayoluna terminal ücreti uygula",
     portFeesActiveNote: "Deniz & İntermodal'da aktif · Diğer modlarda opsiyonel",
-    shipmentLedgerTitle: "Sevkiyat Maliyet Dökümü"
+    shipmentLedgerTitle: "Sevkiyat Maliyet Dökümü",
+    containersTeu: "Konteyner (TEU)",
+    teuKm: "TEU-km",
+    teuKmFormula: "mesafe × konteyner",
+    costPerTeuKm: "€/TEU-km",
+    co2PerTeuKm: "CO2 / TEU-km",
+    totalTeuKm: "Toplam TEU-km",
+    unitCostTeuKm: "Birim Maliyet / TEU-km"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -841,7 +864,14 @@ export const translations: Record<Language, Translations> = {
     autoEstimatePorts: "Αυτόματη Εκτίμηση",
     applyTerminalFeesAllModes: "Εφαρμογή τελών τερματικού σε Σιδηρόδρομο / Οδικό / Αεροπορικό",
     portFeesActiveNote: "Ενεργό σε Θαλάσσιο & Διατροπικό · Προαιρετικό στα υπόλοιπα",
-    shipmentLedgerTitle: "Ανάλυση Κόστους Αποστολής"
+    shipmentLedgerTitle: "Ανάλυση Κόστους Αποστολής",
+    containersTeu: "Εμπορευματοκιβώτια (TEU)",
+    teuKm: "TEU-km",
+    teuKmFormula: "απόσταση × εμπορευματοκιβώτια",
+    costPerTeuKm: "€/TEU-km",
+    co2PerTeuKm: "CO2 / TEU-km",
+    totalTeuKm: "Συνολικά TEU-km",
+    unitCostTeuKm: "Κόστος ανά TEU-km"
   }
 };
 

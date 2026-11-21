@@ -8,10 +8,11 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import { Ship, Leaf, Euro, Activity } from 'lucide-react';
+import { Ship, Leaf, Euro, Activity, Box } from 'lucide-react';
 import { Shipment, ShipmentStatus } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
 import { formatEUR, formatNumber, formatEmissions } from '../services/formatters';
+import { getShipmentContainers, getShipmentDistanceKm, getShipmentTeuKm } from '../services/carbon';
 
 interface DashboardProps {
   shipments: Shipment[];
@@ -27,6 +28,8 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
   const totalEmissions = shipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0);
   const totalSpend = shipments.reduce((sum, s) => sum + s.totalCost, 0);
   const totalCargoWeight = shipments.reduce((sum, s) => sum + s.weightTonnes, 0);
+  const totalContainers = shipments.reduce((sum, s) => sum + getShipmentContainers(s), 0);
+  const totalTeuKm = shipments.reduce((sum, s) => sum + getShipmentTeuKm(s), 0);
   const inTransitCount = shipments.filter(s => s.status === ShipmentStatus.IN_TRANSIT).length;
   const deliveredCount = shipments.filter(s => s.status === ShipmentStatus.DELIVERED).length;
 
@@ -92,22 +95,22 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
             <MetricCard
               title={t.carbonFootprint}
               value={formatEmissions(totalEmissions)}
-              subText={t.carbonEstimate}
+              subText={totalCargoWeight > 0 ? `${formatNumber(totalEmissions / totalCargoWeight, 0)} kg/t · ${t.carbonEstimate}` : t.carbonEstimate}
               icon={<Leaf size={20} />}
               color="emerald"
             />
             <MetricCard
               title={t.freightSpend}
               value={formatEUR(totalSpend, 0)}
-              subText={`Avg ${formatEUR(totalSpend / Math.max(1, shipments.length), 0)} / order`}
+              subText={totalTeuKm > 0 ? `Avg ${formatEUR(totalSpend / Math.max(1, shipments.length), 0)} · ${formatEUR(totalSpend / totalTeuKm, 2)}/TEU-km` : `Avg ${formatEUR(totalSpend / Math.max(1, shipments.length), 0)} / order`}
               icon={<Euro size={20} />}
               color="indigo"
             />
             <MetricCard
-              title={lang === 'el' ? 'Εκπομπές ανά τόνο' : 'Emissions per tonne'}
-              value={totalCargoWeight > 0 ? formatNumber(totalEmissions / totalCargoWeight, 0) + ' kg' : '—'}
-              subText={`${formatNumber(totalCargoWeight, 1)} t`}
-              icon={<Leaf size={20} />}
+              title={`${t.totalTeuKm} (${t.teuKmFormula})`}
+              value={totalTeuKm > 0 ? formatNumber(totalTeuKm) : '—'}
+              subText={totalTeuKm > 0 ? `${totalContainers} TEU · ${(totalEmissions / totalTeuKm).toFixed(2)} kg CO2/TEU-km` : `${totalContainers} TEU`}
+              icon={<Box size={20} />}
               color="amber"
             />
           </div>
@@ -160,13 +163,18 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
                   <th className="pb-4">{t.consignment}</th>
                   <th className="pb-4">{t.originDest}</th>
                   <th className="pb-4">{t.cargoWeight}</th>
+                  <th className="pb-4 text-right">{t.teuKm}</th>
                   <th className="pb-4">{t.status}</th>
                   <th className="pb-4">{t.emissions}</th>
                   <th className="pb-4 text-right">{t.freightCost}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {shipments.slice(0, 6).map(s => (
+                {shipments.slice(0, 6).map(s => {
+                  const teuKm = getShipmentTeuKm(s);
+                  const teuCount = getShipmentContainers(s);
+                  const distKm = getShipmentDistanceKm(s);
+                  return (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-4">
                       <p className="font-extrabold text-slate-900 font-mono">{s.id}</p>
@@ -176,8 +184,12 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
                       {s.origin} → {s.destination}
                     </td>
                     <td className="py-4">
-                      <span className="font-bold text-slate-900">{s.weightTonnes}t</span>
+                      <span className="font-bold text-slate-900">{s.weightTonnes}t · {teuCount} TEU</span>
                       <span className="text-[11px] text-slate-400 block truncate max-w-[140px]">{s.cargoType}</span>
+                    </td>
+                    <td className="py-4 text-right font-mono tabular-nums">
+                      <span className="font-bold text-slate-900 block">{formatNumber(teuKm)}</span>
+                      <span className="text-[10px] text-slate-400">{formatNumber(distKm)} km × {teuCount}</span>
                     </td>
                     <td className="py-4">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -197,7 +209,8 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
                       {formatEUR(s.totalCost, 0)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Leaf, Zap, Globe, Wind, Trees, Sparkles, TrendingDown, ArrowRight, ShieldCheck, Loader2, CheckCircle, Download, X, Award, FileText, Scale, Landmark } from 'lucide-react';
 import { Shipment, Recommendation, TransportMode } from '../types';
 import { getSustainabilityInsights } from '../services/gemini';
-import { getOffsetPrice } from '../services/carbon';
+import { getOffsetPrice, getShipmentContainers, getShipmentTeuKm } from '../services/carbon';
 import { formatEUR, formatNumber } from '../services/formatters';
 import { toCsv } from '../services/csv';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
@@ -20,6 +20,7 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
   const [section, setSection] = useState<'overview' | 'compliance' | 'offset' | 'advice'>('overview');
 
   const totalEmissionsKg = shipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0);
+  const totalTeuKm = shipments.reduce((sum, s) => sum + getShipmentTeuKm(s), 0);
   const offsetCost = getOffsetPrice(totalEmissionsKg);
 
   const euEmissions = shipments
@@ -37,8 +38,8 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
   ];
 
   const exportReport = () => {
-    const header = ['ID', 'Customer', 'Origin', 'Destination', 'Weight (t)', 'Emissions (kg CO2e)', 'Cost (EUR)', 'Status'];
-    const rows = shipments.map(s => [s.id, s.customerName, s.origin, s.destination, s.weightTonnes, s.totalEmissionsKg, s.totalCost, s.status]);
+    const header = ['ID', 'Customer', 'Origin', 'Destination', 'Weight (t)', 'Containers (TEU)', 'TEU-km', 'Emissions (kg CO2e)', 'Cost (EUR)', 'Status'];
+    const rows = shipments.map(s => [s.id, s.customerName, s.origin, s.destination, s.weightTonnes, getShipmentContainers(s), getShipmentTeuKm(s), s.totalEmissionsKg, s.totalCost, s.status]);
     const csv = toCsv([header, ...rows]);
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
@@ -69,9 +70,9 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
           <div className="bg-emerald-500 p-2 rounded-xl text-white glow-emerald"><ShieldCheck size={20} /></div>
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carbon Intensity</p>
-            <p className="text-sm font-extrabold text-emerald-700">
-              {shipments.length > 0
-                ? `${(totalEmissionsKg / Math.max(1, shipments.reduce((s, x) => s + x.weightTonnes * (x.legs?.reduce((a, l) => a + l.distanceKm, 0) ?? 0), 0) || 1)).toFixed(2)} kg/t·km`
+            <p className="text-sm font-extrabold text-emerald-700 font-mono tabular-nums">
+              {shipments.length > 0 && totalTeuKm > 0
+                ? `${(totalEmissionsKg / Math.max(1, shipments.reduce((s, x) => s + x.weightTonnes * (x.legs?.reduce((a, l) => a + l.distanceKm, 0) ?? 0), 0) || 1)).toFixed(2)} kg/t·km · ${(totalEmissionsKg / totalTeuKm).toFixed(2)} kg/TEU-km`
                 : '—'}
             </p>
           </div>
@@ -113,9 +114,9 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
               icon={<Zap className="text-amber-500" />}
             />
             <SustainabilityMetric
-              title="Shipments Tracked"
-              value={String(shipments.length)}
-              sub="in selected period"
+              title={`${t.totalTeuKm} (${t.teuKmFormula})`}
+              value={totalTeuKm > 0 ? formatNumber(totalTeuKm) : "—"}
+              sub={`${shipments.length} shipments tracked`}
               icon={<Wind className="text-blue-500" />}
             />
           </div>

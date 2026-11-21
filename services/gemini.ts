@@ -45,7 +45,8 @@ export const getRouteComparison = async (
   fuelMultiplier: number = 1,
   originPortFee?: number,
   destinationPortFee?: number,
-  applyPortFeeToAllModes: boolean = false
+  applyPortFeeToAllModes: boolean = false,
+  containers?: number
 ): Promise<RouteOption[]> => {
   try {
     const res = await fetch("/api/gemini/route-comparison", {
@@ -60,6 +61,7 @@ export const getRouteComparison = async (
         originPortFee,
         destinationPortFee,
         applyPortFeeToAllModes,
+        containers,
       }),
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -78,7 +80,8 @@ export const getRouteComparison = async (
       fuelMultiplier,
       originPortFee,
       destinationPortFee,
-      applyPortFeeToAllModes
+      applyPortFeeToAllModes,
+      containers
     );
   }
 };

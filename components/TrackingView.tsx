@@ -8,6 +8,8 @@ import {
 import { Shipment, Leg, TransportMode } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
 import { getLocationInsights, MapInsight, predictShipmentETA, getRiskAlerts, analyzeCargoDamage } from '../services/gemini';
+import { getShipmentContainers, getShipmentDistanceKm, getShipmentTeuKm } from '../services/carbon';
+import { formatNumber } from '../services/formatters';
 
 interface TrackingViewProps { shipments: Shipment[]; lang: Language; }
 
@@ -437,6 +439,11 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t.consignmentMetrics}</h3>
              <div className="space-y-4">
                 <StatRow icon={<Scale size={14}/>} label="Cargo Weight" value={`${selectedShipment?.weightTonnes} Tonnes`} />
+                <StatRow
+                  icon={<Compass size={14}/>}
+                  label={t.teuKm}
+                  value={selectedShipment ? `${formatNumber(getShipmentTeuKm(selectedShipment))} (${getShipmentContainers(selectedShipment)} TEU × ${formatNumber(getShipmentDistanceKm(selectedShipment))} km)` : '—'}
+                />
                 <StatRow icon={<Gauge size={14}/>} label="CO2e (est.)" value={`${selectedShipment?.totalEmissionsKg} kg`} />
                 <StatRow icon={<Clock size={14}/>} label="ETA Schedule" value="On Schedule (ETA Oct 14)" />
                 <StatRow icon={<Wind size={14}/>} label="Weather / Sea" value="Sea State 2 (Calm)" />

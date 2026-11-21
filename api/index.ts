@@ -112,8 +112,10 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
     originPortFee: customOriginPortFee,
     destinationPortFee: customDestinationPortFee,
     applyPortFeeToAllModes = false,
+    containers: customContainers,
   } = req.body;
   const w = Math.max(0.5, Number(weight) || 1);
+  const containers = Math.max(0.5, Number(customContainers) || Math.max(1, Math.ceil(w / 14)));
   const carbonPrice = Math.max(0, Number(carbonPricePerTonne) || 85);
   const fuelMult = Math.max(0.3, Number(fuelMultiplier) || 1);
 
@@ -197,13 +199,22 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
         const enriched = parsed.map((opt: any) => {
           const baseFreightCost = Math.round(Number(opt.baseFreightCost) || 0);
           const fuelCost = Math.round(Number(opt.fuelCost) || 0);
+          const estimatedDistanceKm = Math.round(Number(opt.estimatedDistanceKm) || 0);
           const estimatedEmissionsKg = Math.round(Number(opt.estimatedEmissionsKg) || 0);
           const co2Cost = Math.round((estimatedEmissionsKg / 1000) * carbonPrice);
           const fuelPlusCo2Cost = fuelCost + co2Cost;
           const portFeeTotal = computePortFee(String(opt.mode || ''));
           const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+          const teuKm = Math.round(estimatedDistanceKm * containers);
+          const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
+          const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
           return {
             ...opt,
+            estimatedDistanceKm,
+            containers,
+            teuKm,
+            costPerTeuKm,
+            emissionsPerTeuKm,
             baseFreightCost,
             fuelCost,
             co2Cost,
@@ -327,10 +338,17 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
     const portFeeTotal = computePortFee(spec.mode);
     const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
     const fuelConsumption = Math.round(distanceKm * w * spec.fuelAmountFactor);
+    const teuKm = Math.round(distanceKm * containers);
+    const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
+    const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
     return {
       mode: spec.mode,
       estimatedDays,
       estimatedDistanceKm: distanceKm,
+      containers,
+      teuKm,
+      costPerTeuKm,
+      emissionsPerTeuKm,
       baseFreightCost,
       fuelCost,
       co2Cost,

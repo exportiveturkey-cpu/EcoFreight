@@ -44,6 +44,10 @@ export interface RouteCostOption {
   mode: string;
   estimatedDays: number;
   estimatedDistanceKm: number;
+  containers: number;
+  teuKm: number;
+  costPerTeuKm: number;
+  emissionsPerTeuKm: number;
   baseFreightCost: number;
   fuelCost: number;
   co2Cost: number;
@@ -68,6 +72,7 @@ export interface Shipment {
   incoterms: string;
   weightTonnes: number;
   volumeCbm: number;
+  containers?: number;
   status: ShipmentStatus;
   legs: Leg[];
   costBreakdown: CostBreakdown;

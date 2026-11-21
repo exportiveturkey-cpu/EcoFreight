@@ -33,8 +33,10 @@ import {
   DEFAULT_EU_ETS_CARBON_PRICE,
   buildDeterministicRouteOptions,
   calculateCO2Cost,
+  calculateTeuKm,
   computeApplicablePortFee,
-  estimatePortFees
+  estimatePortFees,
+  estimateTeuFromCargo
 } from '../services/carbon';
 import { getRouteComparison } from '../services/gemini';
 import { formatEUR, formatNumber, formatEmissions } from '../services/formatters';
@@ -99,6 +101,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const [origin, setOrigin] = useState('Piraeus, GR');
   const [destination, setDestination] = useState('Hamburg, DE');
   const [weightTonnes, setWeightTonnes] = useState<number>(12);
+  const [containersTeu, setContainersTeu] = useState<number>(() => estimateTeuFromCargo(12));
+  const [containersEdited, setContainersEdited] = useState(false);
   const [customerName, setCustomerName] = useState('Hellenic Marine Dynamics');
 
   const initialPorts = estimatePortFees('Piraeus, GR', 'Hamburg, DE', 12);
@@ -120,7 +124,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       1,
       initialPorts.originPortFee,
       initialPorts.destinationPortFee,
-      false
+      false,
+      estimateTeuFromCargo(12)
     )
   );
   const [loading, setLoading] = useState(false);
@@ -133,7 +138,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     targetWeight = weightTonnes,
     targetOriginFee = originPortFee,
     targetDestFee = destinationPortFee,
-    targetAllModes = applyPortFeeToAllModes
+    targetAllModes = applyPortFeeToAllModes,
+    targetContainers = containersTeu
   ) => {
     setLoading(true);
     setBookingConfirmed(null);
@@ -145,14 +151,15 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       1,
       targetOriginFee,
       targetDestFee,
-      targetAllModes
+      targetAllModes,
+      targetContainers
     );
     setRawOptions(options);
     setLoading(false);
   };
 
   useEffect(() => {
-    runAnalysis('Piraeus, GR', 'Hamburg, DE', 12, initialPorts.originPortFee, initialPorts.destinationPortFee, false);
+    runAnalysis('Piraeus, GR', 'Hamburg, DE', 12, initialPorts.originPortFee, initialPorts.destinationPortFee, false, estimateTeuFromCargo(12));
   }, []);
 
   const handleAutoEstimatePorts = (
@@ -181,8 +188,16 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         applyPortFeeToAllModes
       );
       const estimatedCost = opt.baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+      const effectiveContainers = Math.max(0.5, Number(containersTeu) || 1);
+      const teuKm = calculateTeuKm(opt.estimatedDistanceKm, effectiveContainers);
+      const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
+      const emissionsPerTeuKm = teuKm > 0 ? Number((opt.estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
       return {
         ...opt,
+        containers: effectiveContainers,
+        teuKm,
+        costPerTeuKm,
+        emissionsPerTeuKm,
         fuelCost: adjustedFuel,
         co2Cost,
         fuelPlusCo2Cost,
@@ -198,7 +213,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       if (objective === 'fastest') return a.estimatedDays - b.estimatedDays;
       return a.estimatedCost - b.estimatedCost;
     });
-  }, [rawOptions, carbonPricePerTonne, fuelIndexPct, originPortFee, destinationPortFee, applyPortFeeToAllModes, objective]);
+  }, [rawOptions, carbonPricePerTonne, fuelIndexPct, originPortFee, destinationPortFee, applyPortFeeToAllModes, containersTeu, objective]);
 
   const optimalRoute = computedOptions[0];
   const selectedRoute =
@@ -247,6 +262,9 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     setOrigin(preset.origin);
     setDestination(preset.destination);
     setWeightTonnes(preset.weight);
+    const estTeu = estimateTeuFromCargo(preset.weight);
+    setContainersTeu(estTeu);
+    setContainersEdited(false);
     const est = handleAutoEstimatePorts(preset.origin, preset.destination, preset.weight);
     runAnalysis(
       preset.origin,
@@ -254,7 +272,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       preset.weight,
       est.originPortFee,
       est.destinationPortFee,
-      applyPortFeeToAllModes
+      applyPortFeeToAllModes,
+      estTeu
     );
   };
 
@@ -279,6 +298,9 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const handleWeightChange = (val: number) => {
     const safeW = Math.max(0.5, val || 1);
     setWeightTonnes(safeW);
+    if (!containersEdited) {
+      setContainersTeu(estimateTeuFromCargo(safeW));
+    }
     if (!portFeesEdited) {
       const est = estimatePortFees(origin, destination, safeW);
       setOriginPortFee(est.originPortFee);
@@ -336,6 +358,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       incoterms: 'CIF',
       weightTonnes,
       volumeCbm: parseFloat((weightTonnes * 2.4).toFixed(1)),
+      containers: containersTeu,
       status: ShipmentStatus.BOOKED,
       legs,
       costBreakdown: {
@@ -387,6 +410,10 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
           <span className="font-mono tabular-nums text-indigo-700 font-semibold">
             {t.portFees}: {formatEUR(originPortFee + destinationPortFee, 0)}
           </span>
+          <span aria-hidden="true">·</span>
+          <span className="font-mono tabular-nums text-slate-800 font-semibold">
+            {containersTeu} TEU
+          </span>
         </div>
       </div>
 
@@ -420,7 +447,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
         {/* Route & Cargo Inputs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 items-end">
-          <div className="lg:col-span-3 space-y-1.5">
+          <div className="lg:col-span-2 space-y-1.5">
             <label className="block text-xs font-semibold text-slate-600">
               {t.origin}
             </label>
@@ -431,7 +458,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
             />
           </div>
-          <div className="lg:col-span-3 space-y-1.5">
+          <div className="lg:col-span-2 space-y-1.5">
             <label className="block text-xs font-semibold text-slate-600">
               {t.destination}
             </label>
@@ -452,6 +479,22 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               step={0.5}
               value={weightTonnes}
               onChange={(e) => handleWeightChange(parseFloat(e.target.value))}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tabular-nums font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+            />
+          </div>
+          <div className="lg:col-span-2 space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-600">
+              {t.containersTeu}
+            </label>
+            <input
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={containersTeu}
+              onChange={(e) => {
+                setContainersEdited(true);
+                setContainersTeu(Math.max(0.5, parseFloat(e.target.value) || 1));
+              }}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tabular-nums font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
             />
           </div>
@@ -718,19 +761,20 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between">
             <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>{t.emissions}</span>
+              <span>{t.teuKm} ({t.teuKmFormula})</span>
               <Leaf size={16} className="text-emerald-600" />
             </div>
             <div className="mt-3">
               <p className="text-2xl font-extrabold font-mono tabular-nums text-slate-900">
-                {formatEmissions(optimalRoute.estimatedEmissionsKg)}
+                {formatNumber(optimalRoute.teuKm)} <span className="text-sm font-bold text-slate-500">TEU-km</span>
               </p>
               <p className="text-xs text-emerald-700 mt-1 font-mono tabular-nums font-semibold">
-                -{formatEmissions(avoidedEmissionsKg)} vs. Road
+                {formatEmissions(optimalRoute.estimatedEmissionsKg)} (-{formatEmissions(avoidedEmissionsKg)} vs. Road)
               </p>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 font-mono tabular-nums">
-              {formatNumber(optimalRoute.estimatedDistanceKm)} km
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono tabular-nums">
+              <span>{formatEUR(optimalRoute.costPerTeuKm, 2)}/TEU-km</span>
+              <span>{optimalRoute.emissionsPerTeuKm.toFixed(2)} kg/TEU-km</span>
             </div>
           </div>
         </div>
@@ -788,6 +832,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="py-3.5 px-4">{t.mode}</th>
                   <th className="py-3.5 px-2.5 text-right">{t.transitDays}</th>
+                  <th className="py-3.5 px-2.5 text-right">{t.teuKm}</th>
                   <th className="py-3.5 px-2.5 text-right">{t.baseFreight}</th>
                   <th className="py-3.5 px-2.5 text-right">{t.fuelCost}</th>
                   <th className="py-3.5 px-2.5 text-right">{t.co2Cost}</th>
@@ -830,6 +875,10 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                       <td className="py-3.5 px-2.5 text-right font-mono tabular-nums font-semibold text-slate-700 whitespace-nowrap">
                         {opt.estimatedDays}d
                       </td>
+                      <td className="py-3.5 px-2.5 text-right font-mono tabular-nums whitespace-nowrap">
+                        <div className="font-semibold text-slate-800">{formatNumber(opt.teuKm)}</div>
+                        <div className="text-[10px] text-slate-500">{formatEUR(opt.costPerTeuKm, 2)}/TEU-km</div>
+                      </td>
                       <td className="py-3.5 px-2.5 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
                         {formatEUR(opt.baseFreightCost, 0)}
                       </td>
@@ -858,6 +907,10 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-900">
                   <span>{getModeLabel(selectedRoute.mode, t)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono tabular-nums text-slate-700">
+                    {formatNumber(selectedRoute.teuKm)} TEU-km ({formatEUR(selectedRoute.costPerTeuKm, 2)}/TEU-km)
+                  </span>
                   <span aria-hidden="true">·</span>
                   <span className="font-mono tabular-nums text-emerald-700">
                     {t.fuelPlusCo2}: {formatEUR(selectedRoute.fuelPlusCo2Cost, 0)}

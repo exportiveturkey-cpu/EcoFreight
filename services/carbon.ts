@@ -1,5 +1,5 @@
 
-import { TransportMode, RouteCostOption } from '../types';
+import { TransportMode, RouteCostOption, Shipment } from '../types';
 
 /**
  * Average CO2e emission factors (kg CO2e per tonne-km)
@@ -20,6 +20,30 @@ export const CARBON_PRICE_PRESETS = [
   { id: 'shadow', label: 'Internal Shadow Price', price: 110 },
   { id: 'offset', label: 'Voluntary VCS Offset', price: 25 }
 ];
+
+export const estimateTeuFromCargo = (weightTonnes: number, volumeCbm?: number): number => {
+  const w = Math.max(0.1, Number(weightTonnes) || 1);
+  const v = Math.max(0.1, Number(volumeCbm) || w * 2.4);
+  // Standard 20ft container (1 TEU): ~14 tonnes typical cargo payload / ~28 cbm usable volume
+  return Math.max(1, Math.ceil(Math.max(w / 14, v / 28)));
+};
+
+export const calculateTeuKm = (distanceKm: number, containers: number): number => {
+  return Math.round(Math.max(0, Number(distanceKm) || 0) * Math.max(0, Number(containers) || 0));
+};
+
+export const getShipmentDistanceKm = (shipment: Shipment): number => {
+  return (shipment.legs || []).reduce((sum, l) => sum + (Number(l.distanceKm) || 0), 0);
+};
+
+export const getShipmentContainers = (shipment: Shipment): number => {
+  if (shipment.containers && shipment.containers > 0) return shipment.containers;
+  return estimateTeuFromCargo(shipment.weightTonnes, shipment.volumeCbm);
+};
+
+export const getShipmentTeuKm = (shipment: Shipment): number => {
+  return calculateTeuKm(getShipmentDistanceKm(shipment), getShipmentContainers(shipment));
+};
 
 export const calculateLegEmissions = (
   mode: TransportMode,
@@ -96,7 +120,8 @@ export const recalculateRouteWithPricing = (
   fuelMultiplier: number = 1,
   originPortFee: number = route.originPortFee ?? 0,
   destinationPortFee: number = route.destinationPortFee ?? 0,
-  applyPortFeeToAllModes: boolean = false
+  applyPortFeeToAllModes: boolean = false,
+  containersOverride?: number
 ): RouteCostOption => {
   const adjustedFuelCost = Math.round(route.fuelCost * fuelMultiplier);
   const co2Cost = calculateCO2Cost(route.estimatedEmissionsKg, carbonPricePerTonne);
@@ -108,8 +133,16 @@ export const recalculateRouteWithPricing = (
     applyPortFeeToAllModes
   );
   const estimatedCost = route.baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+  const containers = Math.max(0.5, Number(containersOverride ?? route.containers) || 1);
+  const teuKm = calculateTeuKm(route.estimatedDistanceKm, containers);
+  const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
+  const emissionsPerTeuKm = teuKm > 0 ? Number((route.estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
   return {
     ...route,
+    containers,
+    teuKm,
+    costPerTeuKm,
+    emissionsPerTeuKm,
     fuelCost: adjustedFuelCost,
     co2Cost,
     fuelPlusCo2Cost,
@@ -153,9 +186,11 @@ export const buildDeterministicRouteOptions = (
   fuelMultiplier: number = 1,
   customOriginPortFee?: number,
   customDestinationPortFee?: number,
-  applyPortFeeToAllModes: boolean = false
+  applyPortFeeToAllModes: boolean = false,
+  customContainers?: number
 ): RouteCostOption[] => {
   const w = Math.max(0.5, Number(weightTonnes) || 1);
+  const containers = Math.max(0.5, Number(customContainers ?? estimateTeuFromCargo(w)) || 1);
   const baseKm = estimateCorridorDistanceKm(origin, destination);
   const defaults = estimatePortFees(origin, destination, w);
   const originPortFee = customOriginPortFee ?? defaults.originPortFee;
@@ -255,11 +290,18 @@ export const buildDeterministicRouteOptions = (
     );
     const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
     const fuelConsumption = Math.round(distanceKm * w * spec.fuelAmountFactor);
+    const teuKm = calculateTeuKm(distanceKm, containers);
+    const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
+    const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
 
     return {
       mode: spec.mode,
       estimatedDays,
       estimatedDistanceKm: distanceKm,
+      containers,
+      teuKm,
+      costPerTeuKm,
+      emissionsPerTeuKm,
       baseFreightCost,
       fuelCost,
       co2Cost,
