@@ -34,9 +34,26 @@ export interface Leg {
 export interface CostBreakdown {
   freight: number;
   fuelSurcharge: number;
+  carbonCost?: number;
   portFees: number;
   insurance: number;
   customs: number;
+}
+
+export interface RouteCostOption {
+  mode: string;
+  estimatedDays: number;
+  estimatedDistanceKm: number;
+  baseFreightCost: number;
+  fuelCost: number;
+  co2Cost: number;
+  fuelPlusCo2Cost: number;
+  estimatedCost: number;
+  estimatedEmissionsKg: number;
+  fuelConsumption: number;
+  fuelUnit: string;
+  label: string;
+  reasoning: string;
 }
 
 export interface Shipment {

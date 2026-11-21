@@ -1,13 +1,7 @@
-import { Shipment, Recommendation } from "../types";
+import { Shipment, Recommendation, RouteCostOption } from "../types";
+import { buildDeterministicRouteOptions, DEFAULT_EU_ETS_CARBON_PRICE } from "./carbon";
 
-export interface RouteOption {
-  mode: string;
-  estimatedDays: number;
-  estimatedCost: number;
-  estimatedEmissionsKg: number;
-  label: string;
-  reasoning: string;
-}
+export type RouteOption = RouteCostOption;
 
 export interface MapInsight {
   text: string;
@@ -20,7 +14,7 @@ export const checkGeminiStatus = async (): Promise<{ active: boolean; hasApiKey:
     if (!res.ok) throw new Error("Status check failed");
     return await res.json();
   } catch {
-    return { active: true, hasApiKey: true, model: "gemini-3.8-flash" };
+    return { active: true, hasApiKey: true, model: "gemini-4-hydrogen" };
   }
 };
 
@@ -46,53 +40,25 @@ export const sendChatMessage = async (
 export const getRouteComparison = async (
   origin: string,
   destination: string,
-  weight: number
+  weight: number,
+  carbonPricePerTonne: number = DEFAULT_EU_ETS_CARBON_PRICE,
+  fuelMultiplier: number = 1
 ): Promise<RouteOption[]> => {
   try {
     const res = await fetch("/api/gemini/route-comparison", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origin, destination, weight }),
+      body: JSON.stringify({ origin, destination, weight, carbonPricePerTonne, fuelMultiplier }),
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
-    return await res.json();
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      return data;
+    }
+    throw new Error("Empty route comparison response");
   } catch (err) {
     console.error("Route comparison error:", err);
-    const w = Number(weight) || 1;
-    return [
-      {
-        mode: "SEA",
-        estimatedDays: 14,
-        estimatedCost: Math.round(1800 * Math.max(0.7, w * 0.35)),
-        estimatedEmissionsKg: Math.round(180 * w),
-        label: "Eco Champion (Lowest Carbon)",
-        reasoning: "Container vessel maritime corridor maximizes fuel efficiency and minimizes Scope 3 emissions."
-      },
-      {
-        mode: "RAIL",
-        estimatedDays: 7,
-        estimatedCost: Math.round(2400 * Math.max(0.7, w * 0.45)),
-        estimatedEmissionsKg: Math.round(260 * w),
-        label: "Balanced Intermodal",
-        reasoning: "Electrified rail corridor achieves rapid lead time with low emission footprint."
-      },
-      {
-        mode: "ROAD",
-        estimatedDays: 4,
-        estimatedCost: Math.round(3100 * Math.max(0.7, w * 0.55)),
-        estimatedEmissionsKg: Math.round(620 * w),
-        label: "Flexible Door-to-Door",
-        reasoning: "Direct highway transport, best for urgent delivery with higher carbon intensity."
-      },
-      {
-        mode: "AIR",
-        estimatedDays: 2,
-        estimatedCost: Math.round(6500 * Math.max(0.7, w * 0.85)),
-        estimatedEmissionsKg: Math.round(2400 * w),
-        label: "Express Air Freight",
-        reasoning: "Fastest transit time designed for urgent cargo with higher emission overhead."
-      }
-    ];
+    return buildDeterministicRouteOptions(origin, destination, weight, carbonPricePerTonne, fuelMultiplier);
   }
 };
 
