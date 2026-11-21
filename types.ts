@@ -48,6 +48,9 @@ export interface RouteCostOption {
   fuelCost: number;
   co2Cost: number;
   fuelPlusCo2Cost: number;
+  originPortFee: number;
+  destinationPortFee: number;
+  portFeeTotal: number;
   estimatedCost: number;
   estimatedEmissionsKg: number;
   fuelConsumption: number;

@@ -183,6 +183,36 @@ export interface Translations {
   notifications: string;
   preferredCarrier: string;
   preferredCarrierSet: string;
+
+  // Route Cost Optimization (Fuel + CO2 + Port Fees)
+  routeOptimizer: string;
+  routeOptimizerTitle: string;
+  routeOptimizerSubtitle: string;
+  fuelCost: string;
+  co2Cost: string;
+  fuelPlusCo2: string;
+  baseFreight: string;
+  totalLandedCost: string;
+  carbonPriceLabel: string;
+  fuelIndexLabel: string;
+  optimizePriority: string;
+  priorityTotalCost: string;
+  priorityFuelCo2: string;
+  priorityFastest: string;
+  optimalChoice: string;
+  savingsVsRoad: string;
+  runCostOptimization: string;
+  corridorPresets: string;
+  bookSelectedRoute: string;
+  transitDays: string;
+  costBreakdownTitle: string;
+  portFees: string;
+  originPortFee: string;
+  destinationPortFee: string;
+  autoEstimatePorts: string;
+  applyTerminalFeesAllModes: string;
+  portFeesActiveNote: string;
+  shipmentLedgerTitle: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -364,7 +394,36 @@ export const translations: Record<Language, Translations> = {
     qpFleetQ: "What operational strategies can our fleet adopt to minimize fuel consumption and reduce GHG emissions?",
     notifications: "Latest Updates",
     preferredCarrier: "Preferred Carrier",
-    preferredCarrierSet: "Preferred"
+    preferredCarrierSet: "Preferred",
+
+    routeOptimizer: "Route Optimizer",
+    routeOptimizerTitle: "Route Cost & Carbon Optimizer",
+    routeOptimizerSubtitle: "Combined fuel expenditure, CO2 compliance cost, and port fee modeling across multimodal corridors.",
+    fuelCost: "Fuel Cost",
+    co2Cost: "CO2 Cost",
+    fuelPlusCo2: "Fuel + CO2",
+    baseFreight: "Base Freight",
+    totalLandedCost: "Total Cost",
+    carbonPriceLabel: "Carbon Price (€ / t CO2e)",
+    fuelIndexLabel: "Fuel Price Index",
+    optimizePriority: "Optimization Objective",
+    priorityTotalCost: "Lowest Total Cost (Freight + Fuel + CO2 + Ports)",
+    priorityFuelCo2: "Lowest Fuel + CO2 Cost",
+    priorityFastest: "Fastest Transit",
+    optimalChoice: "Optimal Cost Route",
+    savingsVsRoad: "Savings vs. All-Road",
+    runCostOptimization: "Calculate Optimal Route",
+    corridorPresets: "Quick Corridor Presets",
+    bookSelectedRoute: "Book Selected Route",
+    transitDays: "Transit",
+    costBreakdownTitle: "Cost Composition: Freight, Fuel, CO2 & Port Fees",
+    portFees: "Port Fees",
+    originPortFee: "Origin Port Fee (€)",
+    destinationPortFee: "Destination Port Fee (€)",
+    autoEstimatePorts: "Auto-Estimate",
+    applyTerminalFeesAllModes: "Include terminal handling fees on Rail / Road / Air",
+    portFeesActiveNote: "Active on Sea & Intermodal · Optional on inland/air",
+    shipmentLedgerTitle: "Shipment Cost Ledger"
   },
   tr: {
     dashboard: "Panel",
@@ -544,7 +603,36 @@ export const translations: Record<Language, Translations> = {
     qpFleetQ: "Filomuz yakıt tüketimini azaltmak ve sera gazı emisyonlarını düşürmek için hangi stratejileri benimseyebilir?",
     notifications: "Son Güncellemeler",
     preferredCarrier: "Tercih Edilen Taşıyıcı",
-    preferredCarrierSet: "Tercih Edildi"
+    preferredCarrierSet: "Tercih Edildi",
+
+    routeOptimizer: "Rota Maliyet Opt.",
+    routeOptimizerTitle: "Rota Yakıt, Karbon ve Liman Maliyet Optimizasyonu",
+    routeOptimizerSubtitle: "Çok modlu koridorlarda yakıt maliyeti, CO2 maliyeti ve liman ücretlerini birlikte hesaplayın.",
+    fuelCost: "Yakıt Maliyeti",
+    co2Cost: "CO2 Maliyeti",
+    fuelPlusCo2: "Yakıt + CO2",
+    baseFreight: "Temel Navlun",
+    totalLandedCost: "Toplam Maliyet",
+    carbonPriceLabel: "Karbon Fiyatı (€ / ton CO2e)",
+    fuelIndexLabel: "Yakıt Fiyat Endeksi",
+    optimizePriority: "Optimizasyon Hedefi",
+    priorityTotalCost: "En Düşük Toplam Maliyet (Navlun + Yakıt + CO2 + Liman)",
+    priorityFuelCo2: "En Düşük Yakıt + CO2 Maliyeti",
+    priorityFastest: "En Hızlı Teslimat",
+    optimalChoice: "En Maliyet-Etkin Rota",
+    savingsVsRoad: "Karayoluna Göre Tasarruf",
+    runCostOptimization: "Maliyet Optimizasyonunu Hesapla",
+    corridorPresets: "Hazır Koridorlar",
+    bookSelectedRoute: "Seçili Rotayı Rezerve Et",
+    transitDays: "Süre",
+    costBreakdownTitle: "Maliyet Dağılımı: Navlun, Yakıt, CO2 ve Liman Ücretleri",
+    portFees: "Liman Ücreti",
+    originPortFee: "Çıkış Limanı Ücreti (€)",
+    destinationPortFee: "Varış Limanı Ücreti (€)",
+    autoEstimatePorts: "Otomatik Tahmin",
+    applyTerminalFeesAllModes: "Demiryolu / Karayolu / Havayoluna terminal ücreti uygula",
+    portFeesActiveNote: "Deniz & İntermodal'da aktif · Diğer modlarda opsiyonel",
+    shipmentLedgerTitle: "Sevkiyat Maliyet Dökümü"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -724,7 +812,36 @@ export const translations: Record<Language, Translations> = {
     qpFleetQ: "Ποιες στρατηγικές μπορεί να υιοθετήσει ο στόλος μας για ελάχιστη κατανάλωση καυσίμου και μείωση εκπομπών αερίων θερμοκηπίου;",
     notifications: "Τελευταίες Ενημερώσεις",
     preferredCarrier: "Προτιμώμενος Μεταφορέας",
-    preferredCarrierSet: "Προτιμώμενος"
+    preferredCarrierSet: "Προτιμώμενος",
+
+    routeOptimizer: "Βελτιστοποίηση Κόστους",
+    routeOptimizerTitle: "Βελτιστοποίηση Διαδρομής: Καύσιμα, CO2 & Λιμενικά Τέλη",
+    routeOptimizerSubtitle: "Συνδυασμένος υπολογισμός κόστους καυσίμων, CO2 και λιμενικών τελών σε πολυτροπικούς διαδρόμους.",
+    fuelCost: "Κόστος Καυσίμων",
+    co2Cost: "Κόστος CO2",
+    fuelPlusCo2: "Καύσιμα + CO2",
+    baseFreight: "Βασικός Ναύλος",
+    totalLandedCost: "Συνολικό Κόστος",
+    carbonPriceLabel: "Τιμή Άνθρακα (€ / τόνο CO2e)",
+    fuelIndexLabel: "Δείκτης Τιμής Καυσίμων",
+    optimizePriority: "Στόχος Βελτιστοποίησης",
+    priorityTotalCost: "Ελάχιστο Συνολικό Κόστος (Ναύλος + Καύσιμα + CO2 + Λιμάνια)",
+    priorityFuelCo2: "Ελάχιστο Κόστος Καυσίμων + CO2",
+    priorityFastest: "Ταχύτερη Μεταφορά",
+    optimalChoice: "Βέλτιστη Οικονομικά Διαδρομή",
+    savingsVsRoad: "Εξοικονόμηση έναντι Οδικού",
+    runCostOptimization: "Υπολογισμός Βέλτιστης Διαδρομής",
+    corridorPresets: "Έτοιμοι Διάδρομοι",
+    bookSelectedRoute: "Κράτηση Επιλεγμένης Διαδρομής",
+    transitDays: "Διάρκεια",
+    costBreakdownTitle: "Ανάλυση Κόστους: Ναύλος, Καύσιμα, CO2 & Λιμενικά Τέλη",
+    portFees: "Λιμενικά Τέλη",
+    originPortFee: "Τέλη Λιμένα Προέλευσης (€)",
+    destinationPortFee: "Τέλη Λιμένα Προορισμού (€)",
+    autoEstimatePorts: "Αυτόματη Εκτίμηση",
+    applyTerminalFeesAllModes: "Εφαρμογή τελών τερματικού σε Σιδηρόδρομο / Οδικό / Αεροπορικό",
+    portFeesActiveNote: "Ενεργό σε Θαλάσσιο & Διατροπικό · Προαιρετικό στα υπόλοιπα",
+    shipmentLedgerTitle: "Ανάλυση Κόστους Αποστολής"
   }
 };
 

@@ -24,7 +24,8 @@ import {
   Award,
   RotateCcw,
   Ship,
-  Anchor
+  Anchor,
+  Compass
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ShipmentManager from './components/ShipmentManager';
@@ -33,6 +34,7 @@ import ArchitectureDocs from './components/ArchitectureDocs';
 import TrackingView from './components/TrackingView';
 import AIAssistant from './components/AIAssistant';
 import NetworkManager from './components/NetworkManager';
+import RouteOptimizer from './components/RouteOptimizer';
 import VerticalSelect from './components/VerticalSelect';
 import RoadApp from './verticals/road/RoadApp';
 import Login, { createDemoProfile, DemoType } from './components/Login';
@@ -42,7 +44,7 @@ import { auth, onAuthStateChanged, signOut } from './services/firebase';
 import { INITIAL_SAMPLE_SHIPMENTS } from './services/sampleData';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'shipments' | 'tracking' | 'sustainability' | 'network' | 'docs' | 'ai-assistant'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'shipments' | 'routes' | 'tracking' | 'sustainability' | 'network' | 'docs' | 'ai-assistant'>('dashboard');
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
@@ -207,6 +209,7 @@ const App: React.FC = () => {
         <div onClick={() => setMobileNav(false)} className="px-6 py-6 flex-1 space-y-2 overflow-y-auto custom-scrollbar">
           <NavItem icon={<LayoutGrid size={22} />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Truck size={22} />} label={t.shipments} active={activeTab === 'shipments'} onClick={() => setActiveTab('shipments')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Compass size={22} />} label={t.routeOptimizer} active={activeTab === 'routes'} onClick={() => setActiveTab('routes')} collapsed={!isSidebarOpen} />
           <NavItem icon={<MapIcon size={22} />} label={t.tracking} active={activeTab === 'tracking'} onClick={() => setActiveTab('tracking')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Globe size={22} />} label={t.globalNetwork} active={activeTab === 'network'} onClick={() => setActiveTab('network')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Leaf size={22} />} label={t.sustainability} active={activeTab === 'sustainability'} onClick={() => setActiveTab('sustainability')} collapsed={!isSidebarOpen} />
@@ -395,6 +398,15 @@ const App: React.FC = () => {
               onAdd={s => setShipments([s, ...shipments])} 
               onDelete={id => setShipments(shipments.filter(s => s.id !== id))} 
               lang={lang} 
+            />
+          )}
+          {activeTab === 'routes' && (
+            <RouteOptimizer
+              lang={lang}
+              isReadOnly={user?.isReadOnly || false}
+              onBookRoute={(s) => {
+                setShipments([s, ...shipments]);
+              }}
             />
           )}
           {activeTab === 'tracking' && <TrackingView key={q} shipments={visibleShipments} lang={lang} />}

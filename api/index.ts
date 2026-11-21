@@ -101,16 +101,61 @@ app.post('/api/gemini/chat', async (req, res) => {
   return res.json({ text: reply });
 });
 
-// Route comparison endpoint
+// Route comparison endpoint (Fuel Cost + CO2 Cost + Port Fees combined optimization)
 app.post('/api/gemini/route-comparison', async (req, res) => {
-  const { origin, destination, weight } = req.body;
-  const w = Number(weight) || 1;
+  const {
+    origin,
+    destination,
+    weight,
+    carbonPricePerTonne = 85,
+    fuelMultiplier = 1,
+    originPortFee: customOriginPortFee,
+    destinationPortFee: customDestinationPortFee,
+    applyPortFeeToAllModes = false,
+  } = req.body;
+  const w = Math.max(0.5, Number(weight) || 1);
+  const carbonPrice = Math.max(0, Number(carbonPricePerTonne) || 85);
+  const fuelMult = Math.max(0.3, Number(fuelMultiplier) || 1);
+
+  const getPortBase = (locRaw: string) => {
+    const loc = (locRaw || '').toLowerCase();
+    if (loc.includes('singapore') || loc.includes('shanghai')) return 410;
+    if (loc.includes('rotterdam') || loc.includes('antwerp')) return 380;
+    if (loc.includes('hamburg') || loc.includes('bremen')) return 360;
+    if (loc.includes('piraeus') || loc.includes('athens')) return 260;
+    if (loc.includes('thessaloniki') || loc.includes('igoumenitsa')) return 210;
+    if (loc.includes('istanbul') || loc.includes('izmir') || loc.includes('mersin')) return 240;
+    if (loc.includes('valencia') || loc.includes('barcelona')) return 275;
+    if (loc.includes('gothenburg') || loc.includes('oslo')) return 310;
+    if (loc.includes('milan') || loc.includes('munich') || loc.includes('frankfurt')) return 145;
+    return 240;
+  };
+
+  const tonnageHandling = Math.round(w * 11);
+  const originPortFee =
+    customOriginPortFee !== undefined && customOriginPortFee !== null
+      ? Math.max(0, Number(customOriginPortFee) || 0)
+      : getPortBase(String(origin || '')) + tonnageHandling;
+  const destinationPortFee =
+    customDestinationPortFee !== undefined && customDestinationPortFee !== null
+      ? Math.max(0, Number(customDestinationPortFee) || 0)
+      : getPortBase(String(destination || '')) + tonnageHandling;
+
+  const computePortFee = (mode: string) => {
+    if (mode === 'SEA') return Math.round(originPortFee + destinationPortFee);
+    if (mode === 'SEA_RAIL') {
+      return applyPortFeeToAllModes
+        ? Math.round(originPortFee + destinationPortFee)
+        : Math.round(originPortFee + destinationPortFee * 0.55);
+    }
+    return applyPortFeeToAllModes ? Math.round((originPortFee + destinationPortFee) * 0.5) : 0;
+  };
 
   if (ai) {
     try {
       const apiPromise = ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: `Compare SEA, AIR, ROAD, and RAIL transport for ${w} metric tonnes cargo from ${origin} to ${destination}. Return a JSON array with objects containing: mode (SEA/AIR/ROAD/RAIL), estimatedDays (number), estimatedCost (number in EUR), estimatedEmissionsKg (number), label (string), reasoning (string).`,
+        model: 'gemini-4-hydrogen',
+        contents: `Analyze freight route optimization from a combined cost perspective (Base Freight + Fuel Cost + CO2 Cost + Port Fees) for ${w} metric tonnes of cargo from "${origin}" to "${destination}". Carbon compliance price is €${carbonPrice}/tonne CO2e, fuel index multiplier is ${fuelMult}x, origin port fee is €${originPortFee}, and destination port fee is €${destinationPortFee}. Return a JSON array with 5 options for modes: SEA, SEA_RAIL, RAIL, ROAD, AIR. For each mode provide realistic estimatedDistanceKm (number), estimatedDays (number), baseFreightCost (EUR number excluding fuel, CO2, and port fees), fuelCost (EUR number reflecting current fuel price multiplier ${fuelMult}x), estimatedEmissionsKg (GLEC kg CO2e number), fuelConsumption (number), fuelUnit (e.g. 'L VLSFO', 'kWh', 'L Diesel', 'L Jet-A1', 'Mixed (VLSFO + kWh)'), label (concise string), reasoning (1 concise sentence explaining fuel, CO2, and port fee trade-off).`,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -120,62 +165,189 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
               properties: {
                 mode: { type: Type.STRING },
                 estimatedDays: { type: Type.NUMBER },
-                estimatedCost: { type: Type.NUMBER },
+                estimatedDistanceKm: { type: Type.NUMBER },
+                baseFreightCost: { type: Type.NUMBER },
+                fuelCost: { type: Type.NUMBER },
                 estimatedEmissionsKg: { type: Type.NUMBER },
+                fuelConsumption: { type: Type.NUMBER },
+                fuelUnit: { type: Type.STRING },
                 label: { type: Type.STRING },
                 reasoning: { type: Type.STRING },
               },
-              required: ['mode', 'estimatedDays', 'estimatedCost', 'estimatedEmissionsKg', 'label', 'reasoning'],
+              required: [
+                'mode',
+                'estimatedDays',
+                'estimatedDistanceKm',
+                'baseFreightCost',
+                'fuelCost',
+                'estimatedEmissionsKg',
+                'fuelConsumption',
+                'fuelUnit',
+                'label',
+                'reasoning',
+              ],
             },
           },
         },
       });
 
-      const response = await callWithTimeout(apiPromise);
+      const response = await callWithTimeout(apiPromise, 8500);
       const parsed = JSON.parse(response?.text || '[]');
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return res.json(parsed);
+        const enriched = parsed.map((opt: any) => {
+          const baseFreightCost = Math.round(Number(opt.baseFreightCost) || 0);
+          const fuelCost = Math.round(Number(opt.fuelCost) || 0);
+          const estimatedEmissionsKg = Math.round(Number(opt.estimatedEmissionsKg) || 0);
+          const co2Cost = Math.round((estimatedEmissionsKg / 1000) * carbonPrice);
+          const fuelPlusCo2Cost = fuelCost + co2Cost;
+          const portFeeTotal = computePortFee(String(opt.mode || ''));
+          const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+          return {
+            ...opt,
+            baseFreightCost,
+            fuelCost,
+            co2Cost,
+            fuelPlusCo2Cost,
+            originPortFee,
+            destinationPortFee,
+            portFeeTotal,
+            estimatedCost,
+            estimatedEmissionsKg,
+          };
+        });
+        return res.json(enriched);
       }
     } catch (err: any) {
-      console.warn('Gemini route comparison fell back to heuristics:', err.message);
+      console.warn('Gemini route comparison fell back to GLEC cost engine:', err.message);
     }
   }
 
-  // High fidelity fallback heuristics
-  res.json([
+  // GLEC-calibrated corridor distance & Fuel + CO2 + Port Fee model fallback
+  const o = String(origin || '').toLowerCase();
+  const d = String(destination || '').toLowerCase();
+  let baseKm = 2100;
+  if ((o.includes('rotterdam') || o.includes('nl') || o.includes('hamburg')) && (d.includes('singapore') || d.includes('sg') || d.includes('shanghai'))) {
+    baseKm = 15500;
+  } else if ((o.includes('piraeus') || o.includes('athens') || o.includes('gr')) && (d.includes('hamburg') || d.includes('rotterdam') || d.includes('de'))) {
+    baseKm = 2350;
+  } else if ((o.includes('thessaloniki') || o.includes('gr')) && (d.includes('milan') || d.includes('munich') || d.includes('it'))) {
+    baseKm = 1450;
+  } else if ((o.includes('istanbul') || o.includes('tr')) && (d.includes('munich') || d.includes('frankfurt') || d.includes('de'))) {
+    baseKm = 1920;
+  } else if ((o.includes('valencia') || o.includes('es')) && (d.includes('munich') || d.includes('de'))) {
+    baseKm = 1570;
+  }
+
+  const specs = [
     {
       mode: 'SEA',
-      estimatedDays: 14,
-      estimatedCost: Math.round(1800 * Math.max(0.7, w * 0.35)),
-      estimatedEmissionsKg: Math.round(180 * w),
-      label: 'Eco Champion (Lowest Carbon)',
-      reasoning: 'Container vessel maritime corridor maximizes fuel economy and minimizes Scope 3 emissions.'
+      distFactor: 1.18,
+      daysPer1000Km: 2.8,
+      minDays: 4,
+      baseRatePerTKm: 0.022,
+      minBase: 480,
+      fuelRatePerTKm: 0.011,
+      minFuel: 190,
+      fuelUnit: 'L VLSFO',
+      fuelAmountFactor: 0.0042,
+      emissionFactor: 0.012,
+      label: 'All-Sea Maritime Corridor',
+      reasoning: 'Deep-sea or short-sea feeder vessel minimizes fuel burn per tonne-km and keeps EU ETS CO2 exposure lowest.',
+    },
+    {
+      mode: 'SEA_RAIL',
+      distFactor: 1.06,
+      daysPer1000Km: 1.9,
+      minDays: 3,
+      baseRatePerTKm: 0.029,
+      minBase: 560,
+      fuelRatePerTKm: 0.014,
+      minFuel: 230,
+      fuelUnit: 'Mixed (VLSFO + kWh)',
+      fuelAmountFactor: 0.005,
+      emissionFactor: 0.017,
+      label: 'Sea + Electric Rail Intermodal',
+      reasoning: 'Combines coastal maritime efficiency with electrified inland rail to balance lead time, port dues, and carbon cost.',
     },
     {
       mode: 'RAIL',
-      estimatedDays: 7,
-      estimatedCost: Math.round(2400 * Math.max(0.7, w * 0.45)),
-      estimatedEmissionsKg: Math.round(260 * w),
-      label: 'Balanced Intermodal',
-      reasoning: 'Electrified rail corridor achieves rapid lead time with low emission footprint.'
+      distFactor: 1.02,
+      daysPer1000Km: 1.45,
+      minDays: 2,
+      baseRatePerTKm: 0.036,
+      minBase: 640,
+      fuelRatePerTKm: 0.017,
+      minFuel: 260,
+      fuelUnit: 'kWh',
+      fuelAmountFactor: 0.022,
+      emissionFactor: 0.025,
+      label: 'Direct Electric Rail Corridor',
+      reasoning: 'High traction energy stability shields against diesel volatility and avoids maritime port congestion dues.',
     },
     {
       mode: 'ROAD',
-      estimatedDays: 4,
-      estimatedCost: Math.round(3100 * Math.max(0.7, w * 0.55)),
-      estimatedEmissionsKg: Math.round(620 * w),
-      label: 'Flexible Door-to-Door',
-      reasoning: 'Direct highway transport, best for urgent delivery with higher carbon intensity.'
+      distFactor: 1.0,
+      daysPer1000Km: 1.1,
+      minDays: 1,
+      baseRatePerTKm: 0.044,
+      minBase: 690,
+      fuelRatePerTKm: 0.046,
+      minFuel: 420,
+      fuelUnit: 'L Diesel',
+      fuelAmountFactor: 0.028,
+      emissionFactor: 0.105,
+      label: 'Direct Heavy-Duty Road',
+      reasoning: 'Door-to-door flexibility without maritime port dues, but exposed to steep diesel and CO2 compliance costs.',
     },
     {
       mode: 'AIR',
-      estimatedDays: 2,
-      estimatedCost: Math.round(6500 * Math.max(0.7, w * 0.85)),
-      estimatedEmissionsKg: Math.round(2400 * w),
+      distFactor: 0.92,
+      daysPer1000Km: 0.25,
+      minDays: 1,
+      baseRatePerTKm: 0.22,
+      minBase: 1450,
+      fuelRatePerTKm: 0.26,
+      minFuel: 1300,
+      fuelUnit: 'L Jet-A1',
+      fuelAmountFactor: 0.32,
+      emissionFactor: 1.13,
       label: 'Express Air Freight',
-      reasoning: 'Fastest transit time designed for urgent cargo with higher emission overhead.'
-    }
-  ]);
+      reasoning: 'Shortest transit window for time-critical cargo, carrying maximum Jet-A1 fuel and carbon cost overhead.',
+    },
+  ];
+
+  const fallback = specs.map((spec) => {
+    const distanceKm = Math.round(baseKm * spec.distFactor);
+    const estimatedDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
+    const baseFreightCost = Math.round(Math.max(spec.minBase, distanceKm * w * spec.baseRatePerTKm));
+    const fuelCost = Math.round(Math.max(spec.minFuel, distanceKm * w * spec.fuelRatePerTKm) * fuelMult);
+    const estimatedEmissionsKg = Math.round(distanceKm * w * spec.emissionFactor);
+    const co2Cost = Math.round((estimatedEmissionsKg / 1000) * carbonPrice);
+    const fuelPlusCo2Cost = fuelCost + co2Cost;
+    const portFeeTotal = computePortFee(spec.mode);
+    const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+    const fuelConsumption = Math.round(distanceKm * w * spec.fuelAmountFactor);
+    return {
+      mode: spec.mode,
+      estimatedDays,
+      estimatedDistanceKm: distanceKm,
+      baseFreightCost,
+      fuelCost,
+      co2Cost,
+      fuelPlusCo2Cost,
+      originPortFee,
+      destinationPortFee,
+      portFeeTotal,
+      estimatedCost,
+      estimatedEmissionsKg,
+      fuelConsumption,
+      fuelUnit: spec.fuelUnit,
+      label: spec.label,
+      reasoning: spec.reasoning,
+    };
+  });
+
+  res.json(fallback);
 });
 
 // Sustainability insights endpoint

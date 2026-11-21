@@ -42,13 +42,25 @@ export const getRouteComparison = async (
   destination: string,
   weight: number,
   carbonPricePerTonne: number = DEFAULT_EU_ETS_CARBON_PRICE,
-  fuelMultiplier: number = 1
+  fuelMultiplier: number = 1,
+  originPortFee?: number,
+  destinationPortFee?: number,
+  applyPortFeeToAllModes: boolean = false
 ): Promise<RouteOption[]> => {
   try {
     const res = await fetch("/api/gemini/route-comparison", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origin, destination, weight, carbonPricePerTonne, fuelMultiplier }),
+      body: JSON.stringify({
+        origin,
+        destination,
+        weight,
+        carbonPricePerTonne,
+        fuelMultiplier,
+        originPortFee,
+        destinationPortFee,
+        applyPortFeeToAllModes,
+      }),
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const data = await res.json();
@@ -58,7 +70,16 @@ export const getRouteComparison = async (
     throw new Error("Empty route comparison response");
   } catch (err) {
     console.error("Route comparison error:", err);
-    return buildDeterministicRouteOptions(origin, destination, weight, carbonPricePerTonne, fuelMultiplier);
+    return buildDeterministicRouteOptions(
+      origin,
+      destination,
+      weight,
+      carbonPricePerTonne,
+      fuelMultiplier,
+      originPortFee,
+      destinationPortFee,
+      applyPortFeeToAllModes
+    );
   }
 };
 

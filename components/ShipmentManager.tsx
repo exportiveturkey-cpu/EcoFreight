@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 // Added Leaf to the icons imported from lucide-react
-import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert } from 'lucide-react';
+import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw } from 'lucide-react';
 import { Shipment, ShipmentStatus, TransportMode } from '../types';
-import { calculateLegEmissions } from '../services/carbon';
+import { calculateLegEmissions, DEFAULT_EU_ETS_CARBON_PRICE, estimatePortFees } from '../services/carbon';
 import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
@@ -35,14 +35,34 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   
   const emptyShipment = { customer: '', origin: '', destination: '', weight: 1, volume: 2.5, type: 'General Cargo', incoterms: 'CIF' };
   const [newShipment, setNewShipment] = useState(emptyShipment);
+  const [carbonPrice, setCarbonPrice] = useState<number>(DEFAULT_EU_ETS_CARBON_PRICE);
+  const [originPortFee, setOriginPortFee] = useState<number>(251);
+  const [destinationPortFee, setDestinationPortFee] = useState<number>(251);
+  const [portFeesEdited, setPortFeesEdited] = useState(false);
+  const [applyPortFeeToAllModes, setApplyPortFeeToAllModes] = useState(false);
+
   const canAnalyze = !!(newShipment.customer.trim() && newShipment.origin.trim() && newShipment.destination.trim() && newShipment.weight > 0);
 
   const openNewShipment = () => {
     setNewShipment(emptyShipment);
+    const est = estimatePortFees('', '', 1);
+    setOriginPortFee(est.originPortFee);
+    setDestinationPortFee(est.destinationPortFee);
+    setPortFeesEdited(false);
+    setApplyPortFeeToAllModes(false);
+    setCarbonPrice(DEFAULT_EU_ETS_CARBON_PRICE);
     setRouteOptions([]);
     setSelectedRoute(null);
     setStep(1);
     setModalOpen(true);
+  };
+
+  const syncPortDefaults = (originVal: string, destVal: string, weightVal: number) => {
+    if (!portFeesEdited) {
+      const est = estimatePortFees(originVal, destVal, weightVal);
+      setOriginPortFee(est.originPortFee);
+      setDestinationPortFee(est.destinationPortFee);
+    }
   };
 
   const copyTrackingLink = async (s: Shipment) => {
@@ -61,7 +81,13 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
     reader.onload = async () => {
       const base64 = (reader.result as string).split(',')[1];
       const extractedData = await processShipmentDocument(base64, file.type);
-      if (extractedData) setNewShipment(prev => ({ ...prev, customer: extractedData.customer || '', origin: extractedData.origin || '', destination: extractedData.destination || '', weight: Number(extractedData.weight) || 1, type: extractedData.type || 'General Cargo', incoterms: extractedData.incoterms || prev.incoterms }));
+      if (extractedData) {
+        const nextOrigin = extractedData.origin || '';
+        const nextDest = extractedData.destination || '';
+        const nextWeight = Number(extractedData.weight) || 1;
+        setNewShipment(prev => ({ ...prev, customer: extractedData.customer || '', origin: nextOrigin, destination: nextDest, weight: nextWeight, type: extractedData.type || 'General Cargo', incoterms: extractedData.incoterms || prev.incoterms }));
+        syncPortDefaults(nextOrigin, nextDest, nextWeight);
+      }
       setIsProcessing(false);
     };
     reader.readAsDataURL(file);
@@ -70,15 +96,29 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   const handleAnalyze = async () => {
     if (!canAnalyze || isAnalyzing) return;
     setIsAnalyzing(true);
-    const options = await getRouteComparison(newShipment.origin, newShipment.destination, newShipment.weight);
-    setRouteOptions(options);
+    const options = await getRouteComparison(
+      newShipment.origin,
+      newShipment.destination,
+      newShipment.weight,
+      carbonPrice,
+      1,
+      originPortFee,
+      destinationPortFee,
+      applyPortFeeToAllModes
+    );
+    const sorted = [...options].sort((a, b) => a.estimatedCost - b.estimatedCost);
+    setRouteOptions(sorted);
     setStep(2);
-    if (options.length > 0) setSelectedRoute(options[0]);
+    if (sorted.length > 0) setSelectedRoute(sorted[0]);
     setIsAnalyzing(false);
   };
 
   const handleSubmit = () => {
     if (!selectedRoute) return;
+    const mappedMode: TransportMode =
+      selectedRoute.mode === 'SEA_RAIL'
+        ? TransportMode.SEA
+        : (selectedRoute.mode as TransportMode);
     const s: Shipment = {
       id: `SH-${Math.floor(1000 + Math.random() * 8999)}`,
       customerName: newShipment.customer,
@@ -89,11 +129,18 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       weightTonnes: newShipment.weight,
       volumeCbm: newShipment.volume,
       status: ShipmentStatus.BOOKED,
-      legs: [{ id: 'L1', mode: selectedRoute.mode as any, origin: newShipment.origin, destination: newShipment.destination, distanceKm: 0, cost: selectedRoute.estimatedCost, emissionsKg: selectedRoute.estimatedEmissionsKg }],
-      costBreakdown: { freight: selectedRoute.estimatedCost * 0.85, fuelSurcharge: 0, portFees: 0, insurance: 0, customs: 0 },
+      legs: [{ id: 'L1', mode: mappedMode, origin: newShipment.origin, destination: newShipment.destination, distanceKm: selectedRoute.estimatedDistanceKm || 0, cost: selectedRoute.estimatedCost, emissionsKg: selectedRoute.estimatedEmissionsKg }],
+      costBreakdown: {
+        freight: selectedRoute.baseFreightCost,
+        fuelSurcharge: selectedRoute.fuelCost,
+        carbonCost: selectedRoute.co2Cost,
+        portFees: selectedRoute.portFeeTotal,
+        insurance: 0,
+        customs: 0
+      },
       totalCost: selectedRoute.estimatedCost,
       totalEmissionsKg: selectedRoute.estimatedEmissionsKg,
-      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: 'Confirmed' }],
+      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${t.fuelCost}: ${formatEUR(selectedRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(selectedRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(selectedRoute.portFeeTotal, 0)})` }],
       createdAt: new Date().toISOString()
     };
     onAdd(s);
@@ -262,11 +309,32 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
             <div className="grid grid-cols-2 gap-4">
               <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.totalCost}</p>
-                <p className="text-xl font-black text-slate-900">{formatEUR(analyticsShipment.totalCost, 0)}</p>
+                <p className="text-xl font-black font-mono tabular-nums text-slate-900">{formatEUR(analyticsShipment.totalCost, 0)}</p>
               </div>
               <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100">
                 <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">{t.emissions}</p>
-                <p className="text-xl font-black text-emerald-800">{formatNumber(analyticsShipment.totalEmissionsKg)} kg CO2e</p>
+                <p className="text-xl font-black font-mono tabular-nums text-emerald-800">{formatNumber(analyticsShipment.totalEmissionsKg)} kg CO2e</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.shipmentLedgerTitle}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono tabular-nums">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <p className="text-[10px] font-sans font-bold text-slate-400">{t.baseFreight}</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">{formatEUR(analyticsShipment.costBreakdown?.freight || 0, 0)}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-100">
+                  <p className="text-[10px] font-sans font-bold text-amber-700">{t.fuelCost}</p>
+                  <p className="text-sm font-bold text-amber-800 mt-0.5">{formatEUR(analyticsShipment.costBreakdown?.fuelSurcharge || 0, 0)}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                  <p className="text-[10px] font-sans font-bold text-emerald-700">{t.co2Cost}</p>
+                  <p className="text-sm font-bold text-emerald-800 mt-0.5">{formatEUR(analyticsShipment.costBreakdown?.carbonCost || 0, 0)}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
+                  <p className="text-[10px] font-sans font-bold text-indigo-700">{t.portFees}</p>
+                  <p className="text-sm font-bold text-indigo-800 mt-0.5">{formatEUR(analyticsShipment.costBreakdown?.portFees || 0, 0)}</p>
+                </div>
               </div>
             </div>
             <div className="space-y-2">
@@ -275,9 +343,9 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                 <div key={l.id} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 text-xs">
                   <span className="font-black text-slate-700 w-14">{l.mode}</span>
                   <span className="flex-1 font-bold text-slate-600 truncate">{l.origin} → {l.destination}</span>
-                  <span className="font-mono text-slate-500 w-20 text-right">{formatNumber(l.distanceKm)} km</span>
-                  <span className="font-mono text-emerald-700 w-24 text-right">{formatNumber(l.emissionsKg)} kg</span>
-                  <span className="font-mono font-bold text-slate-900 w-20 text-right">{formatEUR(l.cost, 0)}</span>
+                  <span className="font-mono tabular-nums text-slate-500 w-20 text-right">{formatNumber(l.distanceKm)} km</span>
+                  <span className="font-mono tabular-nums text-emerald-700 w-24 text-right">{formatNumber(l.emissionsKg)} kg</span>
+                  <span className="font-mono tabular-nums font-bold text-slate-900 w-20 text-right">{formatEUR(l.cost, 0)}</span>
                 </div>
               ))}
             </div>
@@ -300,12 +368,38 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                       {isProcessing ? <Loader2 className="text-slate-400 mb-4 animate-spin" size={48} /> : <UploadCloud className="text-slate-400 mb-4" size={48} />}
                       <p className="text-sm font-bold text-slate-500">{t.dropBol}</p>
                    </div>
-                   <div className="grid grid-cols-2 gap-4">
-                      <input placeholder={t.customer} value={newShipment.customer} onChange={e => setNewShipment({...newShipment, customer: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
-                      <input placeholder={t.origin} value={newShipment.origin} onChange={e => setNewShipment({...newShipment, origin: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
-                      <input placeholder={t.destination} value={newShipment.destination} onChange={e => setNewShipment({...newShipment, destination: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border" />
-                      <input placeholder={t.weight} type="number" min="0" step="0.1" value={Number.isNaN(newShipment.weight) ? '' : newShipment.weight} onChange={e => setNewShipment({...newShipment, weight: parseFloat(e.target.value)})} className="p-4 bg-slate-50 rounded-2xl border" />
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <input placeholder={t.customer} value={newShipment.customer} onChange={e => setNewShipment({...newShipment, customer: e.target.value})} className="p-3.5 bg-slate-50 rounded-2xl border text-sm" />
+                      <input placeholder={t.origin} value={newShipment.origin} onChange={e => { const v = e.target.value; setNewShipment({...newShipment, origin: v}); syncPortDefaults(v, newShipment.destination, newShipment.weight); }} className="p-3.5 bg-slate-50 rounded-2xl border text-sm" />
+                      <input placeholder={t.destination} value={newShipment.destination} onChange={e => { const v = e.target.value; setNewShipment({...newShipment, destination: v}); syncPortDefaults(newShipment.origin, v, newShipment.weight); }} className="p-3.5 bg-slate-50 rounded-2xl border text-sm" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-1 px-1">{t.weight}</label>
+                          <input placeholder={t.weight} type="number" min="0.5" step="0.5" value={Number.isNaN(newShipment.weight) ? '' : newShipment.weight} onChange={e => { const w = parseFloat(e.target.value); setNewShipment({...newShipment, weight: w}); if (!Number.isNaN(w)) syncPortDefaults(newShipment.origin, newShipment.destination, w); }} className="w-full p-3 bg-slate-50 rounded-xl border text-sm font-mono tabular-nums" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-1 px-1">€/t CO2</label>
+                          <input placeholder="€/t CO2" type="number" min="0" step="5" value={carbonPrice} onChange={e => setCarbonPrice(Math.max(0, parseFloat(e.target.value) || 0))} className="w-full p-3 bg-slate-50 rounded-xl border text-sm font-mono tabular-nums" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-700 mb-1 px-1 flex items-center gap-1"><Anchor size={11} /> {t.originPortFee}</label>
+                        <input type="number" min="0" step="10" value={originPortFee} onChange={e => { setPortFeesEdited(true); setOriginPortFee(Math.max(0, Number(e.target.value) || 0)); }} className="w-full p-3 bg-slate-50 rounded-xl border text-sm font-mono tabular-nums" />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1 px-1">
+                          <label className="text-[10px] font-bold text-indigo-700 flex items-center gap-1"><Anchor size={11} /> {t.destinationPortFee}</label>
+                          <button type="button" onClick={() => { setPortFeesEdited(false); const est = estimatePortFees(newShipment.origin, newShipment.destination, newShipment.weight); setOriginPortFee(est.originPortFee); setDestinationPortFee(est.destinationPortFee); }} className="text-[10px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1">
+                            <RotateCcw size={10} /> {t.autoEstimatePorts}
+                          </button>
+                        </div>
+                        <input type="number" min="0" step="10" value={destinationPortFee} onChange={e => { setPortFeesEdited(true); setDestinationPortFee(Math.max(0, Number(e.target.value) || 0)); }} className="w-full p-3 bg-slate-50 rounded-xl border text-sm font-mono tabular-nums" />
+                      </div>
                    </div>
+                   <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                     <input type="checkbox" checked={applyPortFeeToAllModes} onChange={e => setApplyPortFeeToAllModes(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-indigo-600" />
+                     <span>{t.applyTerminalFeesAllModes}</span>
+                   </label>
                    {!canAnalyze && <p className="text-xs text-slate-400">{t.fillRequired}</p>}
                    <button onClick={handleAnalyze} disabled={!canAnalyze || isAnalyzing} className="w-full py-4 bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold uppercase tracking-widest text-xs flex justify-center gap-2">
                       {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {t.analyzeOptions}
@@ -313,13 +407,37 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                 </div>
               ) : (
                 <div className="space-y-6">
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {routeOptions.map((opt: any, i) => (
-                        <div key={i} onClick={() => setSelectedRoute(opt)} className={`p-6 rounded-[2rem] border-2 cursor-pointer ${selectedRoute?.mode === opt.mode ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100'}`}>
-                           <p className="text-[10px] font-black uppercase text-slate-400 mb-2">{opt.label}</p>
-                           <h4 className="font-black text-lg text-slate-900">{opt.mode}</h4>
-                           <p className="text-xs font-bold text-emerald-600 mt-2">{opt.estimatedEmissionsKg}kg CO2e</p>
-                           <p className="text-xs font-bold text-slate-900 mt-1">{formatEUR(opt.estimatedCost, 0)}</p>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[55vh] overflow-y-auto pr-1">
+                      {routeOptions.map((opt, i) => (
+                        <div key={opt.mode} onClick={() => setSelectedRoute(opt)} className={`p-5 rounded-2xl border-2 cursor-pointer transition-colors ${selectedRoute?.mode === opt.mode ? 'border-emerald-600 bg-emerald-50/70' : 'border-slate-200 hover:border-slate-300'}`}>
+                           <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
+                             <span>{opt.label}</span>
+                             {i === 0 && <span className="text-emerald-700">{t.optimalChoice}</span>}
+                           </div>
+                           <h4 className="font-extrabold text-base text-slate-900">{opt.mode === 'SEA_RAIL' ? `${t.sea} + ${t.rail}` : opt.mode} · {opt.estimatedDays}d</h4>
+                           <div className="mt-3 pt-3 border-t border-slate-200/70 space-y-1 text-xs font-mono tabular-nums">
+                             <div className="flex justify-between text-slate-600">
+                               <span>{t.baseFreight}</span>
+                               <span>{formatEUR(opt.baseFreightCost, 0)}</span>
+                             </div>
+                             <div className="flex justify-between text-amber-700 font-semibold">
+                               <span>{t.fuelCost}</span>
+                               <span>{formatEUR(opt.fuelCost, 0)}</span>
+                             </div>
+                             <div className="flex justify-between text-emerald-700 font-semibold">
+                               <span>{t.co2Cost}</span>
+                               <span>{formatEUR(opt.co2Cost, 0)}</span>
+                             </div>
+                             <div className="flex justify-between text-indigo-700 font-semibold">
+                               <span>{t.portFees}</span>
+                               <span>{formatEUR(opt.portFeeTotal, 0)}</span>
+                             </div>
+                             <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-1.5 border-t border-slate-200/70">
+                               <span>{t.totalCost}</span>
+                               <span>{formatEUR(opt.estimatedCost, 0)}</span>
+                             </div>
+                           </div>
+                           <p className="text-[11px] text-slate-500 mt-2 font-mono tabular-nums">{opt.estimatedEmissionsKg} kg CO2e</p>
                         </div>
                       ))}
                    </div>
