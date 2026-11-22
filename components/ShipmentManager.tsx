@@ -1,9 +1,9 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 // Added Leaf to the icons imported from lucide-react
 import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw, BookOpenCheck } from 'lucide-react';
-import { Shipment, ShipmentStatus, TransportMode } from '../types';
-import { calculateLegEmissions, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime } from '../services/carbon';
+import { Shipment, ShipmentStatus, SpeedProfile, TransportMode } from '../types';
+import { applySpeedProfileToRoute, calculateLegEmissions, computeCarbonAwareTradeOff, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime } from '../services/carbon';
 import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
@@ -42,6 +42,24 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   const [containersEdited, setContainersEdited] = useState(false);
   const [applyPortFeeToAllModes, setApplyPortFeeToAllModes] = useState(false);
   const [dwellTimeHours, setDwellTimeHours] = useState<number>(DEFAULT_PORT_DWELL_HOURS);
+  const [speedProfile, setSpeedProfile] = useState<SpeedProfile>('standard');
+
+  const displayedRouteOptions = useMemo(() => {
+    const mapped = routeOptions.map((opt) =>
+      applySpeedProfileToRoute(opt, speedProfile, carbonPrice)
+    );
+    return [...mapped].sort((a, b) => a.estimatedCost - b.estimatedCost);
+  }, [routeOptions, speedProfile, carbonPrice]);
+
+  const carbonAwareSummary = useMemo(
+    () => computeCarbonAwareTradeOff(routeOptions, carbonPrice, 10),
+    [routeOptions, carbonPrice]
+  );
+
+  const activeSelectedRoute = useMemo(() => {
+    if (!selectedRoute) return displayedRouteOptions[0] || null;
+    return displayedRouteOptions.find((o) => o.mode === selectedRoute.mode) || displayedRouteOptions[0] || null;
+  }, [selectedRoute, displayedRouteOptions]);
 
   const canAnalyze = !!(newShipment.customer.trim() && newShipment.origin.trim() && newShipment.destination.trim() && newShipment.weight > 0);
 
@@ -55,6 +73,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
     setApplyPortFeeToAllModes(false);
     setDwellTimeHours(DEFAULT_PORT_DWELL_HOURS);
     setCarbonPrice(DEFAULT_EU_ETS_CARBON_PRICE);
+    setSpeedProfile('standard');
     setRouteOptions([]);
     setSelectedRoute(null);
     setStep(1);
@@ -120,11 +139,12 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   };
 
   const handleSubmit = () => {
-    if (!selectedRoute) return;
+    const chosenRoute = activeSelectedRoute;
+    if (!chosenRoute) return;
     const mappedMode: TransportMode =
-      selectedRoute.mode === 'SEA_RAIL'
+      chosenRoute.mode === 'SEA_RAIL'
         ? TransportMode.SEA
-        : (selectedRoute.mode as TransportMode);
+        : (chosenRoute.mode as TransportMode);
     const s: Shipment = {
       id: `SH-${Math.floor(1000 + Math.random() * 8999)}`,
       customerName: newShipment.customer,
@@ -135,23 +155,24 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       weightTonnes: newShipment.weight,
       volumeCbm: newShipment.volume,
       containers: newShipment.containers,
-      dwellTimeHours: selectedRoute.dwellHours ?? dwellTimeHours,
-      scheduleDelayHours: (selectedRoute.dwellHours ?? 0) > 24 ? Math.round((selectedRoute.dwellHours ?? 0) - 24) : 0,
-      scheduleReliabilityPct: selectedRoute.scheduleReliabilityPct,
+      dwellTimeHours: chosenRoute.dwellHours ?? dwellTimeHours,
+      scheduleDelayHours: (chosenRoute.dwellHours ?? 0) > 24 ? Math.round((chosenRoute.dwellHours ?? 0) - 24) : 0,
+      scheduleReliabilityPct: chosenRoute.scheduleReliabilityPct,
+      speedProfile,
       status: ShipmentStatus.BOOKED,
-      legs: [{ id: 'L1', mode: mappedMode, origin: newShipment.origin, destination: newShipment.destination, distanceKm: selectedRoute.estimatedDistanceKm || 0, cost: selectedRoute.estimatedCost, emissionsKg: selectedRoute.estimatedEmissionsKg }],
+      legs: [{ id: 'L1', mode: mappedMode, origin: newShipment.origin, destination: newShipment.destination, distanceKm: chosenRoute.estimatedDistanceKm || 0, cost: chosenRoute.estimatedCost, emissionsKg: chosenRoute.estimatedEmissionsKg }],
       costBreakdown: {
-        freight: selectedRoute.baseFreightCost,
-        fuelSurcharge: selectedRoute.fuelCost,
-        carbonCost: selectedRoute.co2Cost,
-        portFees: selectedRoute.portFeeTotal,
-        dwellCost: selectedRoute.dwellCost ?? 0,
+        freight: chosenRoute.baseFreightCost,
+        fuelSurcharge: chosenRoute.fuelCost,
+        carbonCost: chosenRoute.co2Cost,
+        portFees: chosenRoute.portFeeTotal,
+        dwellCost: chosenRoute.dwellCost ?? 0,
         insurance: 0,
         customs: 0
       },
-      totalCost: selectedRoute.estimatedCost,
-      totalEmissionsKg: selectedRoute.estimatedEmissionsKg,
-      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${t.fuelCost}: ${formatEUR(selectedRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(selectedRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(selectedRoute.portFeeTotal, 0)} · ${t.dwellCost}: ${formatEUR(selectedRoute.dwellCost ?? 0, 0)})` }],
+      totalCost: chosenRoute.estimatedCost,
+      totalEmissionsKg: chosenRoute.estimatedEmissionsKg,
+      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed} · ${t.fuelCost}: ${formatEUR(chosenRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(chosenRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(chosenRoute.portFeeTotal, 0)} · ${t.dwellCost}: ${formatEUR(chosenRoute.dwellCost ?? 0, 0)})` }],
       createdAt: new Date().toISOString()
     };
     onAdd(s);
@@ -510,10 +531,60 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                    </button>
                 </div>
               ) : (
-                <div className="space-y-6">
-                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[55vh] overflow-y-auto pr-1">
-                      {routeOptions.map((opt, i) => (
-                        <div key={opt.mode} onClick={() => setSelectedRoute(opt)} className={`p-5 rounded-2xl border-2 cursor-pointer transition-colors ${selectedRoute?.mode === opt.mode ? 'border-emerald-600 bg-emerald-50/70' : 'border-slate-200 hover:border-slate-300'}`}>
+                <div className="space-y-5">
+                   {/* Speed Regime & Carbon-Aware Trade-Off Bar */}
+                   <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                     {carbonAwareSummary && (
+                       <div className="space-y-0.5">
+                         <p className="text-xs font-extrabold text-emerald-900 flex items-center gap-1.5">
+                           <Leaf size={14} className="text-emerald-700" />
+                           <span>
+                             {t.carbonAwareOption}: {carbonAwareSummary.recommendedRoute.mode} ({carbonAwareSummary.recommendedRoute.speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed})
+                           </span>
+                         </p>
+                         <p className="text-[11px] font-mono tabular-nums text-emerald-800">
+                           -{formatNumber(carbonAwareSummary.co2SavedKg)} kg CO2e (-{carbonAwareSummary.co2SavedPct}%) · {t.costDeltaLabel}: {carbonAwareSummary.costDeltaEur >= 0 ? `+${formatEUR(carbonAwareSummary.costDeltaEur, 0)}` : `-${formatEUR(Math.abs(carbonAwareSummary.costDeltaEur), 0)}`} · {t.transitDeltaLabel}: {carbonAwareSummary.transitDaysDelta >= 0 ? '+' : ''}{carbonAwareSummary.transitDaysDelta}d
+                         </p>
+                       </div>
+                     )}
+                     <div className="flex flex-wrap items-center gap-2 shrink-0">
+                       <div className="flex items-center gap-1 p-1 bg-white rounded-xl border border-emerald-200">
+                         <button
+                           type="button"
+                           onClick={() => setSpeedProfile('standard')}
+                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap ${
+                             speedProfile === 'standard' ? 'bg-slate-900 text-white' : 'text-slate-600'
+                           }`}
+                         >
+                           {t.standardSpeed}
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => setSpeedProfile('eco')}
+                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap ${
+                             speedProfile === 'eco' ? 'bg-emerald-600 text-white' : 'text-slate-600'
+                           }`}
+                         >
+                           {t.ecoSpeedLabel}
+                         </button>
+                       </div>
+                       {carbonAwareSummary && (
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setSpeedProfile(carbonAwareSummary.recommendedRoute.speedProfile ?? 'eco');
+                             setSelectedRoute(carbonAwareSummary.recommendedRoute);
+                           }}
+                           className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold whitespace-nowrap"
+                         >
+                           {t.applyCarbonAware}
+                         </button>
+                       )}
+                     </div>
+                   </div>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[50vh] overflow-y-auto pr-1">
+                      {displayedRouteOptions.map((opt, i) => (
+                        <div key={opt.mode} onClick={() => setSelectedRoute(opt)} className={`p-5 rounded-2xl border-2 cursor-pointer transition-colors ${activeSelectedRoute?.mode === opt.mode ? 'border-emerald-600 bg-emerald-50/70' : 'border-slate-200 hover:border-slate-300'}`}>
                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
                              <span>{opt.label}</span>
                              {i === 0 && <span className="text-emerald-700">{t.optimalChoice}</span>}
@@ -561,7 +632,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                    </div>
                    <div className="flex gap-3">
                       <button onClick={() => setStep(1)} className="px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black uppercase tracking-widest text-xs">{t.back}</button>
-                      <button onClick={handleSubmit} disabled={!selectedRoute} className="flex-1 py-4 bg-emerald-600 disabled:opacity-40 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl">{t.bookNow}</button>
+                      <button onClick={handleSubmit} disabled={!activeSelectedRoute} className="flex-1 py-4 bg-emerald-600 disabled:opacity-40 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl">{t.bookNow}</button>
                    </div>
                 </div>
               )}

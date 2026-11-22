@@ -41,8 +41,11 @@ export interface CostBreakdown {
   customs: number;
 }
 
+export type SpeedProfile = 'standard' | 'eco';
+
 export interface RouteCostOption {
   mode: string;
+  speedProfile?: SpeedProfile;
   estimatedDays: number;
   dwellHours?: number;
   dwellDaysAdded?: number;
@@ -75,6 +78,19 @@ export interface RouteCostOption {
   reasoning: string;
 }
 
+export interface CarbonAwareTradeOff {
+  baselineRoute: RouteCostOption;
+  recommendedRoute: RouteCostOption;
+  recommendationType: 'route_shift' | 'eco_speed' | 'route_and_speed';
+  costDeltaEur: number;
+  costDeltaPct: number;
+  co2SavedKg: number;
+  co2SavedPct: number;
+  transitDaysDelta: number;
+  reliabilityDeltaPct: number;
+  abatementEurPerTonne: number | null;
+}
+
 export interface Shipment {
   id: string;
   customerName: string;
@@ -88,6 +104,7 @@ export interface Shipment {
   dwellTimeHours?: number;
   scheduleDelayHours?: number;
   scheduleReliabilityPct?: number;
+  speedProfile?: SpeedProfile;
   status: ShipmentStatus;
   legs: Leg[];
   costBreakdown: CostBreakdown;

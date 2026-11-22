@@ -1,5 +1,5 @@
 
-import { TransportMode, RouteCostOption, Shipment, ScheduleReliabilityPoint } from '../types';
+import { TransportMode, RouteCostOption, Shipment, ScheduleReliabilityPoint, SpeedProfile, CarbonAwareTradeOff } from '../types';
 
 /**
  * GLEC Framework v3.0 / ISO 14083 Well-to-Wheel (WTW) default emission intensity factors
@@ -505,6 +505,7 @@ export const recalculateRouteWithPricing = (
 
   return {
     ...route,
+    speedProfile: route.speedProfile ?? 'standard',
     estimatedDays,
     dwellHours: dwell.dwellHours,
     dwellDaysAdded: dwell.dwellDaysAdded,
@@ -529,6 +530,196 @@ export const recalculateRouteWithPricing = (
     dwellCost: dwell.dwellCost,
     estimatedCost,
     estimatedEmissionsKg
+  };
+};
+
+interface EcoSpeedModeSpec {
+  emissionsMult: number;
+  fuelMult: number;
+  baseFreightMult: number;
+  addedDays: number;
+  reliabilityDelta: number;
+}
+
+export const ECO_SPEED_SPECS: Record<string, EcoSpeedModeSpec> = {
+  SEA: {
+    emissionsMult: 0.78, // ~22% propulsion WTW CO2 reduction via slow steaming
+    fuelMult: 0.78,
+    baseFreightMult: 1.045, // minor vessel charter extension
+    addedDays: 2.0,
+    reliabilityDelta: 1.4
+  },
+  SEA_RAIL: {
+    emissionsMult: 0.84, // ~16% reduction across sea feeder + off-peak rail traction
+    fuelMult: 0.84,
+    baseFreightMult: 1.03,
+    addedDays: 1.3,
+    reliabilityDelta: 0.8
+  },
+  RAIL: {
+    emissionsMult: 0.88, // ~12% reduction via eco-pacing & off-peak renewable grid mix
+    fuelMult: 0.88,
+    baseFreightMult: 1.02,
+    addedDays: 0.6,
+    reliabilityDelta: 0.5
+  },
+  ROAD: {
+    emissionsMult: 0.87, // ~13% diesel savings at 80 km/h eco-cruise
+    fuelMult: 0.87,
+    baseFreightMult: 1.035, // extra driver duty time
+    addedDays: 0.4,
+    reliabilityDelta: -0.4
+  },
+  AIR: {
+    emissionsMult: 0.94, // ~6% fuel-optimized cruise Mach profile
+    fuelMult: 0.94,
+    baseFreightMult: 1.01,
+    addedDays: 0.3,
+    reliabilityDelta: 0
+  }
+};
+
+export const applySpeedProfileToRoute = (
+  route: RouteCostOption,
+  speedProfile: SpeedProfile,
+  carbonPricePerTonne: number
+): RouteCostOption => {
+  if (speedProfile === 'standard') {
+    return { ...route, speedProfile: 'standard' };
+  }
+
+  const spec = ECO_SPEED_SPECS[route.mode] ?? ECO_SPEED_SPECS.SEA;
+  const linehaulBase = route.linehaulEmissionsKg ?? Math.max(0, route.estimatedEmissionsKg - (route.dwellEmissionsKg ?? 0));
+  const ecoLinehaulKg = Math.round(linehaulBase * spec.emissionsMult);
+  const dwellKg = route.dwellEmissionsKg ?? 0;
+  const estimatedEmissionsKg = ecoLinehaulKg + dwellKg;
+
+  const glecSpec = getGlecFactorSpec(route.mode);
+  const ratioTtw = glecSpec.wtw > 0 ? glecSpec.ttw / glecSpec.wtw : 0.75;
+  const linehaulTtwKg = Math.round(ecoLinehaulKg * ratioTtw);
+  const linehaulWttKg = Math.max(0, ecoLinehaulKg - linehaulTtwKg);
+  const dwellTtwKg = Math.round(dwellKg * ratioTtw);
+  const dwellWttKg = Math.max(0, dwellKg - dwellTtwKg);
+
+  const baseFreightCost = Math.round(route.baseFreightCost * spec.baseFreightMult);
+  const fuelCost = Math.round(route.fuelCost * spec.fuelMult);
+  const co2Cost = calculateCO2Cost(ecoLinehaulKg, carbonPricePerTonne);
+  const fuelPlusCo2Cost = fuelCost + co2Cost;
+  const portFeeTotal = route.portFeeTotal ?? 0;
+  const dwellCost = route.dwellCost ?? 0;
+  const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwellCost;
+
+  const estimatedDays = Number((route.estimatedDays + spec.addedDays).toFixed(1));
+  const fuelConsumption = Math.round(route.fuelConsumption * spec.fuelMult);
+  const containers = Math.max(0.5, route.containers || 1);
+  const teuKm = route.teuKm > 0 ? route.teuKm : calculateTeuKm(route.estimatedDistanceKm, containers);
+  const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
+  const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
+  const glecFactorWtw = Number(((route.glecFactorWtw ?? glecSpec.wtw) * spec.emissionsMult).toFixed(4));
+  const baseRel = route.scheduleReliabilityPct ?? 90;
+  const scheduleReliabilityPct = Number(Math.min(99.2, Math.max(55, baseRel + spec.reliabilityDelta)).toFixed(1));
+
+  return {
+    ...route,
+    speedProfile: 'eco',
+    estimatedDays,
+    scheduleReliabilityPct,
+    baseFreightCost,
+    fuelCost,
+    co2Cost,
+    fuelPlusCo2Cost,
+    estimatedCost,
+    linehaulEmissionsKg: ecoLinehaulKg,
+    estimatedEmissionsKg,
+    ttwEmissionsKg: linehaulTtwKg + dwellTtwKg,
+    wttEmissionsKg: linehaulWttKg + dwellWttKg,
+    glecFactorWtw,
+    fuelConsumption,
+    costPerTeuKm,
+    emissionsPerTeuKm
+  };
+};
+
+export const computeCarbonAwareTradeOff = (
+  standardOptions: RouteCostOption[],
+  carbonPricePerTonne: number,
+  maxCostDeltaPct: number = 10
+): CarbonAwareTradeOff | null => {
+  if (!standardOptions || standardOptions.length === 0) return null;
+
+  // Cost-optimal standard-speed option serves as the baseline comparison anchor
+  const sortedByCost = [...standardOptions].sort((a, b) => a.estimatedCost - b.estimatedCost);
+  const baselineRoute: RouteCostOption = {
+    ...sortedByCost[0],
+    speedProfile: 'standard'
+  };
+
+  // Build candidate pool across both Standard and Eco speed profiles
+  const candidates: RouteCostOption[] = [];
+  for (const opt of standardOptions) {
+    candidates.push({ ...opt, speedProfile: 'standard' });
+    candidates.push(applySpeedProfileToRoute(opt, 'eco', carbonPricePerTonne));
+  }
+
+  const maxAllowedCost = baselineRoute.estimatedCost * (1 + Math.max(0, maxCostDeltaPct) / 100);
+
+  // Candidates within the cost tolerance window that reduce CO2e relative to baseline
+  const eligible = candidates.filter(
+    (c) =>
+      !(c.mode === baselineRoute.mode && (c.speedProfile ?? 'standard') === 'standard') &&
+      c.estimatedCost <= maxAllowedCost &&
+      c.estimatedEmissionsKg < baselineRoute.estimatedEmissionsKg
+  );
+
+  // Pick candidate with maximum CO2 savings (tie-break by lowest cost)
+  let recommendedRoute: RouteCostOption | undefined = eligible.sort((a, b) => {
+    const co2Diff = a.estimatedEmissionsKg - b.estimatedEmissionsKg;
+    if (co2Diff !== 0) return co2Diff;
+    return a.estimatedCost - b.estimatedCost;
+  })[0];
+
+  if (!recommendedRoute) {
+    // Always evaluate at least Eco-Speed on the lowest-emission mode within budget or baseline
+    recommendedRoute = applySpeedProfileToRoute(baselineRoute, 'eco', carbonPricePerTonne);
+  }
+
+  const costDeltaEur = recommendedRoute.estimatedCost - baselineRoute.estimatedCost;
+  const costDeltaPct =
+    baselineRoute.estimatedCost > 0
+      ? Number(((costDeltaEur / baselineRoute.estimatedCost) * 100).toFixed(1))
+      : 0;
+  const co2SavedKg = Math.max(0, baselineRoute.estimatedEmissionsKg - recommendedRoute.estimatedEmissionsKg);
+  const co2SavedPct =
+    baselineRoute.estimatedEmissionsKg > 0
+      ? Number(((co2SavedKg / baselineRoute.estimatedEmissionsKg) * 100).toFixed(1))
+      : 0;
+  const transitDaysDelta = Number((recommendedRoute.estimatedDays - baselineRoute.estimatedDays).toFixed(1));
+  const reliabilityDeltaPct = Number(
+    ((recommendedRoute.scheduleReliabilityPct ?? 90) - (baselineRoute.scheduleReliabilityPct ?? 90)).toFixed(1)
+  );
+  const abatementEurPerTonne =
+    co2SavedKg > 0 && costDeltaEur > 0 ? Math.round((costDeltaEur / co2SavedKg) * 1000) : null;
+
+  const modeChanged = recommendedRoute.mode !== baselineRoute.mode;
+  const speedChanged = (recommendedRoute.speedProfile ?? 'standard') === 'eco';
+  const recommendationType =
+    modeChanged && speedChanged
+      ? 'route_and_speed'
+      : modeChanged
+        ? 'route_shift'
+        : 'eco_speed';
+
+  return {
+    baselineRoute,
+    recommendedRoute,
+    recommendationType,
+    costDeltaEur,
+    costDeltaPct,
+    co2SavedKg,
+    co2SavedPct,
+    transitDaysDelta,
+    reliabilityDeltaPct,
+    abatementEurPerTonne
   };
 };
 

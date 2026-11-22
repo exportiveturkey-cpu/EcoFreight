@@ -17,7 +17,8 @@ import {
   SlidersHorizontal,
   RotateCcw,
   BookOpenCheck,
-  Clock
+  Clock,
+  Gauge
 } from 'lucide-react';
 import {
   BarChart,
@@ -27,19 +28,25 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+  ReferenceLine
 } from 'recharts';
-import { RouteCostOption, Shipment, ShipmentStatus, TransportMode } from '../types';
+import { RouteCostOption, Shipment, ShipmentStatus, SpeedProfile, TransportMode } from '../types';
 import {
   CARBON_PRICE_PRESETS,
   DEFAULT_EU_ETS_CARBON_PRICE,
   DEFAULT_PORT_DWELL_HOURS,
   DWELL_TIME_PRESETS,
   SCHEDULE_SLA_TARGET_PCT,
+  applySpeedProfileToRoute,
   buildDeterministicRouteOptions,
   calculateCO2Cost,
   calculateTeuKm,
   computeApplicablePortFee,
+  computeCarbonAwareTradeOff,
   computeDwellImpact,
   computeModeScheduleReliability,
   estimatePortFees,
@@ -57,7 +64,7 @@ interface RouteOptimizerProps {
   onBookRoute: (shipment: Shipment) => void;
 }
 
-type OptimizationObjective = 'total_cost' | 'fuel_co2' | 'fastest' | 'reliability';
+type OptimizationObjective = 'total_cost' | 'fuel_co2' | 'carbon_aware' | 'fastest' | 'reliability';
 
 const CORRIDOR_PRESETS = [
   { label: 'Piraeus, GR → Hamburg, DE', origin: 'Piraeus, GR', destination: 'Hamburg, DE', weight: 12 },
@@ -123,6 +130,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
   const [carbonPricePerTonne, setCarbonPricePerTonne] = useState<number>(DEFAULT_EU_ETS_CARBON_PRICE);
   const [fuelIndexPct, setFuelIndexPct] = useState<number>(100);
+  const [speedProfile, setSpeedProfile] = useState<SpeedProfile>('standard');
+  const [costTolerancePct, setCostTolerancePct] = useState<number>(10);
   const [objective, setObjective] = useState<OptimizationObjective>('total_cost');
 
   const [rawOptions, setRawOptions] = useState<RouteCostOption[]>(() =>
@@ -188,10 +197,10 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     return est;
   };
 
-  // Dynamically recompute Fuel Cost, CO2 Cost, Port Fees, Dwell Impact, and Total Cost whenever inputs/sliders change
-  const computedOptions = useMemo(() => {
+  // Dynamically recompute Standard-speed options whenever inputs/sliders change
+  const standardComputedOptions = useMemo(() => {
     const fuelMult = fuelIndexPct / 100;
-    const updated = rawOptions.map((opt) => {
+    return rawOptions.map((opt) => {
       const adjustedFuel = Math.round(opt.fuelCost * fuelMult);
       const linehaulEmissionsKg =
         opt.linehaulEmissionsKg ?? Math.max(0, opt.estimatedEmissionsKg - (opt.dwellEmissionsKg ?? 0));
@@ -233,6 +242,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
       return {
         ...opt,
+        speedProfile: 'standard' as SpeedProfile,
         estimatedDays,
         dwellHours: dwell.dwellHours,
         dwellDaysAdded: dwell.dwellDaysAdded,
@@ -259,14 +269,40 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         estimatedEmissionsKg
       };
     });
+  }, [rawOptions, carbonPricePerTonne, fuelIndexPct, originPortFee, destinationPortFee, applyPortFeeToAllModes, containersTeu, dwellTimeHours]);
 
-    return [...updated].sort((a, b) => {
+  const ecoComputedOptions = useMemo(
+    () =>
+      standardComputedOptions.map((opt) =>
+        applySpeedProfileToRoute(opt, 'eco', carbonPricePerTonne)
+      ),
+    [standardComputedOptions, carbonPricePerTonne]
+  );
+
+  const carbonAwareTradeOff = useMemo(
+    () => computeCarbonAwareTradeOff(standardComputedOptions, carbonPricePerTonne, costTolerancePct),
+    [standardComputedOptions, carbonPricePerTonne, costTolerancePct]
+  );
+
+  const computedOptions = useMemo(() => {
+    const activeSet = speedProfile === 'eco' ? ecoComputedOptions : standardComputedOptions;
+    const baselineMaxCost = carbonAwareTradeOff
+      ? carbonAwareTradeOff.baselineRoute.estimatedCost * (1 + costTolerancePct / 100)
+      : Infinity;
+
+    return [...activeSet].sort((a, b) => {
       if (objective === 'fuel_co2') return a.fuelPlusCo2Cost - b.fuelPlusCo2Cost;
       if (objective === 'fastest') return a.estimatedDays - b.estimatedDays;
       if (objective === 'reliability') return (b.scheduleReliabilityPct ?? 0) - (a.scheduleReliabilityPct ?? 0);
+      if (objective === 'carbon_aware') {
+        const aInBudget = a.estimatedCost <= baselineMaxCost ? 0 : 1;
+        const bInBudget = b.estimatedCost <= baselineMaxCost ? 0 : 1;
+        if (aInBudget !== bInBudget) return aInBudget - bInBudget;
+        return a.estimatedEmissionsKg - b.estimatedEmissionsKg;
+      }
       return a.estimatedCost - b.estimatedCost;
     });
-  }, [rawOptions, carbonPricePerTonne, fuelIndexPct, originPortFee, destinationPortFee, applyPortFeeToAllModes, containersTeu, dwellTimeHours, objective]);
+  }, [speedProfile, ecoComputedOptions, standardComputedOptions, objective, carbonAwareTradeOff, costTolerancePct]);
 
   const optimalRoute = computedOptions[0];
   const selectedRoute =
@@ -297,6 +333,40 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     roadBaseline && optimalRoute
       ? Math.max(0, roadBaseline.estimatedEmissionsKg - optimalRoute.estimatedEmissionsKg)
       : 0;
+
+  const scatterData = useMemo(() => {
+    return {
+      standard: standardComputedOptions.map((opt) => ({
+        name: `${getModeLabel(opt.mode, t)} (${t.standardSpeed})`,
+        mode: getModeLabel(opt.mode, t),
+        cost: opt.estimatedCost,
+        co2: opt.estimatedEmissionsKg,
+        days: opt.estimatedDays,
+        speed: t.standardSpeed
+      })),
+      eco: ecoComputedOptions.map((opt) => ({
+        name: `${getModeLabel(opt.mode, t)} (${t.ecoSpeedLabel})`,
+        mode: getModeLabel(opt.mode, t),
+        cost: opt.estimatedCost,
+        co2: opt.estimatedEmissionsKg,
+        days: opt.estimatedDays,
+        speed: t.ecoSpeedLabel
+      }))
+    };
+  }, [standardComputedOptions, ecoComputedOptions, t]);
+
+  const handleApplyCarbonAware = () => {
+    if (!carbonAwareTradeOff) return;
+    const rec = carbonAwareTradeOff.recommendedRoute;
+    setSpeedProfile(rec.speedProfile ?? 'eco');
+    setObjective('carbon_aware');
+    setSelectedMode(rec.mode);
+  };
+
+  const isCarbonAwareActive =
+    !!carbonAwareTradeOff &&
+    selectedRoute?.mode === carbonAwareTradeOff.recommendedRoute.mode &&
+    speedProfile === (carbonAwareTradeOff.recommendedRoute.speedProfile ?? 'standard');
 
   const chartData = useMemo(
     () =>
@@ -416,6 +486,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       dwellTimeHours: selectedRoute.dwellHours ?? dwellTimeHours,
       scheduleDelayHours: selectedRoute.dwellHours ? Math.round((selectedRoute.dwellHours ?? 0) * 0.25) : 0,
       scheduleReliabilityPct: selectedRoute.scheduleReliabilityPct,
+      speedProfile,
       status: ShipmentStatus.BOOKED,
       legs,
       costBreakdown: {
@@ -792,6 +863,37 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <span>100% (Baseline)</span>
               <span>160% (Fuel Spike)</span>
             </div>
+            {/* Speed Regime Toggle (Standard vs Eco-Speed / Slow Steaming) */}
+            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Gauge size={14} className="text-emerald-600" />
+                {t.speedProfileLabel}
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setSpeedProfile('standard')}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap truncate ${
+                    speedProfile === 'standard'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t.standardSpeed}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSpeedProfile('eco')}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap truncate ${
+                    speedProfile === 'eco'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t.ecoSpeedLabel}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Optimization Priority Selector */}
@@ -814,10 +916,27 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  if (carbonAwareTradeOff) {
+                    handleApplyCarbonAware();
+                  } else {
+                    setObjective('carbon_aware');
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-left transition-colors whitespace-nowrap truncate ${
+                  objective === 'carbon_aware'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                }`}
+              >
+                {t.priorityCarbonAware}
+              </button>
+              <button
+                type="button"
                 onClick={() => setObjective('fuel_co2')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-left transition-colors whitespace-nowrap truncate ${
                   objective === 'fuel_co2'
-                    ? 'bg-emerald-600 text-white'
+                    ? 'bg-emerald-700 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -924,6 +1043,213 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono tabular-nums">
               <span>{formatEUR(optimalRoute.costPerTeuKm, 2)}/TEU-km</span>
               <span>{optimalRoute.emissionsPerTeuKm.toFixed(2)} kg/TEU-km</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Carbon-Aware Routing Recommendation & Trade-Off Analysis */}
+      {carbonAwareTradeOff && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="lg:col-span-7 flex flex-col justify-between gap-5">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Leaf size={17} className="text-emerald-600" />
+                  <span>{t.carbonAwareTitle}</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">{t.carbonAwareDesc}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+                  <span className="text-[11px] font-semibold text-slate-500 px-2">{t.costTolerance}:</span>
+                  {[5, 10, 15].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setCostTolerancePct(pct)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-mono tabular-nums font-bold transition-colors whitespace-nowrap ${
+                        costTolerancePct === pct
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ±{pct}%
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplyCarbonAware}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                    isCarbonAwareActive
+                      ? 'bg-emerald-700 text-white'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  }`}
+                >
+                  <CheckCircle2 size={14} />
+                  <span>{isCarbonAwareActive ? t.carbonAwareApplied : t.applyCarbonAware}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Baseline vs Carbon-Aware Side-by-Side Comparison */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold text-slate-500">{t.baselineOption}</p>
+                <p className="text-base font-extrabold text-slate-900">
+                  {getModeLabel(carbonAwareTradeOff.baselineRoute.mode, t)} · {t.standardSpeed}
+                </p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-mono tabular-nums text-slate-600 pt-1">
+                  <span><strong className="text-slate-900">{formatEUR(carbonAwareTradeOff.baselineRoute.estimatedCost, 0)}</strong></span>
+                  <span aria-hidden="true">·</span>
+                  <span>{formatEmissions(carbonAwareTradeOff.baselineRoute.estimatedEmissionsKg)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{carbonAwareTradeOff.baselineRoute.estimatedDays} {t.days}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{(carbonAwareTradeOff.baselineRoute.scheduleReliabilityPct ?? 90).toFixed(1)}% ETA</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 sm:pl-6 sm:border-l sm:border-slate-100">
+                <p className="text-[11px] font-semibold text-emerald-700">
+                  {t.carbonAwareOption} ·{' '}
+                  {carbonAwareTradeOff.recommendationType === 'route_and_speed'
+                    ? t.recTypeRouteAndSpeed
+                    : carbonAwareTradeOff.recommendationType === 'route_shift'
+                      ? t.recTypeRouteShift
+                      : t.recTypeEcoSpeed}
+                </p>
+                <p className="text-base font-extrabold text-emerald-800">
+                  {getModeLabel(carbonAwareTradeOff.recommendedRoute.mode, t)} ·{' '}
+                  {carbonAwareTradeOff.recommendedRoute.speedProfile === 'eco'
+                    ? t.ecoSpeedLabel
+                    : t.standardSpeed}
+                </p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-mono tabular-nums text-slate-700 pt-1">
+                  <span><strong className="text-slate-900">{formatEUR(carbonAwareTradeOff.recommendedRoute.estimatedCost, 0)}</strong></span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-bold text-emerald-700">{formatEmissions(carbonAwareTradeOff.recommendedRoute.estimatedEmissionsKg)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{carbonAwareTradeOff.recommendedRoute.estimatedDays} {t.days}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{(carbonAwareTradeOff.recommendedRoute.scheduleReliabilityPct ?? 90).toFixed(1)}% ETA</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quantified Trade-Off Metrics Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.co2SavingsLabel}</p>
+                <p className="text-lg font-extrabold font-mono tabular-nums text-emerald-700 mt-0.5">
+                  -{formatEmissions(carbonAwareTradeOff.co2SavedKg)}
+                </p>
+                <p className="text-[11px] font-mono tabular-nums text-emerald-700">
+                  -{carbonAwareTradeOff.co2SavedPct.toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.costDeltaLabel}</p>
+                <p className={`text-lg font-extrabold font-mono tabular-nums mt-0.5 ${
+                  carbonAwareTradeOff.costDeltaEur <= 0 ? 'text-emerald-700' : 'text-slate-900'
+                }`}>
+                  {carbonAwareTradeOff.costDeltaEur >= 0
+                    ? `+${formatEUR(carbonAwareTradeOff.costDeltaEur, 0)}`
+                    : `-${formatEUR(Math.abs(carbonAwareTradeOff.costDeltaEur), 0)}`}
+                </p>
+                <p className="text-[11px] font-mono tabular-nums text-slate-500">
+                  {carbonAwareTradeOff.costDeltaPct >= 0 ? '+' : ''}
+                  {carbonAwareTradeOff.costDeltaPct.toFixed(1)}% ({t.similarCostBand})
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.transitDeltaLabel}</p>
+                <p className="text-lg font-extrabold font-mono tabular-nums text-amber-700 mt-0.5">
+                  {carbonAwareTradeOff.transitDaysDelta >= 0 ? '+' : ''}
+                  {carbonAwareTradeOff.transitDaysDelta.toFixed(1)} {t.days}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {carbonAwareTradeOff.baselineRoute.estimatedDays}d → {carbonAwareTradeOff.recommendedRoute.estimatedDays}d
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.reliabilityDeltaLabel}</p>
+                <p className={`text-lg font-extrabold font-mono tabular-nums mt-0.5 ${
+                  carbonAwareTradeOff.reliabilityDeltaPct >= 0 ? 'text-teal-700' : 'text-amber-700'
+                }`}>
+                  {carbonAwareTradeOff.reliabilityDeltaPct >= 0 ? '+' : ''}
+                  {carbonAwareTradeOff.reliabilityDeltaPct.toFixed(1)}%
+                </p>
+                <p className="text-[11px] font-mono tabular-nums text-slate-500">
+                  {carbonAwareTradeOff.abatementEurPerTonne !== null
+                    ? `${t.abatementCostLabel}: ${formatEUR(carbonAwareTradeOff.abatementEurPerTonne, 0)}/t`
+                    : `${t.abatementCostLabel}: Net Saving`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Cost vs CO2e Pareto Frontier ScatterChart */}
+          <div className="lg:col-span-5 flex flex-col justify-between lg:pl-6 lg:border-l lg:border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">{t.tradeoffChartTitle}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{t.tradeoffChartDesc}</p>
+            </div>
+            <div className="h-56 mt-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 10, right: 16, bottom: 8, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    type="number"
+                    dataKey="cost"
+                    name={t.totalLandedCost}
+                    tick={{ fill: '#64748b', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `€${v}`}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="co2"
+                    name={t.emissions}
+                    tick={{ fill: '#64748b', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}kg`}
+                  />
+                  <ZAxis range={[64, 64]} />
+                  <Tooltip
+                    cursor={{ strokeDasharray: '3 3' }}
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const pt = payload[0].payload;
+                      return (
+                        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs shadow-lg">
+                          <p className="font-bold text-slate-900">{pt.name}</p>
+                          <p className="font-mono tabular-nums text-slate-700 mt-1">
+                            {formatEUR(pt.cost, 0)} · {formatEmissions(pt.co2)} · {pt.days}d
+                          </p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <ReferenceLine
+                    x={Math.round(carbonAwareTradeOff.baselineRoute.estimatedCost * (1 + costTolerancePct / 100))}
+                    stroke="#0d9488"
+                    strokeDasharray="4 4"
+                    label={{
+                      value: `+${costTolerancePct}%`,
+                      position: 'top',
+                      fill: '#0f766e',
+                      fontSize: 10
+                    }}
+                  />
+                  <Scatter name={t.standardSpeed} data={scatterData.standard} fill="#64748b" />
+                  <Scatter name={t.ecoSpeedLabel} data={scatterData.eco} fill="#10b981" />
+                </ScatterChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
@@ -1077,7 +1403,9 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             <div className="p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-900">
-                  <span>{getModeLabel(selectedRoute.mode, t)}</span>
+                  <span>
+                    {getModeLabel(selectedRoute.mode, t)} ({speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed})
+                  </span>
                   <span aria-hidden="true">·</span>
                   <span className="font-mono tabular-nums text-teal-700">
                     {t.scheduleReliability}: {(selectedRoute.scheduleReliabilityPct ?? 90).toFixed(1)}%

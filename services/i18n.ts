@@ -262,6 +262,30 @@ export interface Translations {
   delayed: string;
   months6Label: string;
   weeks12Label: string;
+
+  // Carbon-Aware Routing & Cost/Speed Trade-Off
+  priorityCarbonAware: string;
+  speedProfileLabel: string;
+  standardSpeed: string;
+  ecoSpeedLabel: string;
+  carbonAwareTitle: string;
+  carbonAwareDesc: string;
+  costTolerance: string;
+  similarCostBand: string;
+  baselineOption: string;
+  carbonAwareOption: string;
+  applyCarbonAware: string;
+  carbonAwareApplied: string;
+  co2SavingsLabel: string;
+  costDeltaLabel: string;
+  transitDeltaLabel: string;
+  reliabilityDeltaLabel: string;
+  abatementCostLabel: string;
+  tradeoffChartTitle: string;
+  tradeoffChartDesc: string;
+  recTypeRouteAndSpeed: string;
+  recTypeRouteShift: string;
+  recTypeEcoSpeed: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -513,7 +537,29 @@ export const translations: Record<Language, Translations> = {
     onTime: "On Time",
     delayed: "Delayed",
     months6Label: "6M Monthly",
-    weeks12Label: "12W Bi-weekly"
+    weeks12Label: "12W Bi-weekly",
+    priorityCarbonAware: "Carbon-Aware (Lowest CO2 for Similar Cost)",
+    speedProfileLabel: "Speed Regime",
+    standardSpeed: "Standard Speed",
+    ecoSpeedLabel: "Eco-Speed (Slow Steaming)",
+    carbonAwareTitle: "Carbon-Aware Routing & Trade-Off",
+    carbonAwareDesc: "Lower-CO2 route or speed within your cost budget, showing exact cost, emission & transit trade-offs.",
+    costTolerance: "Cost Window",
+    similarCostBand: "Similar Cost",
+    baselineOption: "Cost-Optimal Baseline",
+    carbonAwareOption: "Carbon-Aware Suggestion",
+    applyCarbonAware: "Apply Carbon-Aware Option",
+    carbonAwareApplied: "Active",
+    co2SavingsLabel: "CO2e Reduction",
+    costDeltaLabel: "Cost Difference",
+    transitDeltaLabel: "Transit Trade-Off",
+    reliabilityDeltaLabel: "Schedule Impact",
+    abatementCostLabel: "Abatement Cost",
+    tradeoffChartTitle: "Cost vs. CO2e Frontier",
+    tradeoffChartDesc: "Standard vs. Eco-Speed across modes (lower-left is better)",
+    recTypeRouteAndSpeed: "Route Shift + Eco-Speed",
+    recTypeRouteShift: "Intermodal Route Shift",
+    recTypeEcoSpeed: "Slow Steaming / Eco-Speed"
   },
   tr: {
     dashboard: "Panel",
@@ -763,7 +809,29 @@ export const translations: Record<Language, Translations> = {
     onTime: "Zamanında",
     delayed: "Gecikmeli",
     months6Label: "6 Ay",
-    weeks12Label: "12 Hafta"
+    weeks12Label: "12 Hafta",
+    priorityCarbonAware: "Karbon Duyarlı (Benzer Maliyetle En Düşük CO2)",
+    speedProfileLabel: "Hız Profili",
+    standardSpeed: "Standart Hız",
+    ecoSpeedLabel: "Eko-Hız (Yavaş Seyir)",
+    carbonAwareTitle: "Karbon Duyarlı Rota & Ödünleşim Analizi",
+    carbonAwareDesc: "Benzer maliyet aralığında daha düşük CO2 sunan rota veya hızı önerir ve maliyet/süre ödünleşimini gösterir.",
+    costTolerance: "Maliyet Esnekliği",
+    similarCostBand: "Benzer Maliyet",
+    baselineOption: "En Düşük Maliyetli Baz",
+    carbonAwareOption: "Karbon Duyarlı Öneri",
+    applyCarbonAware: "Karbon Duyarlı Seçeneği Uygula",
+    carbonAwareApplied: "Aktif",
+    co2SavingsLabel: "CO2e Azaltımı",
+    costDeltaLabel: "Maliyet Farkı",
+    transitDeltaLabel: "Süre Ödünleşimi",
+    reliabilityDeltaLabel: "Tarife Etkisi",
+    abatementCostLabel: "Azaltım Maliyeti",
+    tradeoffChartTitle: "Maliyet ve CO2e Ödünleşim Eğrisi",
+    tradeoffChartDesc: "Modlar arası Standart ve Eko-Hız dağılımı (sol alt en verimli)",
+    recTypeRouteAndSpeed: "Rota Değişimi + Eko-Hız",
+    recTypeRouteShift: "İntermodal Rota Değişimi",
+    recTypeEcoSpeed: "Yavaş Seyir / Eko-Hız"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -1013,7 +1081,29 @@ export const translations: Record<Language, Translations> = {
     onTime: "Εμπρόθεσμο",
     delayed: "Καθυστέρηση",
     months6Label: "6 Μήνες",
-    weeks12Label: "12 Εβδ."
+    weeks12Label: "12 Εβδ.",
+    priorityCarbonAware: "Φιλική προς τον Άνθρακα (Ελάχιστο CO2 με Παρόμοιο Κόστος)",
+    speedProfileLabel: "Καθεστώς Ταχύτητας",
+    standardSpeed: "Κανονική Ταχύτητα",
+    ecoSpeedLabel: "Οικολογική Ταχύτητα (Slow Steaming)",
+    carbonAwareTitle: "Δρομολόγηση Χαμηλού Άνθρακα & Αντιστάθμιση",
+    carbonAwareDesc: "Προτείνει διαδρομή ή ταχύτητα με χαμηλότερο CO2 για παρόμοιο κόστος, προβάλλοντας την αντιστάθμιση.",
+    costTolerance: "Όριο Κόστους",
+    similarCostBand: "Παρόμοιο Κόστος",
+    baselineOption: "Βασική Οικονομικότερη Επιλογή",
+    carbonAwareOption: "Πρόταση Χαμηλού Άνθρακα",
+    applyCarbonAware: "Εφαρμογή Πρότασης Χαμηλού Άνθρακα",
+    carbonAwareApplied: "Ενεργό",
+    co2SavingsLabel: "Μείωση CO2e",
+    costDeltaLabel: "Διαφορά Κόστους",
+    transitDeltaLabel: "Αντιστάθμιση Χρόνου",
+    reliabilityDeltaLabel: "Επίπτωση ETA",
+    abatementCostLabel: "Κόστος Μείωσης CO2",
+    tradeoffChartTitle: "Καμπύλη Κόστους έναντι CO2e",
+    tradeoffChartDesc: "Κανονική vs. Οικολογική ταχύτητα ανά μέσο (κάτω αριστερά βέλτιστο)",
+    recTypeRouteAndSpeed: "Αλλαγή Διαδρομής + Οικολογική Ταχύτητα",
+    recTypeRouteShift: "Αλλαγή Διατροπικής Διαδρομής",
+    recTypeEcoSpeed: "Slow Steaming / Οικολογική Ταχύτητα"
   }
 };
 
