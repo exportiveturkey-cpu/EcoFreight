@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo } from 'react';
 // Added Leaf to the icons imported from lucide-react
 import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw, BookOpenCheck } from 'lucide-react';
 import { Shipment, ShipmentStatus, SpeedProfile, TransportMode } from '../types';
-import { applySpeedProfileToRoute, calculateLegEmissions, computeCarbonAwareTradeOff, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime } from '../services/carbon';
+import { applySlowSteamingToRoute, calculateLegEmissions, computeCarbonAwareTradeOff, DEFAULT_ECO_SLOW_STEAMING_PCT, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime, SLOW_STEAMING_TIERS } from '../services/carbon';
 import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
@@ -42,14 +42,15 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   const [containersEdited, setContainersEdited] = useState(false);
   const [applyPortFeeToAllModes, setApplyPortFeeToAllModes] = useState(false);
   const [dwellTimeHours, setDwellTimeHours] = useState<number>(DEFAULT_PORT_DWELL_HOURS);
-  const [speedProfile, setSpeedProfile] = useState<SpeedProfile>('standard');
+  const [slowSteamingPct, setSlowSteamingPct] = useState<number>(0);
+  const speedProfile: SpeedProfile = slowSteamingPct > 0 ? 'eco' : 'standard';
 
   const displayedRouteOptions = useMemo(() => {
     const mapped = routeOptions.map((opt) =>
-      applySpeedProfileToRoute(opt, speedProfile, carbonPrice)
+      applySlowSteamingToRoute(opt, slowSteamingPct, carbonPrice)
     );
     return [...mapped].sort((a, b) => a.estimatedCost - b.estimatedCost);
-  }, [routeOptions, speedProfile, carbonPrice]);
+  }, [routeOptions, slowSteamingPct, carbonPrice]);
 
   const carbonAwareSummary = useMemo(
     () => computeCarbonAwareTradeOff(routeOptions, carbonPrice, 10),
@@ -73,7 +74,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
     setApplyPortFeeToAllModes(false);
     setDwellTimeHours(DEFAULT_PORT_DWELL_HOURS);
     setCarbonPrice(DEFAULT_EU_ETS_CARBON_PRICE);
-    setSpeedProfile('standard');
+    setSlowSteamingPct(0);
     setRouteOptions([]);
     setSelectedRoute(null);
     setStep(1);
@@ -159,6 +160,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       scheduleDelayHours: (chosenRoute.dwellHours ?? 0) > 24 ? Math.round((chosenRoute.dwellHours ?? 0) - 24) : 0,
       scheduleReliabilityPct: chosenRoute.scheduleReliabilityPct,
       speedProfile,
+      slowSteamingPct,
       status: ShipmentStatus.BOOKED,
       legs: [{ id: 'L1', mode: mappedMode, origin: newShipment.origin, destination: newShipment.destination, distanceKm: chosenRoute.estimatedDistanceKm || 0, cost: chosenRoute.estimatedCost, emissionsKg: chosenRoute.estimatedEmissionsKg }],
       costBreakdown: {
@@ -549,30 +551,32 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                      )}
                      <div className="flex flex-wrap items-center gap-2 shrink-0">
                        <div className="flex items-center gap-1 p-1 bg-white rounded-xl border border-emerald-200">
-                         <button
-                           type="button"
-                           onClick={() => setSpeedProfile('standard')}
-                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap ${
-                             speedProfile === 'standard' ? 'bg-slate-900 text-white' : 'text-slate-600'
-                           }`}
-                         >
-                           {t.standardSpeed}
-                         </button>
-                         <button
-                           type="button"
-                           onClick={() => setSpeedProfile('eco')}
-                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap ${
-                             speedProfile === 'eco' ? 'bg-emerald-600 text-white' : 'text-slate-600'
-                           }`}
-                         >
-                           {t.ecoSpeedLabel}
-                         </button>
+                         {SLOW_STEAMING_TIERS.slice(0, 4).map((tier) => (
+                           <button
+                             key={tier.pct}
+                             type="button"
+                             onClick={() => setSlowSteamingPct(tier.pct)}
+                             className={`px-2.5 py-1 rounded-lg text-[11px] font-mono tabular-nums font-bold transition-colors whitespace-nowrap ${
+                               slowSteamingPct === tier.pct
+                                 ? tier.pct === 0
+                                   ? 'bg-slate-900 text-white'
+                                   : 'bg-emerald-600 text-white'
+                                 : 'text-slate-600'
+                             }`}
+                           >
+                             {tier.pct === 0 ? t.standardSpeed : `-${tier.pct}% (${tier.knots} kts)`}
+                           </button>
+                         ))}
                        </div>
                        {carbonAwareSummary && (
                          <button
                            type="button"
                            onClick={() => {
-                             setSpeedProfile(carbonAwareSummary.recommendedRoute.speedProfile ?? 'eco');
+                             setSlowSteamingPct(
+                               carbonAwareSummary.recommendedRoute.speedProfile === 'eco'
+                                 ? DEFAULT_ECO_SLOW_STEAMING_PCT
+                                 : 0
+                             );
                              setSelectedRoute(carbonAwareSummary.recommendedRoute);
                            }}
                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold whitespace-nowrap"
@@ -619,6 +623,11 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                            <p className="text-[11px] text-slate-500 mt-2 font-mono tabular-nums">
                              {formatNumber(opt.teuKm)} TEU-km · {formatEUR(opt.costPerTeuKm, 2)}/TEU-km · {opt.estimatedEmissionsKg} kg CO2e
                            </p>
+                           {(opt.fuelPlusCo2SavedEur ?? 0) > 0 && (
+                             <p className="text-[10px] text-emerald-700 mt-0.5 font-mono tabular-nums font-bold">
+                               {t.combinedSavingsLabel} (-{opt.slowSteamingPct}%): -{formatEUR(opt.fuelPlusCo2SavedEur ?? 0, 0)} · -{formatNumber(opt.co2SavedKg ?? 0)} kg
+                             </p>
+                           )}
                            <p className="text-[10px] text-emerald-700 mt-1 font-mono tabular-nums">
                              GLEC v3.0 WTW: {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode).wtw).toFixed(3)} kg/t·km
                            </p>

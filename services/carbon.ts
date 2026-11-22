@@ -533,64 +533,74 @@ export const recalculateRouteWithPricing = (
   };
 };
 
-interface EcoSpeedModeSpec {
-  emissionsMult: number;
-  fuelMult: number;
-  baseFreightMult: number;
-  addedDays: number;
-  reliabilityDelta: number;
-}
+export const BASELINE_VESSEL_SPEED_KTS = 20.0;
+export const DEFAULT_ECO_SLOW_STEAMING_PCT = 15;
 
-export const ECO_SPEED_SPECS: Record<string, EcoSpeedModeSpec> = {
-  SEA: {
-    emissionsMult: 0.78, // ~22% propulsion WTW CO2 reduction via slow steaming
-    fuelMult: 0.78,
-    baseFreightMult: 1.045, // minor vessel charter extension
-    addedDays: 2.0,
-    reliabilityDelta: 1.4
-  },
-  SEA_RAIL: {
-    emissionsMult: 0.84, // ~16% reduction across sea feeder + off-peak rail traction
-    fuelMult: 0.84,
-    baseFreightMult: 1.03,
-    addedDays: 1.3,
-    reliabilityDelta: 0.8
-  },
-  RAIL: {
-    emissionsMult: 0.88, // ~12% reduction via eco-pacing & off-peak renewable grid mix
-    fuelMult: 0.88,
-    baseFreightMult: 1.02,
-    addedDays: 0.6,
-    reliabilityDelta: 0.5
-  },
-  ROAD: {
-    emissionsMult: 0.87, // ~13% diesel savings at 80 km/h eco-cruise
-    fuelMult: 0.87,
-    baseFreightMult: 1.035, // extra driver duty time
-    addedDays: 0.4,
-    reliabilityDelta: -0.4
-  },
-  AIR: {
-    emissionsMult: 0.94, // ~6% fuel-optimized cruise Mach profile
-    fuelMult: 0.94,
-    baseFreightMult: 1.01,
-    addedDays: 0.3,
-    reliabilityDelta: 0
-  }
-};
+export const SLOW_STEAMING_TIERS = [
+  { pct: 0, knots: 20.0, labelKey: 'slowSteamingNormal' },
+  { pct: 10, knots: 18.0, labelKey: 'slowSteaming10' },
+  { pct: 15, knots: 17.0, labelKey: 'slowSteaming15' },
+  { pct: 20, knots: 16.0, labelKey: 'slowSteaming20' },
+  { pct: 25, knots: 15.0, labelKey: 'slowSteaming25' }
+] as const;
 
-export const applySpeedProfileToRoute = (
+export const applySlowSteamingToRoute = (
   route: RouteCostOption,
-  speedProfile: SpeedProfile,
+  slowSteamingPct: number,
   carbonPricePerTonne: number
 ): RouteCostOption => {
-  if (speedProfile === 'standard') {
-    return { ...route, speedProfile: 'standard' };
+  const pct = Math.min(30, Math.max(0, Number(slowSteamingPct) || 0));
+  const speedRatio = 1 - pct / 100;
+  const isMaritime = route.mode === 'SEA' || route.mode === 'SEA_RAIL';
+  const vesselSpeedKnots = isMaritime
+    ? Number((BASELINE_VESSEL_SPEED_KTS * speedRatio).toFixed(1))
+    : undefined;
+
+  if (pct <= 0) {
+    return {
+      ...route,
+      speedProfile: 'standard',
+      slowSteamingPct: 0,
+      vesselSpeedKnots,
+      fuelSavedUnits: 0,
+      fuelSavedEur: 0,
+      co2SavedKg: 0,
+      co2SavedEur: 0,
+      fuelPlusCo2SavedEur: 0
+    };
   }
 
-  const spec = ECO_SPEED_SPECS[route.mode] ?? ECO_SPEED_SPECS.SEA;
-  const linehaulBase = route.linehaulEmissionsKg ?? Math.max(0, route.estimatedEmissionsKg - (route.dwellEmissionsKg ?? 0));
-  const ecoLinehaulKg = Math.round(linehaulBase * spec.emissionsMult);
+  // Admiralty / Propeller Law: maritime propulsion fuel burn per nm scales with speed^2 (~15% constant aux load)
+  const maritimePropulsionFactor = 0.15 + 0.85 * (speedRatio * speedRatio);
+  let energyMult = 1;
+  let baseFreightMult = 1;
+  let reliabilityDelta = 0;
+
+  if (route.mode === 'SEA') {
+    energyMult = maritimePropulsionFactor;
+    baseFreightMult = 1 + (pct / 100) * 0.28; // slight charter-days overhead offset by major fuel savings
+    reliabilityDelta = Math.min(2.2, pct * 0.09);
+  } else if (route.mode === 'SEA_RAIL') {
+    const railEcoFactor = 1 - (pct / 100) * 0.45;
+    energyMult = 0.65 * maritimePropulsionFactor + 0.35 * railEcoFactor;
+    baseFreightMult = 1 + (pct / 100) * 0.2;
+    reliabilityDelta = Math.min(1.4, pct * 0.055);
+  } else if (route.mode === 'RAIL') {
+    energyMult = 1 - Math.min(0.18, (pct / 100) * 0.72);
+    baseFreightMult = 1 + (pct / 100) * 0.12;
+    reliabilityDelta = Math.min(0.9, pct * 0.03);
+  } else if (route.mode === 'ROAD') {
+    energyMult = 1 - Math.min(0.2, (pct / 100) * 0.82);
+    baseFreightMult = 1 + (pct / 100) * 0.22;
+    reliabilityDelta = -Math.min(1.0, pct * 0.03);
+  } else {
+    energyMult = 1 - Math.min(0.08, (pct / 100) * 0.35);
+    baseFreightMult = 1 + (pct / 100) * 0.06;
+  }
+
+  const linehaulBase =
+    route.linehaulEmissionsKg ?? Math.max(0, route.estimatedEmissionsKg - (route.dwellEmissionsKg ?? 0));
+  const ecoLinehaulKg = Math.round(linehaulBase * energyMult);
   const dwellKg = route.dwellEmissionsKg ?? 0;
   const estimatedEmissionsKg = ecoLinehaulKg + dwellKg;
 
@@ -601,27 +611,53 @@ export const applySpeedProfileToRoute = (
   const dwellTtwKg = Math.round(dwellKg * ratioTtw);
   const dwellWttKg = Math.max(0, dwellKg - dwellTtwKg);
 
-  const baseFreightCost = Math.round(route.baseFreightCost * spec.baseFreightMult);
-  const fuelCost = Math.round(route.fuelCost * spec.fuelMult);
+  const baseFreightCost = Math.round(route.baseFreightCost * baseFreightMult);
+  const fuelCost = Math.round(route.fuelCost * energyMult);
   const co2Cost = calculateCO2Cost(ecoLinehaulKg, carbonPricePerTonne);
   const fuelPlusCo2Cost = fuelCost + co2Cost;
   const portFeeTotal = route.portFeeTotal ?? 0;
   const dwellCost = route.dwellCost ?? 0;
   const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwellCost;
 
-  const estimatedDays = Number((route.estimatedDays + spec.addedDays).toFixed(1));
-  const fuelConsumption = Math.round(route.fuelConsumption * spec.fuelMult);
+  const linehaulBaseDays = Math.max(1, route.estimatedDays - (route.dwellDaysAdded ?? 0));
+  const speedTransitShare =
+    route.mode === 'SEA'
+      ? 0.9
+      : route.mode === 'SEA_RAIL'
+        ? 0.65
+        : route.mode === 'RAIL'
+          ? 0.35
+          : route.mode === 'ROAD'
+            ? 0.3
+            : 0.2;
+  const extraDays = linehaulBaseDays * speedTransitShare * (1 / speedRatio - 1);
+  const estimatedDays = Number((route.estimatedDays + extraDays).toFixed(1));
+
+  const fuelConsumption = Math.round(route.fuelConsumption * energyMult);
+  const fuelSavedUnits = Math.max(0, route.fuelConsumption - fuelConsumption);
+  const fuelSavedEur = Math.max(0, route.fuelCost - fuelCost);
+  const co2SavedKg = Math.max(0, route.estimatedEmissionsKg - estimatedEmissionsKg);
+  const co2SavedEur = Math.max(0, route.co2Cost - co2Cost);
+  const fuelPlusCo2SavedEur = fuelSavedEur + co2SavedEur;
+
   const containers = Math.max(0.5, route.containers || 1);
   const teuKm = route.teuKm > 0 ? route.teuKm : calculateTeuKm(route.estimatedDistanceKm, containers);
   const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
   const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
-  const glecFactorWtw = Number(((route.glecFactorWtw ?? glecSpec.wtw) * spec.emissionsMult).toFixed(4));
+  const glecFactorWtw = Number(((route.glecFactorWtw ?? glecSpec.wtw) * energyMult).toFixed(4));
   const baseRel = route.scheduleReliabilityPct ?? 90;
-  const scheduleReliabilityPct = Number(Math.min(99.2, Math.max(55, baseRel + spec.reliabilityDelta)).toFixed(1));
+  const scheduleReliabilityPct = Number(Math.min(99.2, Math.max(55, baseRel + reliabilityDelta)).toFixed(1));
 
   return {
     ...route,
     speedProfile: 'eco',
+    slowSteamingPct: pct,
+    vesselSpeedKnots,
+    fuelSavedUnits,
+    fuelSavedEur,
+    co2SavedKg,
+    co2SavedEur,
+    fuelPlusCo2SavedEur,
     estimatedDays,
     scheduleReliabilityPct,
     baseFreightCost,
@@ -638,6 +674,18 @@ export const applySpeedProfileToRoute = (
     costPerTeuKm,
     emissionsPerTeuKm
   };
+};
+
+export const applySpeedProfileToRoute = (
+  route: RouteCostOption,
+  speedProfile: SpeedProfile,
+  carbonPricePerTonne: number
+): RouteCostOption => {
+  return applySlowSteamingToRoute(
+    route,
+    speedProfile === 'eco' ? DEFAULT_ECO_SLOW_STEAMING_PCT : 0,
+    carbonPricePerTonne
+  );
 };
 
 export const computeCarbonAwareTradeOff = (

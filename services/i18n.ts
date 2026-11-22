@@ -286,6 +286,22 @@ export interface Translations {
   recTypeRouteAndSpeed: string;
   recTypeRouteShift: string;
   recTypeEcoSpeed: string;
+
+  // Slow Steaming Fuel & CO2 Savings
+  slowSteamingTitle: string;
+  slowSteamingDesc: string;
+  slowSteamingSpeedReduction: string;
+  slowSteamingNormal: string;
+  slowSteaming10: string;
+  slowSteaming15: string;
+  slowSteaming20: string;
+  slowSteaming25: string;
+  fuelSavedLabel: string;
+  co2SavedLabel: string;
+  combinedSavingsLabel: string;
+  vesselSpeedLabel: string;
+  speedSavingsCurveTitle: string;
+  propellerLawNote: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -559,7 +575,21 @@ export const translations: Record<Language, Translations> = {
     tradeoffChartDesc: "Standard vs. Eco-Speed across modes (lower-left is better)",
     recTypeRouteAndSpeed: "Route Shift + Eco-Speed",
     recTypeRouteShift: "Intermodal Route Shift",
-    recTypeEcoSpeed: "Slow Steaming / Eco-Speed"
+    recTypeEcoSpeed: "Slow Steaming / Eco-Speed",
+    slowSteamingTitle: "Slow Steaming Speed & Fuel / CO2 Savings",
+    slowSteamingDesc: "Reduce cruising speed to cut propulsion fuel burn and CO2e under the Admiralty propeller curve.",
+    slowSteamingSpeedReduction: "Speed Reduction",
+    slowSteamingNormal: "0% Normal (20 kts)",
+    slowSteaming10: "-10% (18 kts)",
+    slowSteaming15: "-15% Eco (17 kts)",
+    slowSteaming20: "-20% Slow (16 kts)",
+    slowSteaming25: "-25% Super Slow (15 kts)",
+    fuelSavedLabel: "Fuel Saved",
+    co2SavedLabel: "CO2e Saved",
+    combinedSavingsLabel: "Fuel + CO2 Savings",
+    vesselSpeedLabel: "Vessel Speed",
+    speedSavingsCurveTitle: "Savings by Speed Reduction Tier",
+    propellerLawNote: "Propeller curve: reducing vessel speed 15% cuts propulsion fuel & CO2e by ~23.6%."
   },
   tr: {
     dashboard: "Panel",
@@ -831,7 +861,21 @@ export const translations: Record<Language, Translations> = {
     tradeoffChartDesc: "Modlar arası Standart ve Eko-Hız dağılımı (sol alt en verimli)",
     recTypeRouteAndSpeed: "Rota Değişimi + Eko-Hız",
     recTypeRouteShift: "İntermodal Rota Değişimi",
-    recTypeEcoSpeed: "Yavaş Seyir / Eko-Hız"
+    recTypeEcoSpeed: "Yavaş Seyir / Eko-Hız",
+    slowSteamingTitle: "Yavaş Seyir (Slow Steaming) Yakıt & CO2 Tasarrufu",
+    slowSteamingDesc: "Pervane yasası uyarınca seyir hızını düşürerek sağlanan yakıt ve GLEC CO2e tasarrufunu inceleyin.",
+    slowSteamingSpeedReduction: "Hız Azaltımı",
+    slowSteamingNormal: "%0 Normal (20 kn)",
+    slowSteaming10: "-%10 (18 kn)",
+    slowSteaming15: "-%15 Eko (17 kn)",
+    slowSteaming20: "-%20 Yavaş (16 kn)",
+    slowSteaming25: "-%25 Süper Yavaş (15 kn)",
+    fuelSavedLabel: "Yakıt Tasarrufu",
+    co2SavedLabel: "CO2e Tasarrufu",
+    combinedSavingsLabel: "Yakıt + CO2 Tasarrufu",
+    vesselSpeedLabel: "Gemi Hızı",
+    speedSavingsCurveTitle: "Hız Kademesine Göre Tasarruf",
+    propellerLawNote: "Pervane eğrisi: hızı %15 düşürmek ana makine yakıtını ve CO2e salımını ~%23,6 azaltır."
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -1103,7 +1147,21 @@ export const translations: Record<Language, Translations> = {
     tradeoffChartDesc: "Κανονική vs. Οικολογική ταχύτητα ανά μέσο (κάτω αριστερά βέλτιστο)",
     recTypeRouteAndSpeed: "Αλλαγή Διαδρομής + Οικολογική Ταχύτητα",
     recTypeRouteShift: "Αλλαγή Διατροπικής Διαδρομής",
-    recTypeEcoSpeed: "Slow Steaming / Οικολογική Ταχύτητα"
+    recTypeEcoSpeed: "Slow Steaming / Οικολογική Ταχύτητα",
+    slowSteamingTitle: "Slow Steaming & Εξοικονόμηση Καυσίμων / CO2",
+    slowSteamingDesc: "Μειώστε την ταχύτητα πλεύσης για σημαντική εξοικονόμηση καυσίμου και εκπομπών CO2e (Νόμος Έλικα).",
+    slowSteamingSpeedReduction: "Μείωση Ταχύτητας",
+    slowSteamingNormal: "0% Κανονική (20 kts)",
+    slowSteaming10: "-10% (18 kts)",
+    slowSteaming15: "-15% Οικολ. (17 kts)",
+    slowSteaming20: "-20% Αργή (16 kts)",
+    slowSteaming25: "-25% Υπερ-Αργή (15 kts)",
+    fuelSavedLabel: "Εξοικ. Καυσίμου",
+    co2SavedLabel: "Εξοικ. CO2e",
+    combinedSavingsLabel: "Σύνολο Καύσιμα + CO2",
+    vesselSpeedLabel: "Ταχύτητα Πλοίου",
+    speedSavingsCurveTitle: "Εξοικονόμηση ανά Κλίμακα Ταχύτητας",
+    propellerLawNote: "Νόμος Έλικα: 15% μείωση ταχύτητας μειώνει καύσιμα & CO2e κατά ~23,6%."
   }
 };
 

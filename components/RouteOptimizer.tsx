@@ -36,11 +36,15 @@ import {
 } from 'recharts';
 import { RouteCostOption, Shipment, ShipmentStatus, SpeedProfile, TransportMode } from '../types';
 import {
+  BASELINE_VESSEL_SPEED_KTS,
   CARBON_PRICE_PRESETS,
+  DEFAULT_ECO_SLOW_STEAMING_PCT,
   DEFAULT_EU_ETS_CARBON_PRICE,
   DEFAULT_PORT_DWELL_HOURS,
   DWELL_TIME_PRESETS,
   SCHEDULE_SLA_TARGET_PCT,
+  SLOW_STEAMING_TIERS,
+  applySlowSteamingToRoute,
   applySpeedProfileToRoute,
   buildDeterministicRouteOptions,
   calculateCO2Cost,
@@ -130,7 +134,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
   const [carbonPricePerTonne, setCarbonPricePerTonne] = useState<number>(DEFAULT_EU_ETS_CARBON_PRICE);
   const [fuelIndexPct, setFuelIndexPct] = useState<number>(100);
-  const [speedProfile, setSpeedProfile] = useState<SpeedProfile>('standard');
+  const [slowSteamingPct, setSlowSteamingPct] = useState<number>(0);
+  const speedProfile: SpeedProfile = slowSteamingPct > 0 ? 'eco' : 'standard';
   const [costTolerancePct, setCostTolerancePct] = useState<number>(10);
   const [objective, setObjective] = useState<OptimizationObjective>('total_cost');
 
@@ -279,18 +284,25 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     [standardComputedOptions, carbonPricePerTonne]
   );
 
+  const activeSpeedComputedOptions = useMemo(
+    () =>
+      standardComputedOptions.map((opt) =>
+        applySlowSteamingToRoute(opt, slowSteamingPct, carbonPricePerTonne)
+      ),
+    [standardComputedOptions, slowSteamingPct, carbonPricePerTonne]
+  );
+
   const carbonAwareTradeOff = useMemo(
     () => computeCarbonAwareTradeOff(standardComputedOptions, carbonPricePerTonne, costTolerancePct),
     [standardComputedOptions, carbonPricePerTonne, costTolerancePct]
   );
 
   const computedOptions = useMemo(() => {
-    const activeSet = speedProfile === 'eco' ? ecoComputedOptions : standardComputedOptions;
     const baselineMaxCost = carbonAwareTradeOff
       ? carbonAwareTradeOff.baselineRoute.estimatedCost * (1 + costTolerancePct / 100)
       : Infinity;
 
-    return [...activeSet].sort((a, b) => {
+    return [...activeSpeedComputedOptions].sort((a, b) => {
       if (objective === 'fuel_co2') return a.fuelPlusCo2Cost - b.fuelPlusCo2Cost;
       if (objective === 'fastest') return a.estimatedDays - b.estimatedDays;
       if (objective === 'reliability') return (b.scheduleReliabilityPct ?? 0) - (a.scheduleReliabilityPct ?? 0);
@@ -302,7 +314,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       }
       return a.estimatedCost - b.estimatedCost;
     });
-  }, [speedProfile, ecoComputedOptions, standardComputedOptions, objective, carbonAwareTradeOff, costTolerancePct]);
+  }, [activeSpeedComputedOptions, objective, carbonAwareTradeOff, costTolerancePct]);
 
   const optimalRoute = computedOptions[0];
   const selectedRoute =
@@ -358,7 +370,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const handleApplyCarbonAware = () => {
     if (!carbonAwareTradeOff) return;
     const rec = carbonAwareTradeOff.recommendedRoute;
-    setSpeedProfile(rec.speedProfile ?? 'eco');
+    setSlowSteamingPct(rec.speedProfile === 'eco' ? DEFAULT_ECO_SLOW_STEAMING_PCT : 0);
     setObjective('carbon_aware');
     setSelectedMode(rec.mode);
   };
@@ -367,6 +379,42 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     !!carbonAwareTradeOff &&
     selectedRoute?.mode === carbonAwareTradeOff.recommendedRoute.mode &&
     speedProfile === (carbonAwareTradeOff.recommendedRoute.speedProfile ?? 'standard');
+
+  // Maritime Slow Steaming analysis for active maritime corridor (SEA or SEA_RAIL if selected, else SEA)
+  const slowSteamingAnalysis = useMemo(() => {
+    const targetMode =
+      selectedMode === 'SEA' || selectedMode === 'SEA_RAIL' ? selectedMode : 'SEA';
+    const baseOption =
+      standardComputedOptions.find((o) => o.mode === targetMode) || standardComputedOptions[0];
+    if (!baseOption) return null;
+
+    const activeSlow = applySlowSteamingToRoute(baseOption, slowSteamingPct, carbonPricePerTonne);
+    const previewPct = slowSteamingPct > 0 ? slowSteamingPct : DEFAULT_ECO_SLOW_STEAMING_PCT;
+    const previewOption = applySlowSteamingToRoute(baseOption, previewPct, carbonPricePerTonne);
+    const tiers = SLOW_STEAMING_TIERS.map((tier) => {
+      const calc = applySlowSteamingToRoute(baseOption, tier.pct, carbonPricePerTonne);
+      return {
+        pct: tier.pct,
+        knots: tier.knots,
+        label: tier.pct === 0 ? 'Normal (20 kts)' : `-${tier.pct}% (${tier.knots} kts)`,
+        fuelSavedEur: calc.fuelSavedEur ?? 0,
+        co2SavedEur: calc.co2SavedEur ?? 0,
+        fuelSavedUnits: calc.fuelSavedUnits ?? 0,
+        co2SavedKg: calc.co2SavedKg ?? 0,
+        fuelPlusCo2SavedEur: calc.fuelPlusCo2SavedEur ?? 0,
+        addedDays: Number((calc.estimatedDays - baseOption.estimatedDays).toFixed(1)),
+        estimatedCost: calc.estimatedCost
+      };
+    });
+
+    return {
+      baseOption,
+      activeSlow,
+      previewOption,
+      previewPct,
+      tiers
+    };
+  }, [standardComputedOptions, selectedMode, slowSteamingPct, carbonPricePerTonne]);
 
   const chartData = useMemo(
     () =>
@@ -487,6 +535,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       scheduleDelayHours: selectedRoute.dwellHours ? Math.round((selectedRoute.dwellHours ?? 0) * 0.25) : 0,
       scheduleReliabilityPct: selectedRoute.scheduleReliabilityPct,
       speedProfile,
+      slowSteamingPct,
       status: ShipmentStatus.BOOKED,
       legs,
       costBreakdown: {
@@ -863,35 +912,35 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <span>100% (Baseline)</span>
               <span>160% (Fuel Spike)</span>
             </div>
-            {/* Speed Regime Toggle (Standard vs Eco-Speed / Slow Steaming) */}
+            {/* Slow Steaming Speed Reduction Selector */}
             <div className="pt-2 border-t border-slate-100 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <Gauge size={14} className="text-emerald-600" />
-                {t.speedProfileLabel}
-              </label>
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setSpeedProfile('standard')}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap truncate ${
-                    speedProfile === 'standard'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t.standardSpeed}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSpeedProfile('eco')}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap truncate ${
-                    speedProfile === 'eco'
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t.ecoSpeedLabel}
-                </button>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Gauge size={14} className="text-emerald-600" />
+                  {t.slowSteamingSpeedReduction}
+                </label>
+                <span className="text-[11px] font-mono tabular-nums font-bold text-emerald-700">
+                  {Number((BASELINE_VESSEL_SPEED_KTS * (1 - slowSteamingPct / 100)).toFixed(1))} kts
+                  {slowSteamingPct > 0 ? ` (-${slowSteamingPct}%)` : ''}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-1 p-1 bg-slate-100 rounded-lg">
+                {SLOW_STEAMING_TIERS.map((tier) => (
+                  <button
+                    key={tier.pct}
+                    type="button"
+                    onClick={() => setSlowSteamingPct(tier.pct)}
+                    className={`px-1.5 py-1.5 rounded-md text-[11px] font-mono tabular-nums font-bold transition-colors whitespace-nowrap ${
+                      slowSteamingPct === tier.pct
+                        ? tier.pct === 0
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {tier.pct === 0 ? '0%' : `-${tier.pct}%`}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -1255,6 +1304,117 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         </div>
       )}
 
+      {/* Slow Steaming Option & Fuel / CO2 Savings Simulator */}
+      {slowSteamingAnalysis && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="lg:col-span-7 flex flex-col justify-between gap-5">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Ship size={17} className="text-blue-600" />
+                  <span>{t.slowSteamingTitle}</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {t.slowSteamingDesc} ({getModeLabel(slowSteamingAnalysis.baseOption.mode, t)})
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-lg shrink-0">
+                {SLOW_STEAMING_TIERS.map((tier) => (
+                  <button
+                    key={tier.pct}
+                    type="button"
+                    onClick={() => setSlowSteamingPct(tier.pct)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
+                      slowSteamingPct === tier.pct
+                        ? tier.pct === 0
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t[tier.labelKey]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Active / Preview Fuel & CO2 Savings Breakdown */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.fuelSavedLabel}</p>
+                <p className="text-lg font-extrabold font-mono tabular-nums text-amber-700 mt-0.5">
+                  -{formatEUR(slowSteamingAnalysis.previewOption.fuelSavedEur ?? 0, 0)}
+                </p>
+                <p className="text-[11px] font-mono tabular-nums text-slate-500">
+                  -{formatNumber(slowSteamingAnalysis.previewOption.fuelSavedUnits ?? 0)} {slowSteamingAnalysis.baseOption.fuelUnit}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.co2SavedLabel}</p>
+                <p className="text-lg font-extrabold font-mono tabular-nums text-emerald-700 mt-0.5">
+                  -{formatEmissions(slowSteamingAnalysis.previewOption.co2SavedKg ?? 0)}
+                </p>
+                <p className="text-[11px] font-mono tabular-nums text-emerald-700">
+                  -{formatEUR(slowSteamingAnalysis.previewOption.co2SavedEur ?? 0, 0)} ({slowSteamingAnalysis.baseOption.estimatedEmissionsKg > 0 ? Math.round(((slowSteamingAnalysis.previewOption.co2SavedKg ?? 0) / slowSteamingAnalysis.baseOption.estimatedEmissionsKg) * 100) : 0}%)
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.combinedSavingsLabel}</p>
+                <p className="text-lg font-extrabold font-mono tabular-nums text-slate-900 mt-0.5">
+                  -{formatEUR(slowSteamingAnalysis.previewOption.fuelPlusCo2SavedEur ?? 0, 0)}
+                </p>
+                <p className="text-[11px] font-mono tabular-nums text-slate-500">
+                  {slowSteamingPct === 0 ? `${t.slowSteaming15}` : `-${slowSteamingPct}% Active`}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500">{t.vesselSpeedLabel}</p>
+                <p className="text-lg font-extrabold font-mono tabular-nums text-blue-700 mt-0.5">
+                  {slowSteamingAnalysis.previewOption.vesselSpeedKnots ?? 17.0} kts
+                </p>
+                <p className="text-[11px] font-mono tabular-nums text-slate-500">
+                  +{(slowSteamingAnalysis.previewOption.estimatedDays - slowSteamingAnalysis.baseOption.estimatedDays).toFixed(1)} {t.days}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+              {t.propellerLawNote}
+            </p>
+          </div>
+
+          {/* Right: Fuel vs CO2 Cost Savings Across Speed Tiers */}
+          <div className="lg:col-span-5 flex flex-col justify-between lg:pl-6 lg:border-l lg:border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">{t.speedSavingsCurveTitle}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {getModeLabel(slowSteamingAnalysis.baseOption.mode, t)} · {formatEUR(carbonPricePerTonne, 0)}/t CO2
+              </p>
+            </div>
+            <div className="h-48 mt-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={slowSteamingAnalysis.tiers.filter((x) => x.pct > 0)} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="label" tick={{ fill: '#475569', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `€${v}`} />
+                  <Tooltip
+                    formatter={(value: any, name: any) => [formatEUR(Number(value), 0), name]}
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 8px 20px -4px rgb(0 0 0 / 0.08)'
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Bar dataKey="fuelSavedEur" name={t.fuelSavedLabel} stackId="save" fill="#f59e0b" />
+                  <Bar dataKey="co2SavedEur" name={t.co2SavedLabel} stackId="save" fill="#10b981" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Comparison Grid: 4-Stack Cost Chart + Interactive Selection Table */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Stacked Cost Breakdown Chart */}
@@ -1370,10 +1530,16 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                         {formatEUR(opt.baseFreightCost, 0)}
                       </td>
                       <td className="py-3.5 px-2 text-right font-mono tabular-nums font-semibold text-amber-700 whitespace-nowrap">
-                        {formatEUR(opt.fuelCost, 0)}
+                        <div>{formatEUR(opt.fuelCost, 0)}</div>
+                        {(opt.fuelSavedEur ?? 0) > 0 && (
+                          <div className="text-[10px] text-emerald-700">-{formatEUR(opt.fuelSavedEur ?? 0, 0)}</div>
+                        )}
                       </td>
                       <td className="py-3.5 px-2 text-right font-mono tabular-nums font-semibold text-emerald-700 whitespace-nowrap">
-                        {formatEUR(opt.co2Cost, 0)}
+                        <div>{formatEUR(opt.co2Cost, 0)}</div>
+                        {(opt.co2SavedKg ?? 0) > 0 && (
+                          <div className="text-[10px] text-emerald-600">-{formatNumber(opt.co2SavedKg ?? 0)} kg</div>
+                        )}
                       </td>
                       <td className="py-3.5 px-2 text-right font-mono tabular-nums font-semibold text-indigo-700 whitespace-nowrap">
                         {formatEUR(opt.portFeeTotal, 0)}
@@ -1404,8 +1570,16 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-900">
                   <span>
-                    {getModeLabel(selectedRoute.mode, t)} ({speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed})
+                    {getModeLabel(selectedRoute.mode, t)} ({slowSteamingPct > 0 ? `${t.ecoSpeedLabel} -${slowSteamingPct}%` : t.standardSpeed})
                   </span>
+                  {(selectedRoute.fuelPlusCo2SavedEur ?? 0) > 0 && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-mono tabular-nums text-emerald-700">
+                        {t.combinedSavingsLabel}: -{formatEUR(selectedRoute.fuelPlusCo2SavedEur ?? 0, 0)} (-{formatNumber(selectedRoute.co2SavedKg ?? 0)} kg)
+                      </span>
+                    </>
+                  )}
                   <span aria-hidden="true">·</span>
                   <span className="font-mono tabular-nums text-teal-700">
                     {t.scheduleReliability}: {(selectedRoute.scheduleReliabilityPct ?? 90).toFixed(1)}%

@@ -46,6 +46,13 @@ export type SpeedProfile = 'standard' | 'eco';
 export interface RouteCostOption {
   mode: string;
   speedProfile?: SpeedProfile;
+  slowSteamingPct?: number;
+  vesselSpeedKnots?: number;
+  fuelSavedUnits?: number;
+  fuelSavedEur?: number;
+  co2SavedKg?: number;
+  co2SavedEur?: number;
+  fuelPlusCo2SavedEur?: number;
   estimatedDays: number;
   dwellHours?: number;
   dwellDaysAdded?: number;
@@ -105,6 +112,7 @@ export interface Shipment {
   scheduleDelayHours?: number;
   scheduleReliabilityPct?: number;
   speedProfile?: SpeedProfile;
+  slowSteamingPct?: number;
   status: ShipmentStatus;
   legs: Leg[];
   costBreakdown: CostBreakdown;
