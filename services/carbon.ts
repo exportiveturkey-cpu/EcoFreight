@@ -2,15 +2,74 @@
 import { TransportMode, RouteCostOption, Shipment } from '../types';
 
 /**
- * Average CO2e emission factors (kg CO2e per tonne-km)
- * Indicative factors, NOT GLEC-verified. Confirm the source before client use.
+ * GLEC Framework v3.0 / ISO 14083 Well-to-Wheel (WTW) default emission intensity factors
+ * Units: kg CO2e per tonne-km (WTW = Tank-to-Wheel TTW + Well-to-Tank WTT)
  */
+export interface GlecModeFactorSpec {
+  mode: string;
+  wtw: number;
+  ttw: number;
+  wtt: number;
+  unit: string;
+  tocSource: string;
+}
+
+export const GLEC_FRAMEWORK_METADATA = {
+  framework: 'GLEC Framework v3.0',
+  standard: 'ISO 14083:2023 Aligned',
+  boundary: 'Well-to-Wheel (WTW = TTW + WTT)',
+  formula: 'CO2e (kg) = Distance (km) × Cargo Mass (t) × EF_WTW (kg CO2e / t·km)'
+};
+
+export const GLEC_MODE_FACTORS: Record<string, GlecModeFactorSpec> = {
+  [TransportMode.SEA]: {
+    mode: TransportMode.SEA,
+    wtw: 0.012,
+    ttw: 0.010,
+    wtt: 0.002,
+    unit: 'kg CO2e / t·km',
+    tocSource: 'Container Vessel (Deep/Short-Sea VLSFO, GLEC v3.0)'
+  },
+  SEA_RAIL: {
+    mode: 'SEA_RAIL',
+    wtw: 0.017,
+    ttw: 0.007,
+    wtt: 0.010,
+    unit: 'kg CO2e / t·km',
+    tocSource: 'Maritime + Electrified Rail Intermodal Composite (GLEC v3.0)'
+  },
+  [TransportMode.RAIL]: {
+    mode: TransportMode.RAIL,
+    wtw: 0.025,
+    ttw: 0.005,
+    wtt: 0.020,
+    unit: 'kg CO2e / t·km',
+    tocSource: 'Electric / Mixed Freight Rail EU Grid (GLEC v3.0)'
+  },
+  [TransportMode.ROAD]: {
+    mode: TransportMode.ROAD,
+    wtw: 0.105,
+    ttw: 0.084,
+    wtt: 0.021,
+    unit: 'kg CO2e / t·km',
+    tocSource: 'Articulated Heavy-Duty Truck >34t Euro 6 Diesel (GLEC v3.0)'
+  },
+  [TransportMode.AIR]: {
+    mode: TransportMode.AIR,
+    wtw: 1.130,
+    ttw: 0.920,
+    wtt: 0.210,
+    unit: 'kg CO2e / t·km',
+    tocSource: 'Long-Haul Air Freighter / Mixed Belly Cargo (GLEC v3.0)'
+  }
+};
+
 export const EMISSION_FACTORS: Record<string, number> = {
-  [TransportMode.AIR]: 1.13,   // Long-haul air freight
-  [TransportMode.ROAD]: 0.105, // Heavy-duty truck (Euro 6 Diesel)
-  [TransportMode.RAIL]: 0.025, // Electrified/mixed freight rail
-  [TransportMode.SEA]: 0.012,  // Container vessel
-  SEA_RAIL: 0.017              // Short-sea + electric rail intermodal
+  [TransportMode.AIR]: GLEC_MODE_FACTORS[TransportMode.AIR].wtw,
+  [TransportMode.ROAD]: GLEC_MODE_FACTORS[TransportMode.ROAD].wtw,
+  [TransportMode.RAIL]: GLEC_MODE_FACTORS[TransportMode.RAIL].wtw,
+  [TransportMode.SEA]: GLEC_MODE_FACTORS[TransportMode.SEA].wtw,
+  SEA_RAIL: GLEC_MODE_FACTORS.SEA_RAIL.wtw
 };
 
 export const DEFAULT_EU_ETS_CARBON_PRICE = 85; // €85 per tonne CO2e
@@ -43,6 +102,84 @@ export const getShipmentContainers = (shipment: Shipment): number => {
 
 export const getShipmentTeuKm = (shipment: Shipment): number => {
   return calculateTeuKm(getShipmentDistanceKm(shipment), getShipmentContainers(shipment));
+};
+
+export const getGlecFactorSpec = (mode: string): GlecModeFactorSpec => {
+  return GLEC_MODE_FACTORS[mode] ?? GLEC_MODE_FACTORS[TransportMode.SEA];
+};
+
+export interface GlecEmissionBreakdown {
+  mode: string;
+  distanceKm: number;
+  weightTonnes: number;
+  factorWtw: number;
+  factorTtw: number;
+  factorWtt: number;
+  ttwKg: number;
+  wttKg: number;
+  totalKg: number;
+  tocSource: string;
+}
+
+export const calculateGlecBreakdown = (
+  mode: string,
+  distanceKm: number,
+  weightTonnes: number
+): GlecEmissionBreakdown => {
+  const spec = getGlecFactorSpec(mode);
+  const d = Math.max(0, Number(distanceKm) || 0);
+  const w = Math.max(0, Number(weightTonnes) || 0);
+  const ttwKg = Math.round(d * w * spec.ttw);
+  const wttKg = Math.round(d * w * spec.wtt);
+  const totalKg = Math.round(d * w * spec.wtw);
+  return {
+    mode,
+    distanceKm: d,
+    weightTonnes: w,
+    factorWtw: spec.wtw,
+    factorTtw: spec.ttw,
+    factorWtt: spec.wtt,
+    ttwKg,
+    wttKg,
+    totalKg,
+    tocSource: spec.tocSource
+  };
+};
+
+export const getShipmentGlecBreakdown = (shipment: Shipment) => {
+  const legs = (shipment.legs || []).map((leg) => {
+    const spec = getGlecFactorSpec(leg.mode);
+    const glecCalc = calculateGlecBreakdown(leg.mode, leg.distanceKm, shipment.weightTonnes);
+    const ratioTtw = spec.wtw > 0 ? spec.ttw / spec.wtw : 0.75;
+    const legEmissions = Number(leg.emissionsKg) > 0 ? leg.emissionsKg : glecCalc.totalKg;
+    const ttwKg = Math.round(legEmissions * ratioTtw);
+    const wttKg = Math.max(0, Math.round(legEmissions - ttwKg));
+    return {
+      legId: leg.id,
+      mode: leg.mode,
+      origin: leg.origin,
+      destination: leg.destination,
+      distanceKm: leg.distanceKm,
+      factorWtw: spec.wtw,
+      factorTtw: spec.ttw,
+      factorWtt: spec.wtt,
+      tocSource: spec.tocSource,
+      ttwKg,
+      wttKg,
+      totalKg: Math.round(legEmissions)
+    };
+  });
+
+  const ttwKg = legs.reduce((s, l) => s + l.ttwKg, 0);
+  const wttKg = legs.reduce((s, l) => s + l.wttKg, 0);
+  const totalKg = shipment.totalEmissionsKg || legs.reduce((s, l) => s + l.totalKg, 0);
+
+  return {
+    legs,
+    ttwKg,
+    wttKg,
+    totalKg
+  };
 };
 
 export const calculateLegEmissions = (
@@ -137,12 +274,20 @@ export const recalculateRouteWithPricing = (
   const teuKm = calculateTeuKm(route.estimatedDistanceKm, containers);
   const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
   const emissionsPerTeuKm = teuKm > 0 ? Number((route.estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
+  const spec = getGlecFactorSpec(route.mode);
+  const ratioTtw = spec.wtw > 0 ? spec.ttw / spec.wtw : 0.75;
+  const ttwEmissionsKg = route.ttwEmissionsKg ?? Math.round(route.estimatedEmissionsKg * ratioTtw);
+  const wttEmissionsKg = route.wttEmissionsKg ?? Math.max(0, Math.round(route.estimatedEmissionsKg - ttwEmissionsKg));
   return {
     ...route,
     containers,
     teuKm,
     costPerTeuKm,
     emissionsPerTeuKm,
+    glecFactorWtw: route.glecFactorWtw ?? spec.wtw,
+    ttwEmissionsKg,
+    wttEmissionsKg,
+    glecSource: route.glecSource ?? spec.tocSource,
     fuelCost: adjustedFuelCost,
     co2Cost,
     fuelPlusCo2Cost,
@@ -279,7 +424,8 @@ export const buildDeterministicRouteOptions = (
     const estimatedDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
     const baseFreightCost = Math.round(Math.max(spec.minBase, distanceKm * w * spec.baseRatePerTKm));
     const fuelCost = Math.round(Math.max(spec.minFuel, distanceKm * w * spec.fuelRatePerTKm) * fuelMultiplier);
-    const estimatedEmissionsKg = Math.round(distanceKm * w * spec.emissionFactor);
+    const glec = calculateGlecBreakdown(spec.mode, distanceKm, w);
+    const estimatedEmissionsKg = glec.totalKg;
     const co2Cost = calculateCO2Cost(estimatedEmissionsKg, carbonPricePerTonne);
     const fuelPlusCo2Cost = fuelCost + co2Cost;
     const portFeeTotal = computeApplicablePortFee(
@@ -311,6 +457,10 @@ export const buildDeterministicRouteOptions = (
       portFeeTotal,
       estimatedCost,
       estimatedEmissionsKg,
+      glecFactorWtw: glec.factorWtw,
+      ttwEmissionsKg: glec.ttwKg,
+      wttEmissionsKg: glec.wttKg,
+      glecSource: glec.tocSource,
       fuelConsumption,
       fuelUnit: spec.fuelUnit,
       label: spec.label,

@@ -8,11 +8,12 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import { Ship, Leaf, Euro, Activity, Box } from 'lucide-react';
+import { Ship, Leaf, Euro, Activity, Box, BookOpenCheck } from 'lucide-react';
 import { Shipment, ShipmentStatus } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
 import { formatEUR, formatNumber, formatEmissions } from '../services/formatters';
 import { getShipmentContainers, getShipmentDistanceKm, getShipmentTeuKm } from '../services/carbon';
+import GlecMethodPanel from './GlecMethodPanel';
 
 interface DashboardProps {
   shipments: Shipment[];
@@ -24,6 +25,7 @@ type DashboardSection = 'overview' | 'corridors';
 const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
   const t = translations[lang];
   const [section, setSection] = useState<DashboardSection>('overview');
+  const [showGlecMethod, setShowGlecMethod] = useState(false);
 
   const totalEmissions = shipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0);
   const totalSpend = shipments.reduce((sum, s) => sum + s.totalCost, 0);
@@ -66,21 +68,40 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
         </div>
       </div>
 
-      {/* Section switch: one topic on screen at a time */}
-      <div className="inline-flex bg-white border border-slate-200 p-1 rounded-2xl shadow-sm">
-        {sections.map(s => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => setSection(s.id)}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
-              section === s.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
+      {/* Section switch & GLEC v3.0 Method Disclosure */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="inline-flex bg-white border border-slate-200 p-1 rounded-2xl shadow-sm">
+          {sections.map(s => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSection(s.id)}
+              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
+                section === s.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowGlecMethod(v => !v)}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 ${
+            showGlecMethod
+              ? 'bg-emerald-600 text-white border-emerald-600'
+              : 'bg-white text-emerald-800 border-slate-200 hover:bg-emerald-50'
+          }`}
+        >
+          <BookOpenCheck size={15} />
+          <span>{t.glecMethodBtn}</span>
+        </button>
       </div>
+
+      {showGlecMethod && (
+        <GlecMethodPanel lang={lang} onClose={() => setShowGlecMethod(false)} />
+      )}
 
       {section === 'overview' && (
         <>

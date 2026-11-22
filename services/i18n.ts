@@ -222,6 +222,20 @@ export interface Translations {
   co2PerTeuKm: string;
   totalTeuKm: string;
   unitCostTeuKm: string;
+
+  // GLEC Framework v3.0 Methodology Disclosure
+  glecMethodBtn: string;
+  glecMethodTitle: string;
+  glecMethodSubtitle: string;
+  glecStandardLabel: string;
+  glecBoundaryLabel: string;
+  glecFormulaLabel: string;
+  glecTtwLabel: string;
+  glecWttLabel: string;
+  glecTotalWtwLabel: string;
+  glecLiveCalculation: string;
+  glecFactorsTableTitle: string;
+  glecTocSource: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -376,7 +390,7 @@ export const translations: Record<Language, Translations> = {
     vtTruck18: "Truck 18 t",
     vtTruck40: "Truck 40 t",
     vtEVan: "Electric van",
-    carbonEstimate: "ISO 14083 method · unverified",
+    carbonEstimate: "GLEC v3.0 · ISO 14083 (WTW)",
     cbamLabel: "Indicative carbon cost (demo)",
     cbamSub: "Not a CBAM or ETS calculation",
     complianceSub: "Indicative only, not a regulatory filing",
@@ -439,7 +453,19 @@ export const translations: Record<Language, Translations> = {
     costPerTeuKm: "€/TEU-km",
     co2PerTeuKm: "CO2 / TEU-km",
     totalTeuKm: "Total TEU-km",
-    unitCostTeuKm: "Unit Cost / TEU-km"
+    unitCostTeuKm: "Unit Cost / TEU-km",
+    glecMethodBtn: "GLEC v3.0 Method",
+    glecMethodTitle: "GLEC Framework v3.0 CO2e Methodology",
+    glecMethodSubtitle: "ISO 14083 aligned Well-to-Wheel (WTW) carbon accounting across all transport legs.",
+    glecStandardLabel: "Standard",
+    glecBoundaryLabel: "System Boundary",
+    glecFormulaLabel: "Core Formula",
+    glecTtwLabel: "TTW (Direct Exhaust)",
+    glecWttLabel: "WTT (Energy Production)",
+    glecTotalWtwLabel: "Total WTW Factor",
+    glecLiveCalculation: "Live Calculation Breakdown",
+    glecFactorsTableTitle: "GLEC v3.0 Default Emission Factors (kg CO2e / t·km)",
+    glecTocSource: "Transport Operation Category"
   },
   tr: {
     dashboard: "Panel",
@@ -592,7 +618,7 @@ export const translations: Record<Language, Translations> = {
     vtTruck18: "Kamyon 18 t",
     vtTruck40: "Kamyon 40 t",
     vtEVan: "Elektrikli van",
-    carbonEstimate: "ISO 14083 yöntemi · doğrulanmamış",
+    carbonEstimate: "GLEC v3.0 · ISO 14083 (WTW)",
     cbamLabel: "Gösterge niteliğinde karbon maliyeti (demo)",
     cbamSub: "CBAM veya ETS hesabı değildir",
     complianceSub: "Yalnızca gösterge niteliğinde, resmi bildirim değildir",
@@ -655,7 +681,19 @@ export const translations: Record<Language, Translations> = {
     costPerTeuKm: "€/TEU-km",
     co2PerTeuKm: "CO2 / TEU-km",
     totalTeuKm: "Toplam TEU-km",
-    unitCostTeuKm: "Birim Maliyet / TEU-km"
+    unitCostTeuKm: "Birim Maliyet / TEU-km",
+    glecMethodBtn: "GLEC v3.0 Yöntemi",
+    glecMethodTitle: "GLEC Framework v3.0 CO2e Hesaplama Yöntemi",
+    glecMethodSubtitle: "Tüm taşıma ayaklarında ISO 14083 uyumlu Well-to-Wheel (WTW) karbon muhasebesi.",
+    glecStandardLabel: "Standart",
+    glecBoundaryLabel: "Sistem Sınırı",
+    glecFormulaLabel: "Temel Formül",
+    glecTtwLabel: "TTW (Doğrudan Yakıt)",
+    glecWttLabel: "WTT (Enerji Üretimi)",
+    glecTotalWtwLabel: "Toplam WTW Faktörü",
+    glecLiveCalculation: "Canlı Hesaplama Kırılımı",
+    glecFactorsTableTitle: "GLEC v3.0 Varsayılan Emisyon Faktörleri (kg CO2e / t·km)",
+    glecTocSource: "Taşıma Operasyon Kategorisi"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -808,7 +846,7 @@ export const translations: Record<Language, Translations> = {
     vtTruck18: "Φορτηγό 18 t",
     vtTruck40: "Φορτηγό 40 t",
     vtEVan: "Ηλεκτρικό van",
-    carbonEstimate: "Μέθοδος ISO 14083 · μη επαληθευμένο",
+    carbonEstimate: "GLEC v3.0 · ISO 14083 (WTW)",
     cbamLabel: "Ενδεικτικό κόστος άνθρακα (demo)",
     cbamSub: "Δεν είναι υπολογισμός CBAM ή ETS",
     complianceSub: "Μόνο ενδεικτικά, όχι επίσημη υποβολή",
@@ -871,7 +909,19 @@ export const translations: Record<Language, Translations> = {
     costPerTeuKm: "€/TEU-km",
     co2PerTeuKm: "CO2 / TEU-km",
     totalTeuKm: "Συνολικά TEU-km",
-    unitCostTeuKm: "Κόστος ανά TEU-km"
+    unitCostTeuKm: "Κόστος ανά TEU-km",
+    glecMethodBtn: "Μέθοδος GLEC v3.0",
+    glecMethodTitle: "Μεθοδολογία Υπολογισμού CO2e GLEC Framework v3.0",
+    glecMethodSubtitle: "Υπολογισμός άνθρακα Well-to-Wheel (WTW) σύμφωνα με το πρότυπο ISO 14083.",
+    glecStandardLabel: "Πρότυπο",
+    glecBoundaryLabel: "Όριο Συστήματος",
+    glecFormulaLabel: "Βασικός Τύπος",
+    glecTtwLabel: "TTW (Άμεσες Εκπομπές)",
+    glecWttLabel: "WTT (Παραγωγή Ενέργειας)",
+    glecTotalWtwLabel: "Συνολικός Συντελεστής WTW",
+    glecLiveCalculation: "Ζωντανή Ανάλυση Υπολογισμού",
+    glecFactorsTableTitle: "Προεπιλεγμένοι Συντελεστές GLEC v3.0 (kg CO2e / t·km)",
+    glecTocSource: "Κατηγορία Λειτουργίας Μεταφοράς"
   }
 };
 

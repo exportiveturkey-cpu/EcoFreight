@@ -153,11 +153,19 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
     return applyPortFeeToAllModes ? Math.round((originPortFee + destinationPortFee) * 0.5) : 0;
   };
 
+  const GLEC_WTW_FACTORS: Record<string, { wtw: number; ttw: number; wtt: number; source: string }> = {
+    SEA: { wtw: 0.012, ttw: 0.010, wtt: 0.002, source: 'Container Vessel (Deep/Short-Sea VLSFO, GLEC v3.0)' },
+    SEA_RAIL: { wtw: 0.017, ttw: 0.007, wtt: 0.010, source: 'Maritime + Electrified Rail Intermodal Composite (GLEC v3.0)' },
+    RAIL: { wtw: 0.025, ttw: 0.005, wtt: 0.020, source: 'Electric / Mixed Freight Rail EU Grid (GLEC v3.0)' },
+    ROAD: { wtw: 0.105, ttw: 0.084, wtt: 0.021, source: 'Articulated Heavy-Duty Truck >34t Euro 6 Diesel (GLEC v3.0)' },
+    AIR: { wtw: 1.130, ttw: 0.920, wtt: 0.210, source: 'Long-Haul Air Freighter / Mixed Belly Cargo (GLEC v3.0)' },
+  };
+
   if (ai) {
     try {
       const apiPromise = ai.models.generateContent({
         model: 'gemini-4-hydrogen',
-        contents: `Analyze freight route optimization from a combined cost perspective (Base Freight + Fuel Cost + CO2 Cost + Port Fees) for ${w} metric tonnes of cargo from "${origin}" to "${destination}". Carbon compliance price is €${carbonPrice}/tonne CO2e, fuel index multiplier is ${fuelMult}x, origin port fee is €${originPortFee}, and destination port fee is €${destinationPortFee}. Return a JSON array with 5 options for modes: SEA, SEA_RAIL, RAIL, ROAD, AIR. For each mode provide realistic estimatedDistanceKm (number), estimatedDays (number), baseFreightCost (EUR number excluding fuel, CO2, and port fees), fuelCost (EUR number reflecting current fuel price multiplier ${fuelMult}x), estimatedEmissionsKg (GLEC kg CO2e number), fuelConsumption (number), fuelUnit (e.g. 'L VLSFO', 'kWh', 'L Diesel', 'L Jet-A1', 'Mixed (VLSFO + kWh)'), label (concise string), reasoning (1 concise sentence explaining fuel, CO2, and port fee trade-off).`,
+        contents: `Analyze freight route optimization from a combined cost perspective (Base Freight + Fuel Cost + CO2 Cost + Port Fees) using the GLEC Framework v3.0 / ISO 14083 Well-to-Wheel methodology for ${w} metric tonnes (${containers} TEU) of cargo from "${origin}" to "${destination}". Carbon compliance price is €${carbonPrice}/tonne CO2e, fuel index multiplier is ${fuelMult}x, origin port fee is €${originPortFee}, and destination port fee is €${destinationPortFee}. Return a JSON array with 5 options for modes: SEA, SEA_RAIL, RAIL, ROAD, AIR. For each mode provide realistic estimatedDistanceKm (number), estimatedDays (number), baseFreightCost (EUR number excluding fuel, CO2, and port fees), fuelCost (EUR number reflecting current fuel price multiplier ${fuelMult}x), estimatedEmissionsKg (GLEC v3.0 WTW kg CO2e number), fuelConsumption (number), fuelUnit (e.g. 'L VLSFO', 'kWh', 'L Diesel', 'L Jet-A1', 'Mixed (VLSFO + kWh)'), label (concise string), reasoning (1 concise sentence explaining fuel, CO2, port fee, and GLEC trade-off).`,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -197,13 +205,21 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
       const parsed = JSON.parse(response?.text || '[]');
       if (Array.isArray(parsed) && parsed.length > 0) {
         const enriched = parsed.map((opt: any) => {
+          const modeKey = String(opt.mode || 'SEA');
+          const glecSpec = GLEC_WTW_FACTORS[modeKey] || GLEC_WTW_FACTORS.SEA;
           const baseFreightCost = Math.round(Number(opt.baseFreightCost) || 0);
           const fuelCost = Math.round(Number(opt.fuelCost) || 0);
           const estimatedDistanceKm = Math.round(Number(opt.estimatedDistanceKm) || 0);
-          const estimatedEmissionsKg = Math.round(Number(opt.estimatedEmissionsKg) || 0);
+          // Enforce reproducible GLEC Framework v3.0 WTW calculation: Distance × Weight × EF_WTW
+          const ttwEmissionsKg = Math.round(estimatedDistanceKm * w * glecSpec.ttw);
+          const wttEmissionsKg = Math.round(estimatedDistanceKm * w * glecSpec.wtt);
+          const estimatedEmissionsKg =
+            estimatedDistanceKm > 0
+              ? Math.round(estimatedDistanceKm * w * glecSpec.wtw)
+              : Math.round(Number(opt.estimatedEmissionsKg) || 0);
           const co2Cost = Math.round((estimatedEmissionsKg / 1000) * carbonPrice);
           const fuelPlusCo2Cost = fuelCost + co2Cost;
-          const portFeeTotal = computePortFee(String(opt.mode || ''));
+          const portFeeTotal = computePortFee(modeKey);
           const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
           const teuKm = Math.round(estimatedDistanceKm * containers);
           const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
@@ -224,6 +240,10 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
             portFeeTotal,
             estimatedCost,
             estimatedEmissionsKg,
+            glecFactorWtw: glecSpec.wtw,
+            ttwEmissionsKg,
+            wttEmissionsKg,
+            glecSource: glecSpec.source,
           };
         });
         return res.json(enriched);
@@ -328,11 +348,14 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
   ];
 
   const fallback = specs.map((spec) => {
+    const glecSpec = GLEC_WTW_FACTORS[spec.mode] || GLEC_WTW_FACTORS.SEA;
     const distanceKm = Math.round(baseKm * spec.distFactor);
     const estimatedDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
     const baseFreightCost = Math.round(Math.max(spec.minBase, distanceKm * w * spec.baseRatePerTKm));
     const fuelCost = Math.round(Math.max(spec.minFuel, distanceKm * w * spec.fuelRatePerTKm) * fuelMult);
-    const estimatedEmissionsKg = Math.round(distanceKm * w * spec.emissionFactor);
+    const ttwEmissionsKg = Math.round(distanceKm * w * glecSpec.ttw);
+    const wttEmissionsKg = Math.round(distanceKm * w * glecSpec.wtt);
+    const estimatedEmissionsKg = Math.round(distanceKm * w * glecSpec.wtw);
     const co2Cost = Math.round((estimatedEmissionsKg / 1000) * carbonPrice);
     const fuelPlusCo2Cost = fuelCost + co2Cost;
     const portFeeTotal = computePortFee(spec.mode);
@@ -358,6 +381,10 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
       portFeeTotal,
       estimatedCost,
       estimatedEmissionsKg,
+      glecFactorWtw: glecSpec.wtw,
+      ttwEmissionsKg,
+      wttEmissionsKg,
+      glecSource: glecSpec.source,
       fuelConsumption,
       fuelUnit: spec.fuelUnit,
       label: spec.label,

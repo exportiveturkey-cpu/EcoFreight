@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 // Added Leaf to the icons imported from lucide-react
-import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw } from 'lucide-react';
+import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw, BookOpenCheck } from 'lucide-react';
 import { Shipment, ShipmentStatus, TransportMode } from '../types';
-import { calculateLegEmissions, DEFAULT_EU_ETS_CARBON_PRICE, estimatePortFees, estimateTeuFromCargo, getShipmentContainers, getShipmentDistanceKm, getShipmentTeuKm } from '../services/carbon';
+import { calculateLegEmissions, DEFAULT_EU_ETS_CARBON_PRICE, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentTeuKm } from '../services/carbon';
 import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
@@ -329,7 +329,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                 </p>
               </div>
               <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100">
-                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">{t.emissions}</p>
+                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">{t.emissions} (GLEC v3.0 WTW)</p>
                 <p className="text-xl font-black font-mono tabular-nums text-emerald-800">{formatNumber(analyticsShipment.totalEmissionsKg)} kg CO2e</p>
                 <p className="text-[11px] font-mono tabular-nums text-emerald-700 mt-0.5">
                   {getShipmentTeuKm(analyticsShipment) > 0 ? `${(analyticsShipment.totalEmissionsKg / getShipmentTeuKm(analyticsShipment)).toFixed(2)} kg/TEU-km` : '—'}
@@ -366,16 +366,45 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
             </div>
             <div className="space-y-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.legs}</p>
-              {analyticsShipment.legs.map(l => (
+              {analyticsShipment.legs.map(l => {
+                const factorSpec = getGlecFactorSpec(l.mode);
+                return (
                 <div key={l.id} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 text-xs">
                   <span className="font-black text-slate-700 w-14">{l.mode}</span>
-                  <span className="flex-1 font-bold text-slate-600 truncate">{l.origin} → {l.destination}</span>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <span className="font-bold text-slate-600 truncate block">{l.origin} → {l.destination}</span>
+                    <span className="text-[10px] font-mono tabular-nums text-emerald-700">GLEC v3.0 WTW: {factorSpec.wtw.toFixed(3)} kg/t·km</span>
+                  </div>
                   <span className="font-mono tabular-nums text-slate-500 w-20 text-right">{formatNumber(l.distanceKm)} km</span>
                   <span className="font-mono tabular-nums text-emerald-700 w-24 text-right">{formatNumber(l.emissionsKg)} kg</span>
                   <span className="font-mono tabular-nums font-bold text-slate-900 w-20 text-right">{formatEUR(l.cost, 0)}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
+            {(() => {
+              const glecSummary = getShipmentGlecBreakdown(analyticsShipment);
+              return (
+                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
+                      <BookOpenCheck size={14} className="text-emerald-700" />
+                      <span>{t.glecMethodTitle}</span>
+                    </p>
+                    <p className="text-[11px] font-mono tabular-nums text-emerald-800">
+                      Σ (km × {analyticsShipment.weightTonnes} t × EF_WTW) · ISO 14083 WTW
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-mono tabular-nums shrink-0 text-emerald-900">
+                    <span>TTW: <strong>{formatNumber(glecSummary.ttwKg)} kg</strong></span>
+                    <span aria-hidden="true">+</span>
+                    <span>WTT: <strong>{formatNumber(glecSummary.wttKg)} kg</strong></span>
+                    <span aria-hidden="true">=</span>
+                    <span><strong>{formatNumber(glecSummary.totalKg)} kg CO2e</strong></span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -470,6 +499,9 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                            </div>
                            <p className="text-[11px] text-slate-500 mt-2 font-mono tabular-nums">
                              {formatNumber(opt.teuKm)} TEU-km · {formatEUR(opt.costPerTeuKm, 2)}/TEU-km · {opt.estimatedEmissionsKg} kg CO2e
+                           </p>
+                           <p className="text-[10px] text-emerald-700 mt-1 font-mono tabular-nums">
+                             GLEC v3.0 WTW: {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode).wtw).toFixed(3)} kg/t·km
                            </p>
                         </div>
                       ))}

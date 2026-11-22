@@ -8,6 +8,7 @@ import { formatEUR, formatNumber } from '../services/formatters';
 import { toCsv } from '../services/csv';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
 import { Language, translations } from '../services/i18n';
+import GlecMethodPanel from './GlecMethodPanel';
 
 interface SustainabilityHubProps { shipments: Shipment[]; lang: Language; }
 
@@ -100,25 +101,28 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
       <div className="space-y-8">
         <div className="space-y-8">
           {section === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <SustainabilityMetric
-              title="Trees Equivalent"
-              value={isNeutralized ? "0" : (shipments.length > 0 ? String(Math.round(totalEmissionsKg / 22)) : "—")}
-              sub="at 22 kg CO₂/tree/yr"
-              icon={<Trees className="text-emerald-500" />}
-            />
-            <SustainabilityMetric
-              title="Total Emissions"
-              value={shipments.length > 0 ? `${(totalEmissionsKg / 1000).toFixed(1)} t` : "—"}
-              sub="CO₂e this period"
-              icon={<Zap className="text-amber-500" />}
-            />
-            <SustainabilityMetric
-              title={`${t.totalTeuKm} (${t.teuKmFormula})`}
-              value={totalTeuKm > 0 ? formatNumber(totalTeuKm) : "—"}
-              sub={`${shipments.length} shipments tracked`}
-              icon={<Wind className="text-blue-500" />}
-            />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <SustainabilityMetric
+                title="Trees Equivalent"
+                value={isNeutralized ? "0" : (shipments.length > 0 ? String(Math.round(totalEmissionsKg / 22)) : "—")}
+                sub="at 22 kg CO₂/tree/yr"
+                icon={<Trees className="text-emerald-500" />}
+              />
+              <SustainabilityMetric
+                title="Total Emissions (GLEC v3.0)"
+                value={shipments.length > 0 ? `${(totalEmissionsKg / 1000).toFixed(1)} t` : "—"}
+                sub={t.carbonEstimate}
+                icon={<Zap className="text-amber-500" />}
+              />
+              <SustainabilityMetric
+                title={`${t.totalTeuKm} (${t.teuKmFormula})`}
+                value={totalTeuKm > 0 ? formatNumber(totalTeuKm) : "—"}
+                sub={`${shipments.length} shipments tracked`}
+                icon={<Wind className="text-blue-500" />}
+              />
+            </div>
+            <GlecMethodPanel lang={lang} />
           </div>
           )}
 

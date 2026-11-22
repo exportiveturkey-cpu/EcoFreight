@@ -57,6 +57,10 @@ export interface RouteCostOption {
   portFeeTotal: number;
   estimatedCost: number;
   estimatedEmissionsKg: number;
+  glecFactorWtw?: number;
+  ttwEmissionsKg?: number;
+  wttEmissionsKg?: number;
+  glecSource?: string;
   fuelConsumption: number;
   fuelUnit: string;
   label: string;

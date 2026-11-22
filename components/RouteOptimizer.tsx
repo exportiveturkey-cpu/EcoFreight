@@ -15,7 +15,8 @@ import {
   Lock,
   Sparkles,
   SlidersHorizontal,
-  RotateCcw
+  RotateCcw,
+  BookOpenCheck
 } from 'lucide-react';
 import {
   BarChart,
@@ -36,11 +37,13 @@ import {
   calculateTeuKm,
   computeApplicablePortFee,
   estimatePortFees,
-  estimateTeuFromCargo
+  estimateTeuFromCargo,
+  getGlecFactorSpec
 } from '../services/carbon';
 import { getRouteComparison } from '../services/gemini';
 import { formatEUR, formatNumber, formatEmissions } from '../services/formatters';
 import { Language, translations } from '../services/i18n';
+import GlecMethodPanel from './GlecMethodPanel';
 
 interface RouteOptimizerProps {
   lang: Language;
@@ -131,6 +134,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const [loading, setLoading] = useState(false);
   const [selectedMode, setSelectedMode] = useState<string>('SEA_RAIL');
   const [bookingConfirmed, setBookingConfirmed] = useState<string | null>(null);
+  const [showGlecMethod, setShowGlecMethod] = useState(false);
 
   const runAnalysis = async (
     targetOrigin = origin,
@@ -192,12 +196,20 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       const teuKm = calculateTeuKm(opt.estimatedDistanceKm, effectiveContainers);
       const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
       const emissionsPerTeuKm = teuKm > 0 ? Number((opt.estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
+      const spec = getGlecFactorSpec(opt.mode);
+      const ratioTtw = spec.wtw > 0 ? spec.ttw / spec.wtw : 0.75;
+      const ttwEmissionsKg = opt.ttwEmissionsKg ?? Math.round(opt.estimatedEmissionsKg * ratioTtw);
+      const wttEmissionsKg = opt.wttEmissionsKg ?? Math.max(0, Math.round(opt.estimatedEmissionsKg - ttwEmissionsKg));
       return {
         ...opt,
         containers: effectiveContainers,
         teuKm,
         costPerTeuKm,
         emissionsPerTeuKm,
+        glecFactorWtw: opt.glecFactorWtw ?? spec.wtw,
+        ttwEmissionsKg,
+        wttEmissionsKg,
+        glecSource: opt.glecSource ?? spec.tocSource,
         fuelCost: adjustedFuel,
         co2Cost,
         fuelPlusCo2Cost,
@@ -398,7 +410,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             {t.routeOptimizerSubtitle}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-medium whitespace-nowrap">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-500 font-medium whitespace-nowrap">
           <span>GLEC v3.0</span>
           <span aria-hidden="true">·</span>
           <span>EU ETS</span>
@@ -414,8 +426,37 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
           <span className="font-mono tabular-nums text-slate-800 font-semibold">
             {containersTeu} TEU
           </span>
+          <button
+            type="button"
+            onClick={() => setShowGlecMethod((v) => !v)}
+            className={`ml-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              showGlecMethod
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            <BookOpenCheck size={14} />
+            <span>{t.glecMethodBtn}</span>
+          </button>
         </div>
       </div>
+
+      {showGlecMethod && selectedRoute && (
+        <GlecMethodPanel
+          lang={lang}
+          highlightMode={selectedRoute.mode}
+          onClose={() => setShowGlecMethod(false)}
+          liveExample={{
+            label: getModeLabel(selectedRoute.mode, t),
+            mode: selectedRoute.mode,
+            distanceKm: selectedRoute.estimatedDistanceKm,
+            weightTonnes,
+            ttwKg: selectedRoute.ttwEmissionsKg ?? 0,
+            wttKg: selectedRoute.wttEmissionsKg ?? 0,
+            totalKg: selectedRoute.estimatedEmissionsKg
+          }}
+        />
+      )}
 
       {/* Corridor, Port Fees & Cost Sensitivity Panel */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
@@ -867,7 +908,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                               )}
                             </div>
                             <p className="text-[11px] text-slate-500 font-mono tabular-nums">
-                              {formatNumber(opt.estimatedDistanceKm)} km · {formatEmissions(opt.estimatedEmissionsKg)}
+                              {formatNumber(opt.estimatedDistanceKm)} km · {formatEmissions(opt.estimatedEmissionsKg)} · {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode).wtw).toFixed(3)} kg/t·km
                             </p>
                           </div>
                         </div>
@@ -921,6 +962,9 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-600">{selectedRoute.reasoning}</p>
+                <p className="text-[11px] font-mono tabular-nums text-emerald-800">
+                  GLEC v3.0 WTW: {formatNumber(selectedRoute.estimatedDistanceKm)} km × {formatNumber(weightTonnes, 1)} t × {(selectedRoute.glecFactorWtw ?? getGlecFactorSpec(selectedRoute.mode).wtw).toFixed(3)} kg/t·km = {formatNumber(selectedRoute.estimatedEmissionsKg)} kg (TTW {formatNumber(selectedRoute.ttwEmissionsKg ?? 0)} + WTT {formatNumber(selectedRoute.wttEmissionsKg ?? 0)})
+                </p>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
