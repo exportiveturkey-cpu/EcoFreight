@@ -1,5 +1,5 @@
 
-import { TransportMode, RouteCostOption, Shipment } from '../types';
+import { TransportMode, RouteCostOption, Shipment, ScheduleReliabilityPoint } from '../types';
 
 /**
  * GLEC Framework v3.0 / ISO 14083 Well-to-Wheel (WTW) default emission intensity factors
@@ -73,12 +73,216 @@ export const EMISSION_FACTORS: Record<string, number> = {
 };
 
 export const DEFAULT_EU_ETS_CARBON_PRICE = 85; // €85 per tonne CO2e
+export const DEFAULT_PORT_DWELL_HOURS = 24; // 24h standard port dwell baseline
+export const DWELL_STORAGE_EUR_PER_TEU_HOUR = 1.5; // Quay demurrage / yard storage (~€36/TEU/day)
+export const DWELL_AUX_FUEL_EUR_PER_TEU_HOUR = 0.75; // Vessel hoteling / terminal reefer & gantry fuel
+
+export const DWELL_TIME_PRESETS = [
+  { id: 'fast', hours: 0, key: 'dwellPresetFast' },
+  { id: 'normal', hours: 24, key: 'dwellPresetNormal' },
+  { id: 'moderate', hours: 48, key: 'dwellPresetModerate' },
+  { id: 'congested', hours: 72, key: 'dwellPresetCongested' }
+] as const;
 
 export const CARBON_PRICE_PRESETS = [
   { id: 'eu-ets', label: 'EU ETS / CBAM', price: 85 },
   { id: 'shadow', label: 'Internal Shadow Price', price: 110 },
   { id: 'offset', label: 'Voluntary VCS Offset', price: 25 }
 ];
+
+export interface DwellImpactBreakdown {
+  dwellHours: number;
+  dwellDaysAdded: number;
+  dwellOperationalCost: number;
+  dwellCo2Cost: number;
+  dwellCost: number;
+  dwellTtwKg: number;
+  dwellWttKg: number;
+  dwellEmissionsKg: number;
+}
+
+export const getDwellModeShare = (mode: string, applyToAllModes: boolean = false): number => {
+  if (mode === 'SEA') return 1.0;
+  if (mode === 'SEA_RAIL') return 0.65;
+  return applyToAllModes ? 0.25 : 0;
+};
+
+export const computeDwellImpact = (
+  mode: string,
+  dwellTimeHours: number,
+  containers: number,
+  carbonPricePerTonne: number,
+  fuelMultiplier: number = 1,
+  applyToAllModes: boolean = false
+): DwellImpactBreakdown => {
+  const safeHours = Math.max(0, Number(dwellTimeHours) || 0);
+  const safeContainers = Math.max(0.5, Number(containers) || 1);
+  const share = getDwellModeShare(mode, applyToAllModes);
+  const dwellHours = Math.round(safeHours * share);
+
+  if (dwellHours <= 0) {
+    return {
+      dwellHours: 0,
+      dwellDaysAdded: 0,
+      dwellOperationalCost: 0,
+      dwellCo2Cost: 0,
+      dwellCost: 0,
+      dwellTtwKg: 0,
+      dwellWttKg: 0,
+      dwellEmissionsKg: 0
+    };
+  }
+
+  const isMaritime = mode === 'SEA' || mode === 'SEA_RAIL';
+  // GLEC v3.0 auxiliary hoteling / logistics terminal emission intensity (kg CO2e / TEU·h)
+  const wtwPerTeuHour = isMaritime ? 2.8 : 1.2;
+  const ttwPerTeuHour = isMaritime ? 2.3 : 0.85;
+
+  const dwellEmissionsKg = Math.round(dwellHours * safeContainers * wtwPerTeuHour);
+  const dwellTtwKg = Math.round(dwellHours * safeContainers * ttwPerTeuHour);
+  const dwellWttKg = Math.max(0, dwellEmissionsKg - dwellTtwKg);
+  const dwellCo2Cost = Math.round((dwellEmissionsKg / 1000) * Math.max(0, carbonPricePerTonne));
+  const dwellOperationalCost = Math.round(
+    dwellHours *
+      safeContainers *
+      (DWELL_STORAGE_EUR_PER_TEU_HOUR + DWELL_AUX_FUEL_EUR_PER_TEU_HOUR * Math.max(0.3, fuelMultiplier))
+  );
+  const dwellCost = dwellOperationalCost + dwellCo2Cost;
+  const dwellDaysAdded = Number((dwellHours / 24).toFixed(1));
+
+  return {
+    dwellHours,
+    dwellDaysAdded,
+    dwellOperationalCost,
+    dwellCo2Cost,
+    dwellCost,
+    dwellTtwKg,
+    dwellWttKg,
+    dwellEmissionsKg
+  };
+};
+
+export const SCHEDULE_SLA_TARGET_PCT = 88.0;
+
+export const MODE_BASELINE_SCHEDULE_RELIABILITY: Record<string, number> = {
+  SEA: 88.5,
+  SEA_RAIL: 93.0,
+  RAIL: 94.5,
+  ROAD: 96.0,
+  AIR: 98.2
+};
+
+export const computeModeScheduleReliability = (
+  mode: string,
+  dwellTimeHours: number = 0,
+  applyToAllModes: boolean = false
+): { baselineReliabilityPct: number; scheduleReliabilityPct: number } => {
+  const baseline = MODE_BASELINE_SCHEDULE_RELIABILITY[mode] ?? 88.5;
+  const share = getDwellModeShare(mode, applyToAllModes);
+  const effectiveDwell = Math.max(0, Number(dwellTimeHours) || 0) * share;
+  const penalty = Math.min(25, effectiveDwell * 0.18);
+  const scheduleReliabilityPct = Number(Math.max(55, baseline - penalty).toFixed(1));
+  return {
+    baselineReliabilityPct: baseline,
+    scheduleReliabilityPct
+  };
+};
+
+export const getShipmentPrimaryMode = (shipment: Shipment): string => {
+  const legs = shipment.legs || [];
+  if (legs.length === 0) return TransportMode.SEA;
+  const modes = new Set(legs.map((l) => l.mode));
+  if (modes.has(TransportMode.SEA) && modes.has(TransportMode.RAIL)) return 'SEA_RAIL';
+  return legs[0].mode;
+};
+
+export const getShipmentScheduleReliability = (shipment: Shipment): number => {
+  if (typeof shipment.scheduleReliabilityPct === 'number' && shipment.scheduleReliabilityPct > 0) {
+    return shipment.scheduleReliabilityPct;
+  }
+  const mode = getShipmentPrimaryMode(shipment);
+  const dwell = shipment.dwellTimeHours ?? 0;
+  const delayPenalty = Math.min(20, Math.max(0, Number(shipment.scheduleDelayHours) || 0) * 0.45);
+  const base = computeModeScheduleReliability(mode, dwell, false).scheduleReliabilityPct;
+  return Number(Math.max(55, base - (dwell > 0 ? 0 : delayPenalty)).toFixed(1));
+};
+
+export const isShipmentOnTime = (shipment: Shipment): boolean => {
+  return (Number(shipment.scheduleDelayHours) || 0) <= 4;
+};
+
+export interface PortfolioReliabilitySummary {
+  overallPct: number;
+  deltaPct: number;
+  onTimeCount: number;
+  totalCount: number;
+  avgDelayHours: number;
+}
+
+export const getPortfolioScheduleReliability = (
+  shipments: Shipment[]
+): PortfolioReliabilitySummary | null => {
+  if (!shipments || shipments.length === 0) return null;
+  const totalCount = shipments.length;
+  const relValues = shipments.map((s) => getShipmentScheduleReliability(s));
+  const overallPct = Number((relValues.reduce((a, b) => a + b, 0) / totalCount).toFixed(1));
+  const onTimeCount = shipments.filter(isShipmentOnTime).length;
+  const avgDelayHours = Number(
+    (shipments.reduce((sum, s) => sum + Math.max(0, Number(s.scheduleDelayHours) || 0), 0) / totalCount).toFixed(1)
+  );
+  const priorMonthBenchmark = 89.2;
+  const deltaPct = Number((overallPct - priorMonthBenchmark).toFixed(1));
+  return {
+    overallPct,
+    deltaPct,
+    onTimeCount,
+    totalCount,
+    avgDelayHours
+  };
+};
+
+export const getScheduleReliabilitySeries = (
+  shipments: Shipment[],
+  timeframe: '6M' | '12W' = '6M'
+): ScheduleReliabilityPoint[] => {
+  const avgMode = (modeMatches: (m: string) => boolean, fallback: number) => {
+    const matched = shipments.filter((s) => modeMatches(getShipmentPrimaryMode(s)));
+    if (matched.length === 0) return fallback;
+    const sum = matched.reduce((acc, s) => acc + getShipmentScheduleReliability(s), 0);
+    return Number((sum / matched.length).toFixed(1));
+  };
+
+  const summary = getPortfolioScheduleReliability(shipments);
+  const liveOverall = summary?.overallPct ?? 90.4;
+  const liveOnTime = summary?.onTimeCount ?? 0;
+  const liveTotal = summary?.totalCount ?? 0;
+  const liveAvgDelay = summary?.avgDelayHours ?? 2.8;
+  const liveSea = avgMode((m) => m === TransportMode.SEA, 85.2);
+  const liveIntermodal = avgMode((m) => m === 'SEA_RAIL' || m === TransportMode.RAIL, 93.4);
+  const liveRoad = avgMode((m) => m === TransportMode.ROAD, 95.8);
+
+  if (timeframe === '12W') {
+    const baseTotal = Math.max(12, liveTotal);
+    return [
+      { period: 'W-10', overallPct: 86.8, seaPct: 81.4, intermodalPct: 91.2, roadPct: 94.5, onTimeCount: Math.round(baseTotal * 0.82), totalCount: baseTotal, avgDelayHours: 4.9 },
+      { period: 'W-8', overallPct: 87.9, seaPct: 82.6, intermodalPct: 91.8, roadPct: 95.0, onTimeCount: Math.round(baseTotal * 0.85), totalCount: baseTotal, avgDelayHours: 4.3 },
+      { period: 'W-6', overallPct: 88.4, seaPct: 83.1, intermodalPct: 92.4, roadPct: 95.2, onTimeCount: Math.round(baseTotal * 0.86), totalCount: baseTotal, avgDelayHours: 3.9 },
+      { period: 'W-4', overallPct: 89.6, seaPct: 84.5, intermodalPct: 93.0, roadPct: 95.6, onTimeCount: Math.round(baseTotal * 0.88), totalCount: baseTotal, avgDelayHours: 3.5 },
+      { period: 'W-2', overallPct: 89.2, seaPct: 84.0, intermodalPct: 92.8, roadPct: 95.4, onTimeCount: Math.round(baseTotal * 0.87), totalCount: baseTotal, avgDelayHours: 3.4 },
+      { period: 'Now', overallPct: liveOverall, seaPct: liveSea, intermodalPct: liveIntermodal, roadPct: liveRoad, onTimeCount: liveOnTime, totalCount: liveTotal, avgDelayHours: liveAvgDelay }
+    ];
+  }
+
+  const baseTotal = Math.max(14, liveTotal);
+  return [
+    { period: 'May', overallPct: 85.4, seaPct: 79.8, intermodalPct: 90.4, roadPct: 94.2, onTimeCount: Math.round(baseTotal * 0.81), totalCount: baseTotal, avgDelayHours: 5.6 },
+    { period: 'Jun', overallPct: 86.7, seaPct: 81.2, intermodalPct: 91.1, roadPct: 94.8, onTimeCount: Math.round(baseTotal * 0.83), totalCount: baseTotal, avgDelayHours: 4.8 },
+    { period: 'Jul', overallPct: 87.9, seaPct: 82.5, intermodalPct: 92.0, roadPct: 95.1, onTimeCount: Math.round(baseTotal * 0.85), totalCount: baseTotal, avgDelayHours: 4.2 },
+    { period: 'Aug', overallPct: 88.5, seaPct: 83.4, intermodalPct: 92.5, roadPct: 95.3, onTimeCount: Math.round(baseTotal * 0.86), totalCount: baseTotal, avgDelayHours: 3.9 },
+    { period: 'Sep', overallPct: 89.2, seaPct: 84.1, intermodalPct: 92.9, roadPct: 95.6, onTimeCount: Math.round(baseTotal * 0.87), totalCount: baseTotal, avgDelayHours: 3.5 },
+    { period: 'Oct', overallPct: liveOverall, seaPct: liveSea, intermodalPct: liveIntermodal, roadPct: liveRoad, onTimeCount: liveOnTime, totalCount: liveTotal, avgDelayHours: liveAvgDelay }
+  ];
+};
 
 export const estimateTeuFromCargo = (weightTonnes: number, volumeCbm?: number): number => {
   const w = Math.max(0.1, Number(weightTonnes) || 1);
@@ -258,10 +462,27 @@ export const recalculateRouteWithPricing = (
   originPortFee: number = route.originPortFee ?? 0,
   destinationPortFee: number = route.destinationPortFee ?? 0,
   applyPortFeeToAllModes: boolean = false,
-  containersOverride?: number
+  containersOverride?: number,
+  dwellTimeHours: number = route.dwellHours ?? DEFAULT_PORT_DWELL_HOURS
 ): RouteCostOption => {
+  const containers = Math.max(0.5, Number(containersOverride ?? route.containers) || 1);
   const adjustedFuelCost = Math.round(route.fuelCost * fuelMultiplier);
-  const co2Cost = calculateCO2Cost(route.estimatedEmissionsKg, carbonPricePerTonne);
+  const linehaulEmissionsKg = route.linehaulEmissionsKg ?? Math.max(0, route.estimatedEmissionsKg - (route.dwellEmissionsKg ?? 0));
+  const spec = getGlecFactorSpec(route.mode);
+  const ratioTtw = spec.wtw > 0 ? spec.ttw / spec.wtw : 0.75;
+  const linehaulTtwKg = Math.round(linehaulEmissionsKg * ratioTtw);
+  const linehaulWttKg = Math.max(0, Math.round(linehaulEmissionsKg - linehaulTtwKg));
+
+  const dwell = computeDwellImpact(
+    route.mode,
+    dwellTimeHours,
+    containers,
+    carbonPricePerTonne,
+    fuelMultiplier,
+    applyPortFeeToAllModes
+  );
+
+  const co2Cost = calculateCO2Cost(linehaulEmissionsKg, carbonPricePerTonne);
   const fuelPlusCo2Cost = adjustedFuelCost + co2Cost;
   const portFeeTotal = computeApplicablePortFee(
     route.mode,
@@ -269,17 +490,26 @@ export const recalculateRouteWithPricing = (
     destinationPortFee,
     applyPortFeeToAllModes
   );
-  const estimatedCost = route.baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
-  const containers = Math.max(0.5, Number(containersOverride ?? route.containers) || 1);
+  const estimatedCost = route.baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwell.dwellCost;
+  const estimatedEmissionsKg = linehaulEmissionsKg + dwell.dwellEmissionsKg;
+  const ttwEmissionsKg = linehaulTtwKg + dwell.dwellTtwKg;
+  const wttEmissionsKg = linehaulWttKg + dwell.dwellWttKg;
+  const baseDays = route.dwellDaysAdded
+    ? Math.max(1, Number((route.estimatedDays - route.dwellDaysAdded).toFixed(1)))
+    : route.estimatedDays;
+  const estimatedDays = Number((baseDays + dwell.dwellDaysAdded).toFixed(1));
   const teuKm = calculateTeuKm(route.estimatedDistanceKm, containers);
   const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
-  const emissionsPerTeuKm = teuKm > 0 ? Number((route.estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
-  const spec = getGlecFactorSpec(route.mode);
-  const ratioTtw = spec.wtw > 0 ? spec.ttw / spec.wtw : 0.75;
-  const ttwEmissionsKg = route.ttwEmissionsKg ?? Math.round(route.estimatedEmissionsKg * ratioTtw);
-  const wttEmissionsKg = route.wttEmissionsKg ?? Math.max(0, Math.round(route.estimatedEmissionsKg - ttwEmissionsKg));
+  const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
+  const rel = computeModeScheduleReliability(route.mode, dwellTimeHours, applyPortFeeToAllModes);
+
   return {
     ...route,
+    estimatedDays,
+    dwellHours: dwell.dwellHours,
+    dwellDaysAdded: dwell.dwellDaysAdded,
+    scheduleReliabilityPct: rel.scheduleReliabilityPct,
+    baselineReliabilityPct: rel.baselineReliabilityPct,
     containers,
     teuKm,
     costPerTeuKm,
@@ -287,6 +517,8 @@ export const recalculateRouteWithPricing = (
     glecFactorWtw: route.glecFactorWtw ?? spec.wtw,
     ttwEmissionsKg,
     wttEmissionsKg,
+    linehaulEmissionsKg,
+    dwellEmissionsKg: dwell.dwellEmissionsKg,
     glecSource: route.glecSource ?? spec.tocSource,
     fuelCost: adjustedFuelCost,
     co2Cost,
@@ -294,7 +526,9 @@ export const recalculateRouteWithPricing = (
     originPortFee,
     destinationPortFee,
     portFeeTotal,
-    estimatedCost
+    dwellCost: dwell.dwellCost,
+    estimatedCost,
+    estimatedEmissionsKg
   };
 };
 
@@ -332,7 +566,8 @@ export const buildDeterministicRouteOptions = (
   customOriginPortFee?: number,
   customDestinationPortFee?: number,
   applyPortFeeToAllModes: boolean = false,
-  customContainers?: number
+  customContainers?: number,
+  dwellTimeHours: number = DEFAULT_PORT_DWELL_HOURS
 ): RouteCostOption[] => {
   const w = Math.max(0.5, Number(weightTonnes) || 1);
   const containers = Math.max(0.5, Number(customContainers ?? estimateTeuFromCargo(w)) || 1);
@@ -421,12 +656,12 @@ export const buildDeterministicRouteOptions = (
 
   return specs.map((spec) => {
     const distanceKm = Math.round(baseKm * spec.distFactor);
-    const estimatedDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
+    const baseEstimatedDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
     const baseFreightCost = Math.round(Math.max(spec.minBase, distanceKm * w * spec.baseRatePerTKm));
     const fuelCost = Math.round(Math.max(spec.minFuel, distanceKm * w * spec.fuelRatePerTKm) * fuelMultiplier);
     const glec = calculateGlecBreakdown(spec.mode, distanceKm, w);
-    const estimatedEmissionsKg = glec.totalKg;
-    const co2Cost = calculateCO2Cost(estimatedEmissionsKg, carbonPricePerTonne);
+    const linehaulEmissionsKg = glec.totalKg;
+    const co2Cost = calculateCO2Cost(linehaulEmissionsKg, carbonPricePerTonne);
     const fuelPlusCo2Cost = fuelCost + co2Cost;
     const portFeeTotal = computeApplicablePortFee(
       spec.mode,
@@ -434,15 +669,32 @@ export const buildDeterministicRouteOptions = (
       destinationPortFee,
       applyPortFeeToAllModes
     );
-    const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+    const dwell = computeDwellImpact(
+      spec.mode,
+      dwellTimeHours,
+      containers,
+      carbonPricePerTonne,
+      fuelMultiplier,
+      applyPortFeeToAllModes
+    );
+    const estimatedDays = Number((baseEstimatedDays + dwell.dwellDaysAdded).toFixed(1));
+    const estimatedEmissionsKg = linehaulEmissionsKg + dwell.dwellEmissionsKg;
+    const ttwEmissionsKg = glec.ttwKg + dwell.dwellTtwKg;
+    const wttEmissionsKg = glec.wttKg + dwell.dwellWttKg;
+    const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwell.dwellCost;
     const fuelConsumption = Math.round(distanceKm * w * spec.fuelAmountFactor);
     const teuKm = calculateTeuKm(distanceKm, containers);
     const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
     const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
+    const rel = computeModeScheduleReliability(spec.mode, dwellTimeHours, applyPortFeeToAllModes);
 
     return {
       mode: spec.mode,
       estimatedDays,
+      dwellHours: dwell.dwellHours,
+      dwellDaysAdded: dwell.dwellDaysAdded,
+      scheduleReliabilityPct: rel.scheduleReliabilityPct,
+      baselineReliabilityPct: rel.baselineReliabilityPct,
       estimatedDistanceKm: distanceKm,
       containers,
       teuKm,
@@ -455,11 +707,14 @@ export const buildDeterministicRouteOptions = (
       originPortFee,
       destinationPortFee,
       portFeeTotal,
+      dwellCost: dwell.dwellCost,
+      dwellEmissionsKg: dwell.dwellEmissionsKg,
+      linehaulEmissionsKg,
       estimatedCost,
       estimatedEmissionsKg,
       glecFactorWtw: glec.factorWtw,
-      ttwEmissionsKg: glec.ttwKg,
-      wttEmissionsKg: glec.wttKg,
+      ttwEmissionsKg,
+      wttEmissionsKg,
       glecSource: glec.tocSource,
       fuelConsumption,
       fuelUnit: spec.fuelUnit,

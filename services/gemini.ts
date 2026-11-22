@@ -1,5 +1,5 @@
 import { Shipment, Recommendation, RouteCostOption } from "../types";
-import { buildDeterministicRouteOptions, DEFAULT_EU_ETS_CARBON_PRICE } from "./carbon";
+import { buildDeterministicRouteOptions, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS } from "./carbon";
 
 export type RouteOption = RouteCostOption;
 
@@ -46,7 +46,8 @@ export const getRouteComparison = async (
   originPortFee?: number,
   destinationPortFee?: number,
   applyPortFeeToAllModes: boolean = false,
-  containers?: number
+  containers?: number,
+  dwellTimeHours: number = DEFAULT_PORT_DWELL_HOURS
 ): Promise<RouteOption[]> => {
   try {
     const res = await fetch("/api/gemini/route-comparison", {
@@ -62,6 +63,7 @@ export const getRouteComparison = async (
         destinationPortFee,
         applyPortFeeToAllModes,
         containers,
+        dwellTimeHours,
       }),
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -81,7 +83,8 @@ export const getRouteComparison = async (
       originPortFee,
       destinationPortFee,
       applyPortFeeToAllModes,
-      containers
+      containers,
+      dwellTimeHours
     );
   }
 };

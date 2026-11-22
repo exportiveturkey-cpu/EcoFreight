@@ -12,6 +12,9 @@ export interface GlecLiveExample {
   ttwKg: number;
   wttKg: number;
   totalKg: number;
+  dwellHours?: number;
+  dwellKg?: number;
+  linehaulKg?: number;
 }
 
 interface GlecMethodPanelProps {
@@ -105,8 +108,22 @@ const GlecMethodPanel: React.FC<GlecMethodPanelProps> = ({
             </p>
             <p className="text-xs font-mono tabular-nums text-slate-700">
               {formatNumber(liveExample.distanceKm)} km × {formatNumber(liveExample.weightTonnes, 1)} t ×{' '}
-              <span className="font-bold text-emerald-800">{exampleSpec.wtw.toFixed(3)}</span> kg/t·km ={' '}
-              <span className="font-extrabold text-slate-900">{formatNumber(liveExample.totalKg)} kg CO2e</span>
+              <span className="font-bold text-emerald-800">{exampleSpec.wtw.toFixed(3)}</span> kg/t·km
+              {liveExample.dwellKg && liveExample.dwellKg > 0 ? (
+                <>
+                  {' '}
+                  = {formatNumber(liveExample.linehaulKg ?? liveExample.totalKg - liveExample.dwellKg)} kg +{' '}
+                  <span className="text-rose-700 font-bold">
+                    {formatNumber(liveExample.dwellKg)} kg ({t.dwellTimeHours}: {liveExample.dwellHours ?? 0}h)
+                  </span>{' '}
+                  = <span className="font-extrabold text-slate-900">{formatNumber(liveExample.totalKg)} kg CO2e</span>
+                </>
+              ) : (
+                <>
+                  {' '}
+                  = <span className="font-extrabold text-slate-900">{formatNumber(liveExample.totalKg)} kg CO2e</span>
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono tabular-nums shrink-0">

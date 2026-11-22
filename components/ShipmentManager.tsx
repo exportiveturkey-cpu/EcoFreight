@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 // Added Leaf to the icons imported from lucide-react
 import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw, BookOpenCheck } from 'lucide-react';
 import { Shipment, ShipmentStatus, TransportMode } from '../types';
-import { calculateLegEmissions, DEFAULT_EU_ETS_CARBON_PRICE, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentTeuKm } from '../services/carbon';
+import { calculateLegEmissions, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime } from '../services/carbon';
 import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
@@ -41,6 +41,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   const [portFeesEdited, setPortFeesEdited] = useState(false);
   const [containersEdited, setContainersEdited] = useState(false);
   const [applyPortFeeToAllModes, setApplyPortFeeToAllModes] = useState(false);
+  const [dwellTimeHours, setDwellTimeHours] = useState<number>(DEFAULT_PORT_DWELL_HOURS);
 
   const canAnalyze = !!(newShipment.customer.trim() && newShipment.origin.trim() && newShipment.destination.trim() && newShipment.weight > 0);
 
@@ -52,6 +53,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
     setPortFeesEdited(false);
     setContainersEdited(false);
     setApplyPortFeeToAllModes(false);
+    setDwellTimeHours(DEFAULT_PORT_DWELL_HOURS);
     setCarbonPrice(DEFAULT_EU_ETS_CARBON_PRICE);
     setRouteOptions([]);
     setSelectedRoute(null);
@@ -107,7 +109,8 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       originPortFee,
       destinationPortFee,
       applyPortFeeToAllModes,
-      newShipment.containers
+      newShipment.containers,
+      dwellTimeHours
     );
     const sorted = [...options].sort((a, b) => a.estimatedCost - b.estimatedCost);
     setRouteOptions(sorted);
@@ -132,6 +135,9 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       weightTonnes: newShipment.weight,
       volumeCbm: newShipment.volume,
       containers: newShipment.containers,
+      dwellTimeHours: selectedRoute.dwellHours ?? dwellTimeHours,
+      scheduleDelayHours: (selectedRoute.dwellHours ?? 0) > 24 ? Math.round((selectedRoute.dwellHours ?? 0) - 24) : 0,
+      scheduleReliabilityPct: selectedRoute.scheduleReliabilityPct,
       status: ShipmentStatus.BOOKED,
       legs: [{ id: 'L1', mode: mappedMode, origin: newShipment.origin, destination: newShipment.destination, distanceKm: selectedRoute.estimatedDistanceKm || 0, cost: selectedRoute.estimatedCost, emissionsKg: selectedRoute.estimatedEmissionsKg }],
       costBreakdown: {
@@ -139,12 +145,13 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
         fuelSurcharge: selectedRoute.fuelCost,
         carbonCost: selectedRoute.co2Cost,
         portFees: selectedRoute.portFeeTotal,
+        dwellCost: selectedRoute.dwellCost ?? 0,
         insurance: 0,
         customs: 0
       },
       totalCost: selectedRoute.estimatedCost,
       totalEmissionsKg: selectedRoute.estimatedEmissionsKg,
-      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${t.fuelCost}: ${formatEUR(selectedRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(selectedRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(selectedRoute.portFeeTotal, 0)})` }],
+      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${t.fuelCost}: ${formatEUR(selectedRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(selectedRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(selectedRoute.portFeeTotal, 0)} · ${t.dwellCost}: ${formatEUR(selectedRoute.dwellCost ?? 0, 0)})` }],
       createdAt: new Date().toISOString()
     };
     onAdd(s);
@@ -320,7 +327,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
               </div>
               <button onClick={() => setAnalyticsShipment(null)} className="p-2 hover:bg-slate-100 rounded-xl" title={t.close}><X size={20} /></button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.totalCost}</p>
                 <p className="text-xl font-black font-mono tabular-nums text-slate-900">{formatEUR(analyticsShipment.totalCost, 0)}</p>
@@ -342,10 +349,19 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                   {getShipmentContainers(analyticsShipment)} TEU × {formatNumber(getShipmentDistanceKm(analyticsShipment))} km
                 </p>
               </div>
+              <div className="p-5 bg-cyan-50/70 rounded-2xl border border-cyan-100">
+                <p className="text-[10px] font-black text-cyan-700 uppercase tracking-widest">{t.scheduleReliability}</p>
+                <p className="text-xl font-black font-mono tabular-nums text-cyan-900">{getShipmentScheduleReliability(analyticsShipment).toFixed(1)}%</p>
+                <p className="text-[11px] font-mono tabular-nums text-cyan-700 mt-0.5">
+                  {isShipmentOnTime(analyticsShipment)
+                    ? t.onTime
+                    : `${t.delayed} (+${analyticsShipment.scheduleDelayHours ?? 0}h)`}
+                </p>
+              </div>
             </div>
             <div className="space-y-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.shipmentLedgerTitle}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono tabular-nums">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono tabular-nums">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                   <p className="text-[10px] font-sans font-bold text-slate-400">{t.baseFreight}</p>
                   <p className="text-sm font-bold text-slate-900 mt-0.5">{formatEUR(analyticsShipment.costBreakdown?.freight || 0, 0)}</p>
@@ -361,6 +377,12 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                 <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
                   <p className="text-[10px] font-sans font-bold text-indigo-700">{t.portFees}</p>
                   <p className="text-sm font-bold text-indigo-800 mt-0.5">{formatEUR(analyticsShipment.costBreakdown?.portFees || 0, 0)}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-100">
+                  <p className="text-[10px] font-sans font-bold text-rose-700">
+                    {t.dwellCost} {analyticsShipment.dwellTimeHours ? `(${analyticsShipment.dwellTimeHours}h)` : ''}
+                  </p>
+                  <p className="text-sm font-bold text-rose-800 mt-0.5">{formatEUR(analyticsShipment.costBreakdown?.dwellCost || 0, 0)}</p>
                 </div>
               </div>
             </div>
@@ -455,6 +477,28 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                         </div>
                         <input type="number" min="0" step="10" value={destinationPortFee} onChange={e => { setPortFeesEdited(true); setDestinationPortFee(Math.max(0, Number(e.target.value) || 0)); }} className="w-full p-3 bg-slate-50 rounded-xl border text-sm font-mono tabular-nums" />
                       </div>
+                      <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                        <div>
+                          <label className="block text-[10px] font-bold text-rose-700 mb-1 px-1 flex items-center gap-1"><Clock size={11} /> {t.dwellTimeHours}</label>
+                          <input type="number" min="0" step="6" value={dwellTimeHours} onChange={e => setDwellTimeHours(Math.max(0, Number(e.target.value) || 0))} className="w-full p-3 bg-slate-50 rounded-xl border text-sm font-mono tabular-nums" />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pb-0.5">
+                          {DWELL_TIME_PRESETS.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => setDwellTimeHours(preset.hours)}
+                              className={`px-2.5 py-2 rounded-xl text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 border ${
+                                dwellTimeHours === preset.hours
+                                  ? 'bg-rose-600 text-white border-rose-600'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {t[preset.key]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                    </div>
                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
                      <input type="checkbox" checked={applyPortFeeToAllModes} onChange={e => setApplyPortFeeToAllModes(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-indigo-600" />
@@ -492,6 +536,10 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                                <span>{t.portFees}</span>
                                <span>{formatEUR(opt.portFeeTotal, 0)}</span>
                              </div>
+                             <div className="flex justify-between text-rose-700 font-semibold">
+                               <span>{t.dwellCost} ({opt.dwellHours ?? 0}h)</span>
+                               <span>+{formatEUR(opt.dwellCost ?? 0, 0)} · +{formatNumber(opt.dwellEmissionsKg ?? 0)} kg</span>
+                             </div>
                              <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-1.5 border-t border-slate-200/70">
                                <span>{t.totalCost}</span>
                                <span>{formatEUR(opt.estimatedCost, 0)}</span>
@@ -503,6 +551,11 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                            <p className="text-[10px] text-emerald-700 mt-1 font-mono tabular-nums">
                              GLEC v3.0 WTW: {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode).wtw).toFixed(3)} kg/t·km
                            </p>
+                           {typeof opt.scheduleReliabilityPct === 'number' && (
+                             <p className="text-[10px] text-cyan-700 mt-0.5 font-mono tabular-nums font-bold">
+                               {t.scheduleReliability}: {opt.scheduleReliabilityPct.toFixed(1)}%
+                             </p>
+                           )}
                         </div>
                       ))}
                    </div>

@@ -10,6 +10,9 @@ export const INITIAL_SAMPLE_SHIPMENTS: Shipment[] = [
     incoterms: 'DAP',
     weightTonnes: 4.2,
     volumeCbm: 12.0,
+    dwellTimeHours: 36,
+    scheduleDelayHours: 14,
+    scheduleReliabilityPct: 81.5,
     status: ShipmentStatus.IN_TRANSIT,
     legs: [
       { id: 'L1', mode: TransportMode.SEA, origin: 'Rotterdam Port', destination: 'Suez Canal', distanceKm: 6000, cost: 1400, emissionsKg: 302 },
@@ -99,6 +102,9 @@ export const INITIAL_SAMPLE_SHIPMENTS: Shipment[] = [
     incoterms: 'FCA',
     weightTonnes: 3.8,
     volumeCbm: 10.5,
+    dwellTimeHours: 18,
+    scheduleDelayHours: 9,
+    scheduleReliabilityPct: 86.4,
     status: ShipmentStatus.CUSTOMS,
     legs: [
       { id: 'L1', mode: TransportMode.ROAD, origin: 'Thessaloniki Hub', destination: 'Igoumenitsa Port', distanceKm: 320, cost: 750, emissionsKg: 128 },
@@ -143,6 +149,9 @@ export const INITIAL_SAMPLE_SHIPMENTS: Shipment[] = [
     incoterms: 'FOB',
     weightTonnes: 21.0,
     volumeCbm: 38.0,
+    dwellTimeHours: 48,
+    scheduleDelayHours: 18,
+    scheduleReliabilityPct: 79.8,
     status: ShipmentStatus.IN_TRANSIT,
     legs: [
       { id: 'L1', mode: TransportMode.SEA, origin: 'Heraklion Port', destination: 'Piraeus Port', distanceKm: 320, cost: 800, emissionsKg: 80 },
@@ -315,6 +324,9 @@ export const INITIAL_SAMPLE_SHIPMENTS: Shipment[] = [
     incoterms: 'FOB',
     weightTonnes: 28.0,
     volumeCbm: 35.0,
+    dwellTimeHours: 24,
+    scheduleDelayHours: 4,
+    scheduleReliabilityPct: 90.2,
     status: ShipmentStatus.IN_TRANSIT,
     legs: [
       { id: 'L1', mode: TransportMode.SEA, origin: 'Port of Alsancak (Izmir)', destination: 'Piraeus Port', distanceKm: 390, cost: 1100, emissionsKg: 131 },

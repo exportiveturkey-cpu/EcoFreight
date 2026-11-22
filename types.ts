@@ -36,6 +36,7 @@ export interface CostBreakdown {
   fuelSurcharge: number;
   carbonCost?: number;
   portFees: number;
+  dwellCost?: number;
   insurance: number;
   customs: number;
 }
@@ -43,6 +44,10 @@ export interface CostBreakdown {
 export interface RouteCostOption {
   mode: string;
   estimatedDays: number;
+  dwellHours?: number;
+  dwellDaysAdded?: number;
+  scheduleReliabilityPct?: number;
+  baselineReliabilityPct?: number;
   estimatedDistanceKm: number;
   containers: number;
   teuKm: number;
@@ -55,6 +60,9 @@ export interface RouteCostOption {
   originPortFee: number;
   destinationPortFee: number;
   portFeeTotal: number;
+  dwellCost?: number;
+  dwellEmissionsKg?: number;
+  linehaulEmissionsKg?: number;
   estimatedCost: number;
   estimatedEmissionsKg: number;
   glecFactorWtw?: number;
@@ -77,6 +85,9 @@ export interface Shipment {
   weightTonnes: number;
   volumeCbm: number;
   containers?: number;
+  dwellTimeHours?: number;
+  scheduleDelayHours?: number;
+  scheduleReliabilityPct?: number;
   status: ShipmentStatus;
   legs: Leg[];
   costBreakdown: CostBreakdown;
@@ -84,6 +95,17 @@ export interface Shipment {
   totalEmissionsKg: number;
   trackingHistory: TrackingEvent[];
   createdAt: string;
+}
+
+export interface ScheduleReliabilityPoint {
+  period: string;
+  overallPct: number;
+  seaPct: number;
+  intermodalPct: number;
+  roadPct: number;
+  onTimeCount: number;
+  totalCount: number;
+  avgDelayHours: number;
 }
 
 export interface AnalyticsData {

@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Shield, Award, Leaf, Zap, Globe, Star, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { Language, translations } from '../services/i18n';
 
 const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
@@ -9,10 +10,54 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
   const togglePreferred = (name: string) =>
     setPreferred(p => (p.includes(name) ? p.filter(n => n !== name) : [...p, name]));
   const carriers = [
-    { name: "Global Maritime Group", esg: 94, fleet: "Green LNG", reliability: "99.2%", badge: "Eco-Leader" },
-    { name: "Atlas Air Freight", esg: 78, fleet: "Modern Bio-Jet", reliability: "98.5%", badge: "Reliable" },
-    { name: "Direct Rail Logistics", esg: 98, fleet: "Electric 100%", reliability: "94.0%", badge: "Net-Zero" },
-    { name: "Prime Trucking Co.", esg: 62, fleet: "Diesel Euro 6", reliability: "97.8%", badge: "Strategic" }
+    {
+      name: "Global Maritime Group",
+      esg: 94,
+      fleet: "Green LNG",
+      reliability: "92.4%",
+      delta: "+1.8%",
+      history: [
+        { m: 'May', pct: 89.2 }, { m: 'Jun', pct: 90.0 }, { m: 'Jul', pct: 90.8 },
+        { m: 'Aug', pct: 91.5 }, { m: 'Sep', pct: 92.0 }, { m: 'Oct', pct: 92.4 }
+      ],
+      badge: "Eco-Leader"
+    },
+    {
+      name: "Atlas Air Freight",
+      esg: 78,
+      fleet: "Modern Bio-Jet",
+      reliability: "98.5%",
+      delta: "+0.4%",
+      history: [
+        { m: 'May', pct: 97.6 }, { m: 'Jun', pct: 97.9 }, { m: 'Jul', pct: 98.1 },
+        { m: 'Aug', pct: 98.0 }, { m: 'Sep', pct: 98.3 }, { m: 'Oct', pct: 98.5 }
+      ],
+      badge: "Reliable"
+    },
+    {
+      name: "Direct Rail Logistics",
+      esg: 98,
+      fleet: "Electric 100%",
+      reliability: "94.6%",
+      delta: "+2.1%",
+      history: [
+        { m: 'May', pct: 91.2 }, { m: 'Jun', pct: 92.0 }, { m: 'Jul', pct: 92.8 },
+        { m: 'Aug', pct: 93.4 }, { m: 'Sep', pct: 94.1 }, { m: 'Oct', pct: 94.6 }
+      ],
+      badge: "Net-Zero"
+    },
+    {
+      name: "Prime Trucking Co.",
+      esg: 62,
+      fleet: "Diesel Euro 6",
+      reliability: "96.2%",
+      delta: "+0.7%",
+      history: [
+        { m: 'May', pct: 94.9 }, { m: 'Jun', pct: 95.3 }, { m: 'Jul', pct: 95.6 },
+        { m: 'Aug', pct: 95.8 }, { m: 'Sep', pct: 96.0 }, { m: 'Oct', pct: 96.2 }
+      ],
+      badge: "Strategic"
+    }
   ];
 
   return (
@@ -43,20 +88,34 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Validated Certs: ISO 14001</span>
              </div>
 
-             <div className="space-y-3 pt-6 border-t border-slate-50">
+             <div className="space-y-3 pt-5 border-t border-slate-100">
                 <div className="flex justify-between text-xs font-bold">
                    <span className="text-slate-400">Fleet Efficiency</span>
                    <span className="text-slate-700">{c.fleet}</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold">
-                   <span className="text-slate-400">Reliability</span>
-                   <span className="text-slate-700">{c.reliability}</span>
+                   <span className="text-slate-400">{t.scheduleReliability} (6M)</span>
+                   <span className="text-slate-900 font-mono tabular-nums">
+                     {c.reliability} <span className="text-emerald-600">({c.delta})</span>
+                   </span>
+                </div>
+                <div className="h-12 pt-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={c.history}>
+                      <Tooltip
+                        formatter={(val: any) => [`${val}%`, t.scheduleReliability]}
+                        labelFormatter={(label: any) => `${label}`}
+                        contentStyle={{ borderRadius: '10px', fontSize: '11px', padding: '4px 8px' }}
+                      />
+                      <Line type="monotone" dataKey="pct" stroke="#10b981" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
              </div>
 
              <button
                 onClick={() => togglePreferred(c.name)}
-                className={`w-full mt-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                className={`w-full mt-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
                   preferred.includes(c.name) ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-slate-900 text-white hover:bg-black'
                 }`}
              >

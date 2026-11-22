@@ -101,7 +101,7 @@ app.post('/api/gemini/chat', async (req, res) => {
   return res.json({ text: reply });
 });
 
-// Route comparison endpoint (Fuel Cost + CO2 Cost + Port Fees combined optimization)
+// Route comparison endpoint (Fuel Cost + CO2 Cost + Port Fees + Dwell Time combined optimization)
 app.post('/api/gemini/route-comparison', async (req, res) => {
   const {
     origin,
@@ -113,11 +113,13 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
     destinationPortFee: customDestinationPortFee,
     applyPortFeeToAllModes = false,
     containers: customContainers,
+    dwellTimeHours: rawDwellTimeHours = 24,
   } = req.body;
   const w = Math.max(0.5, Number(weight) || 1);
   const containers = Math.max(0.5, Number(customContainers) || Math.max(1, Math.ceil(w / 14)));
   const carbonPrice = Math.max(0, Number(carbonPricePerTonne) || 85);
   const fuelMult = Math.max(0.3, Number(fuelMultiplier) || 1);
+  const dwellInputHours = Math.max(0, Number(rawDwellTimeHours) || 0);
 
   const getPortBase = (locRaw: string) => {
     const loc = (locRaw || '').toLowerCase();
@@ -153,6 +155,56 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
     return applyPortFeeToAllModes ? Math.round((originPortFee + destinationPortFee) * 0.5) : 0;
   };
 
+  const computeDwell = (mode: string) => {
+    const share = mode === 'SEA' ? 1.0 : mode === 'SEA_RAIL' ? 0.65 : applyPortFeeToAllModes ? 0.25 : 0;
+    const dwellHours = Math.round(dwellInputHours * share);
+    if (dwellHours <= 0) {
+      return {
+        dwellHours: 0,
+        dwellDaysAdded: 0,
+        dwellCost: 0,
+        dwellTtwKg: 0,
+        dwellWttKg: 0,
+        dwellEmissionsKg: 0,
+      };
+    }
+    const isMaritime = mode === 'SEA' || mode === 'SEA_RAIL';
+    const wtwRate = isMaritime ? 2.8 : 1.2;
+    const ttwRate = isMaritime ? 2.3 : 0.85;
+    const dwellEmissionsKg = Math.round(dwellHours * containers * wtwRate);
+    const dwellTtwKg = Math.round(dwellHours * containers * ttwRate);
+    const dwellWttKg = Math.max(0, dwellEmissionsKg - dwellTtwKg);
+    const dwellCo2Cost = Math.round((dwellEmissionsKg / 1000) * carbonPrice);
+    const dwellOperationalCost = Math.round(dwellHours * containers * (1.5 + 0.75 * fuelMult));
+    return {
+      dwellHours,
+      dwellDaysAdded: Number((dwellHours / 24).toFixed(1)),
+      dwellCost: dwellOperationalCost + dwellCo2Cost,
+      dwellTtwKg,
+      dwellWttKg,
+      dwellEmissionsKg,
+    };
+  };
+
+  const MODE_BASELINE_RELIABILITY: Record<string, number> = {
+    SEA: 88.5,
+    SEA_RAIL: 93.0,
+    RAIL: 94.5,
+    ROAD: 96.0,
+    AIR: 98.2,
+  };
+
+  const computeScheduleRel = (mode: string) => {
+    const base = MODE_BASELINE_RELIABILITY[mode] ?? 88.5;
+    const share = mode === 'SEA' ? 1.0 : mode === 'SEA_RAIL' ? 0.65 : applyPortFeeToAllModes ? 0.25 : 0;
+    const effDwell = dwellInputHours * share;
+    const penalty = Math.min(25, effDwell * 0.18);
+    return {
+      baselineReliabilityPct: base,
+      scheduleReliabilityPct: Number(Math.max(55, base - penalty).toFixed(1)),
+    };
+  };
+
   const GLEC_WTW_FACTORS: Record<string, { wtw: number; ttw: number; wtt: number; source: string }> = {
     SEA: { wtw: 0.012, ttw: 0.010, wtt: 0.002, source: 'Container Vessel (Deep/Short-Sea VLSFO, GLEC v3.0)' },
     SEA_RAIL: { wtw: 0.017, ttw: 0.007, wtt: 0.010, source: 'Maritime + Electrified Rail Intermodal Composite (GLEC v3.0)' },
@@ -165,7 +217,7 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
     try {
       const apiPromise = ai.models.generateContent({
         model: 'gemini-4-hydrogen',
-        contents: `Analyze freight route optimization from a combined cost perspective (Base Freight + Fuel Cost + CO2 Cost + Port Fees) using the GLEC Framework v3.0 / ISO 14083 Well-to-Wheel methodology for ${w} metric tonnes (${containers} TEU) of cargo from "${origin}" to "${destination}". Carbon compliance price is €${carbonPrice}/tonne CO2e, fuel index multiplier is ${fuelMult}x, origin port fee is €${originPortFee}, and destination port fee is €${destinationPortFee}. Return a JSON array with 5 options for modes: SEA, SEA_RAIL, RAIL, ROAD, AIR. For each mode provide realistic estimatedDistanceKm (number), estimatedDays (number), baseFreightCost (EUR number excluding fuel, CO2, and port fees), fuelCost (EUR number reflecting current fuel price multiplier ${fuelMult}x), estimatedEmissionsKg (GLEC v3.0 WTW kg CO2e number), fuelConsumption (number), fuelUnit (e.g. 'L VLSFO', 'kWh', 'L Diesel', 'L Jet-A1', 'Mixed (VLSFO + kWh)'), label (concise string), reasoning (1 concise sentence explaining fuel, CO2, port fee, and GLEC trade-off).`,
+        contents: `Analyze freight route optimization from a combined cost perspective (Base Freight + Fuel Cost + CO2 Cost + Port Fees + Port Dwell Impact) using the GLEC Framework v3.0 / ISO 14083 Well-to-Wheel methodology for ${w} metric tonnes (${containers} TEU) of cargo from "${origin}" to "${destination}". Carbon compliance price is €${carbonPrice}/tonne CO2e, fuel index multiplier is ${fuelMult}x, origin port fee is €${originPortFee}, destination port fee is €${destinationPortFee}, and port dwell time is ${dwellInputHours} hours. Return a JSON array with 5 options for modes: SEA, SEA_RAIL, RAIL, ROAD, AIR. For each mode provide realistic estimatedDistanceKm (number), estimatedDays (number linehaul transit days excluding dwell), baseFreightCost (EUR number excluding fuel, CO2, port fees, and dwell), fuelCost (EUR number reflecting current fuel price multiplier ${fuelMult}x), estimatedEmissionsKg (GLEC v3.0 WTW kg CO2e number), fuelConsumption (number), fuelUnit (e.g. 'L VLSFO', 'kWh', 'L Diesel', 'L Jet-A1', 'Mixed (VLSFO + kWh)'), label (concise string), reasoning (1 concise sentence explaining fuel, CO2, port fee, dwell, and GLEC trade-off).`,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -211,21 +263,32 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
           const fuelCost = Math.round(Number(opt.fuelCost) || 0);
           const estimatedDistanceKm = Math.round(Number(opt.estimatedDistanceKm) || 0);
           // Enforce reproducible GLEC Framework v3.0 WTW calculation: Distance × Weight × EF_WTW
-          const ttwEmissionsKg = Math.round(estimatedDistanceKm * w * glecSpec.ttw);
-          const wttEmissionsKg = Math.round(estimatedDistanceKm * w * glecSpec.wtt);
-          const estimatedEmissionsKg =
+          const linehaulTtwKg = Math.round(estimatedDistanceKm * w * glecSpec.ttw);
+          const linehaulWttKg = Math.round(estimatedDistanceKm * w * glecSpec.wtt);
+          const linehaulEmissionsKg =
             estimatedDistanceKm > 0
               ? Math.round(estimatedDistanceKm * w * glecSpec.wtw)
               : Math.round(Number(opt.estimatedEmissionsKg) || 0);
-          const co2Cost = Math.round((estimatedEmissionsKg / 1000) * carbonPrice);
+          const dwell = computeDwell(modeKey);
+          const co2Cost = Math.round((linehaulEmissionsKg / 1000) * carbonPrice);
           const fuelPlusCo2Cost = fuelCost + co2Cost;
           const portFeeTotal = computePortFee(modeKey);
-          const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+          const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwell.dwellCost;
+          const estimatedEmissionsKg = linehaulEmissionsKg + dwell.dwellEmissionsKg;
+          const ttwEmissionsKg = linehaulTtwKg + dwell.dwellTtwKg;
+          const wttEmissionsKg = linehaulWttKg + dwell.dwellWttKg;
+          const estimatedDays = Number(((Number(opt.estimatedDays) || 1) + dwell.dwellDaysAdded).toFixed(1));
           const teuKm = Math.round(estimatedDistanceKm * containers);
           const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
           const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
+          const rel = computeScheduleRel(modeKey);
           return {
             ...opt,
+            estimatedDays,
+            dwellHours: dwell.dwellHours,
+            dwellDaysAdded: dwell.dwellDaysAdded,
+            scheduleReliabilityPct: rel.scheduleReliabilityPct,
+            baselineReliabilityPct: rel.baselineReliabilityPct,
             estimatedDistanceKm,
             containers,
             teuKm,
@@ -238,6 +301,9 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
             originPortFee,
             destinationPortFee,
             portFeeTotal,
+            dwellCost: dwell.dwellCost,
+            dwellEmissionsKg: dwell.dwellEmissionsKg,
+            linehaulEmissionsKg,
             estimatedCost,
             estimatedEmissionsKg,
             glecFactorWtw: glecSpec.wtw,
@@ -253,7 +319,7 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
     }
   }
 
-  // GLEC-calibrated corridor distance & Fuel + CO2 + Port Fee model fallback
+  // GLEC-calibrated corridor distance & Fuel + CO2 + Port Fee + Dwell model fallback
   const o = String(origin || '').toLowerCase();
   const d = String(destination || '').toLowerCase();
   let baseKm = 2100;
@@ -350,23 +416,33 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
   const fallback = specs.map((spec) => {
     const glecSpec = GLEC_WTW_FACTORS[spec.mode] || GLEC_WTW_FACTORS.SEA;
     const distanceKm = Math.round(baseKm * spec.distFactor);
-    const estimatedDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
+    const baseDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
     const baseFreightCost = Math.round(Math.max(spec.minBase, distanceKm * w * spec.baseRatePerTKm));
     const fuelCost = Math.round(Math.max(spec.minFuel, distanceKm * w * spec.fuelRatePerTKm) * fuelMult);
-    const ttwEmissionsKg = Math.round(distanceKm * w * glecSpec.ttw);
-    const wttEmissionsKg = Math.round(distanceKm * w * glecSpec.wtt);
-    const estimatedEmissionsKg = Math.round(distanceKm * w * glecSpec.wtw);
-    const co2Cost = Math.round((estimatedEmissionsKg / 1000) * carbonPrice);
+    const linehaulTtwKg = Math.round(distanceKm * w * glecSpec.ttw);
+    const linehaulWttKg = Math.round(distanceKm * w * glecSpec.wtt);
+    const linehaulEmissionsKg = Math.round(distanceKm * w * glecSpec.wtw);
+    const dwell = computeDwell(spec.mode);
+    const co2Cost = Math.round((linehaulEmissionsKg / 1000) * carbonPrice);
     const fuelPlusCo2Cost = fuelCost + co2Cost;
     const portFeeTotal = computePortFee(spec.mode);
-    const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal;
+    const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwell.dwellCost;
+    const estimatedEmissionsKg = linehaulEmissionsKg + dwell.dwellEmissionsKg;
+    const ttwEmissionsKg = linehaulTtwKg + dwell.dwellTtwKg;
+    const wttEmissionsKg = linehaulWttKg + dwell.dwellWttKg;
+    const estimatedDays = Number((baseDays + dwell.dwellDaysAdded).toFixed(1));
     const fuelConsumption = Math.round(distanceKm * w * spec.fuelAmountFactor);
     const teuKm = Math.round(distanceKm * containers);
     const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
     const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
+    const rel = computeScheduleRel(spec.mode);
     return {
       mode: spec.mode,
       estimatedDays,
+      dwellHours: dwell.dwellHours,
+      dwellDaysAdded: dwell.dwellDaysAdded,
+      scheduleReliabilityPct: rel.scheduleReliabilityPct,
+      baselineReliabilityPct: rel.baselineReliabilityPct,
       estimatedDistanceKm: distanceKm,
       containers,
       teuKm,
@@ -379,6 +455,9 @@ app.post('/api/gemini/route-comparison', async (req, res) => {
       originPortFee,
       destinationPortFee,
       portFeeTotal,
+      dwellCost: dwell.dwellCost,
+      dwellEmissionsKg: dwell.dwellEmissionsKg,
+      linehaulEmissionsKg,
       estimatedCost,
       estimatedEmissionsKg,
       glecFactorWtw: glecSpec.wtw,

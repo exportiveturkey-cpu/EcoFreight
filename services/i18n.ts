@@ -236,6 +236,32 @@ export interface Translations {
   glecLiveCalculation: string;
   glecFactorsTableTitle: string;
   glecTocSource: string;
+
+  // Port Dwell Time (Demurrage & Hoteling Impact)
+  dwellTimeHours: string;
+  dwellCost: string;
+  dwellEmissions: string;
+  dwellImpactLabel: string;
+  dwellPresetFast: string;
+  dwellPresetNormal: string;
+  dwellPresetModerate: string;
+  dwellPresetCongested: string;
+  dwellNote: string;
+
+  // Schedule Reliability Over Time (OTIF / Planned ETA Adherence)
+  scheduleReliability: string;
+  reliabilityOverTime: string;
+  reliabilityOverTimeDesc: string;
+  scheduleReliabilityNote: string;
+  onTimeArrivals: string;
+  avgScheduleDelay: string;
+  slaTarget: string;
+  priorityReliability: string;
+  scheduleAdherence: string;
+  onTime: string;
+  delayed: string;
+  months6Label: string;
+  weeks12Label: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -465,7 +491,29 @@ export const translations: Record<Language, Translations> = {
     glecTotalWtwLabel: "Total WTW Factor",
     glecLiveCalculation: "Live Calculation Breakdown",
     glecFactorsTableTitle: "GLEC v3.0 Default Emission Factors (kg CO2e / t·km)",
-    glecTocSource: "Transport Operation Category"
+    glecTocSource: "Transport Operation Category",
+    dwellTimeHours: "Port Dwell Time (Hours)",
+    dwellCost: "Dwell Cost",
+    dwellEmissions: "Dwell CO2e",
+    dwellImpactLabel: "Dwell Impact",
+    dwellPresetFast: "0h Fast-Track",
+    dwellPresetNormal: "24h Normal",
+    dwellPresetModerate: "48h Moderate",
+    dwellPresetCongested: "72h Congested",
+    dwellNote: "Quay storage + vessel hoteling (GLEC v3.0: 2.8 kg CO2e/TEU·h)",
+    scheduleReliability: "Schedule Reliability",
+    reliabilityOverTime: "Schedule Reliability Over Time",
+    reliabilityOverTimeDesc: "On-time ETA adherence (%) across portfolio & transport modes",
+    scheduleReliabilityNote: "Tracks planned vs. actual schedule adherence (excludes cargo insurance).",
+    onTimeArrivals: "On-Time Runs",
+    avgScheduleDelay: "Avg Delay",
+    slaTarget: "SLA Target (88%)",
+    priorityReliability: "Highest Schedule Reliability",
+    scheduleAdherence: "Schedule ETA",
+    onTime: "On Time",
+    delayed: "Delayed",
+    months6Label: "6M Monthly",
+    weeks12Label: "12W Bi-weekly"
   },
   tr: {
     dashboard: "Panel",
@@ -693,7 +741,29 @@ export const translations: Record<Language, Translations> = {
     glecTotalWtwLabel: "Toplam WTW Faktörü",
     glecLiveCalculation: "Canlı Hesaplama Kırılımı",
     glecFactorsTableTitle: "GLEC v3.0 Varsayılan Emisyon Faktörleri (kg CO2e / t·km)",
-    glecTocSource: "Taşıma Operasyon Kategorisi"
+    glecTocSource: "Taşıma Operasyon Kategorisi",
+    dwellTimeHours: "Liman Bekleme Süresi (Saat)",
+    dwellCost: "Bekleme Maliyeti",
+    dwellEmissions: "Bekleme CO2e",
+    dwellImpactLabel: "Bekleme Etkisi",
+    dwellPresetFast: "0s Hızlı Geçiş",
+    dwellPresetNormal: "24s Normal",
+    dwellPresetModerate: "48s Yoğun",
+    dwellPresetCongested: "72s Sıkışıklık",
+    dwellNote: "Ardiye + rıhtım yardımcı yakıtı (GLEC v3.0: 2,8 kg CO2e/TEU·s)",
+    scheduleReliability: "Zamanlama Güvenilirliği",
+    reliabilityOverTime: "Zaman İçinde Tarife Güvenilirliği",
+    reliabilityOverTimeDesc: "Portföy ve taşıma modlarına göre planlanan ETA uyum oranı (%)",
+    scheduleReliabilityNote: "Planlanan teslimat zamanına uyumu ölçer (yük sigortası kapsam dışıdır).",
+    onTimeArrivals: "Zamanında Sefer",
+    avgScheduleDelay: "Ort. Gecikme",
+    slaTarget: "SLA Hedefi (%88)",
+    priorityReliability: "En Yüksek Tarife Güvenilirliği",
+    scheduleAdherence: "Tarife Durumu",
+    onTime: "Zamanında",
+    delayed: "Gecikmeli",
+    months6Label: "6 Ay",
+    weeks12Label: "12 Hafta"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -921,7 +991,29 @@ export const translations: Record<Language, Translations> = {
     glecTotalWtwLabel: "Συνολικός Συντελεστής WTW",
     glecLiveCalculation: "Ζωντανή Ανάλυση Υπολογισμού",
     glecFactorsTableTitle: "Προεπιλεγμένοι Συντελεστές GLEC v3.0 (kg CO2e / t·km)",
-    glecTocSource: "Κατηγορία Λειτουργίας Μεταφοράς"
+    glecTocSource: "Κατηγορία Λειτουργίας Μεταφοράς",
+    dwellTimeHours: "Χρόνος Αναμονής Λιμένα (Ώρες)",
+    dwellCost: "Κόστος Αναμονής",
+    dwellEmissions: "CO2e Αναμονής",
+    dwellImpactLabel: "Επίπτωση Αναμονής",
+    dwellPresetFast: "0ω Ταχεία",
+    dwellPresetNormal: "24ω Κανονική",
+    dwellPresetModerate: "48ω Μέτρια",
+    dwellPresetCongested: "72ω Συμφόρηση",
+    dwellNote: "Αποθήκευση + βοηθητική ενέργεια πλοίου (GLEC v3.0: 2,8 kg CO2e/TEU·h)",
+    scheduleReliability: "Αξιοπιστία Χρονοδιαγράμματος",
+    reliabilityOverTime: "Αξιοπιστία Χρονοδιαγράμματος στον Χρόνο",
+    reliabilityOverTimeDesc: "Ποσοστό έγκαιρης τήρησης ETA (%) ανά μεταφορικό μέσο",
+    scheduleReliabilityNote: "Μετρά την τήρηση προγραμματισμένων αφίξεων (δεν αφορά ασφάλιση φορτίου).",
+    onTimeArrivals: "Έγκαιρα Δρομολόγια",
+    avgScheduleDelay: "Μέση Καθυστέρηση",
+    slaTarget: "Στόχος SLA (88%)",
+    priorityReliability: "Μέγιστη Αξιοπιστία Χρονοδιαγράμματος",
+    scheduleAdherence: "Τήρηση ETA",
+    onTime: "Εμπρόθεσμο",
+    delayed: "Καθυστέρηση",
+    months6Label: "6 Μήνες",
+    weeks12Label: "12 Εβδ."
   }
 };
 

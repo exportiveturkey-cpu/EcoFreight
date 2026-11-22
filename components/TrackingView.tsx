@@ -8,7 +8,7 @@ import {
 import { Shipment, Leg, TransportMode } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
 import { getLocationInsights, MapInsight, predictShipmentETA, getRiskAlerts, analyzeCargoDamage } from '../services/gemini';
-import { getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentTeuKm } from '../services/carbon';
+import { getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime } from '../services/carbon';
 import { formatNumber } from '../services/formatters';
 
 interface TrackingViewProps { shipments: Shipment[]; lang: Language; }
@@ -452,7 +452,11 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                     return `${formatNumber(g.totalKg)} kg (TTW ${formatNumber(g.ttwKg)} + WTT ${formatNumber(g.wttKg)})`;
                   })() : '—'}
                 />
-                <StatRow icon={<Clock size={14}/>} label="ETA Schedule" value="On Schedule (ETA Oct 14)" />
+                <StatRow
+                  icon={<Clock size={14}/>}
+                  label={t.scheduleReliability}
+                  value={selectedShipment ? `${getShipmentScheduleReliability(selectedShipment).toFixed(1)}% (${isShipmentOnTime(selectedShipment) ? t.onTime : `${t.delayed} +${selectedShipment.scheduleDelayHours ?? 0}h`})` : '—'}
+                />
                 <StatRow icon={<Wind size={14}/>} label="Weather / Sea" value="Sea State 2 (Calm)" />
                 <StatRow icon={<Shield size={14}/>} label="Incoterms" value={selectedShipment?.incoterms || 'DAP'} />
              </div>
