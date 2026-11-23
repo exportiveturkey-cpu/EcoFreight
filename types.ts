@@ -21,9 +21,21 @@ export interface TrackingEvent {
   description: string;
 }
 
+export type SeaServiceType = 'LINER' | 'TRAMP';
+
+export type VesselType =
+  | 'CONTAINER_DEEPSEA'
+  | 'CONTAINER_FEEDER'
+  | 'RORO_FERRY'
+  | 'MULTI_PURPOSE_TRAMP'
+  | 'HANDYSIZE_BULK'
+  | 'COASTAL_CHARTER';
+
 export interface Leg {
   id: string;
   mode: TransportMode;
+  seaServiceType?: SeaServiceType;
+  vesselType?: VesselType;
   origin: string;
   destination: string;
   distanceKm: number;
@@ -45,6 +57,17 @@ export type SpeedProfile = 'standard' | 'eco';
 
 export interface RouteCostOption {
   mode: string;
+  seaServiceType?: SeaServiceType;
+  vesselType?: VesselType;
+  linerLineCode?: string;
+  linerLineName?: string;
+  fixedDepartureUtc?: string;
+  predictableEtaWindow?: string;
+  etaConfidenceHours?: number;
+  publishedEmissionGPerTeuKm?: number;
+  publishedEmissionMethod?: string;
+  ballastPct?: number;
+  dwellMultiplier?: number;
   speedProfile?: SpeedProfile;
   slowSteamingPct?: number;
   vesselSpeedKnots?: number;
@@ -85,6 +108,53 @@ export interface RouteCostOption {
   reasoning: string;
 }
 
+export interface LinerServiceLine {
+  lineCode: string;
+  lineName: string;
+  carrier: string;
+  corridorLabel: string;
+  corridorKeywords: string[];
+  vesselType: VesselType;
+  frequency: string;
+  departureWindowUtc: string;
+  cutoffWindowUtc: string;
+  predictableEtaWindow: string;
+  etaToleranceHours: number;
+  scheduleReliabilityPct: number;
+  weatherWindowStatus: 'clear' | 'watch' | 'advisory';
+  weatherWindowSummary: string;
+  publishedEmissionKgPerTkm: number;
+  publishedEmissionGPerTeuKm: number;
+  publishedVoyageKgPerTeu: number;
+  publicationStandard: string;
+  fuelBlend: string;
+  yoyIntensityDeltaPct: number;
+}
+
+export interface LinerAlertEvent {
+  id: string;
+  shipmentId: string;
+  lineCode: string;
+  lineName: string;
+  category: 'schedule_change' | 'weather_window';
+  severity: 'info' | 'warning';
+  channel: 'sms_and_app' | 'app_only';
+  recipientPhone: string;
+  title: string;
+  message: string;
+  etaImpact: string;
+  timestamp: string;
+  read: boolean;
+}
+
+export interface LinerNotificationPrefs {
+  smsEnabled: boolean;
+  inAppEnabled: boolean;
+  scheduleChanges: boolean;
+  weatherWindows: boolean;
+  recipientPhone: string;
+}
+
 export interface CarbonAwareTradeOff {
   baselineRoute: RouteCostOption;
   recommendedRoute: RouteCostOption;
@@ -108,6 +178,14 @@ export interface Shipment {
   weightTonnes: number;
   volumeCbm: number;
   containers?: number;
+  seaServiceType?: SeaServiceType;
+  vesselType?: VesselType;
+  linerLineCode?: string;
+  linerLineName?: string;
+  fixedDepartureUtc?: string;
+  predictableEtaWindow?: string;
+  etaConfidenceHours?: number;
+  publishedEmissionGPerTeuKm?: number;
   dwellTimeHours?: number;
   scheduleDelayHours?: number;
   scheduleReliabilityPct?: number;

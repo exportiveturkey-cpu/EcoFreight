@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Leaf, Zap, Globe, Wind, Trees, Sparkles, TrendingDown, ArrowRight, ShieldCheck, Loader2, CheckCircle, Download, X, Award, FileText, Scale, Landmark } from 'lucide-react';
 import { Shipment, Recommendation, TransportMode } from '../types';
 import { getSustainabilityInsights } from '../services/gemini';
-import { getOffsetPrice, getShipmentContainers, getShipmentTeuKm } from '../services/carbon';
+import { getOffsetPrice, getShipmentContainers, getShipmentTeuKm, LINER_SERVICE_LINES } from '../services/carbon';
 import { formatEUR, formatNumber } from '../services/formatters';
 import { toCsv } from '../services/csv';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
@@ -123,6 +123,52 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
               />
             </div>
             <GlecMethodPanel lang={lang} />
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">{t.publishedLineEmissionsTitle}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{t.publishedLineEmissionsDesc}</p>
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500">
+                      <th className="py-2.5 px-3">{t.linerLineCol}</th>
+                      <th className="py-2.5 px-3">{t.sailingScheduleCol}</th>
+                      <th className="py-2.5 px-3">{t.etaWindowCol}</th>
+                      <th className="py-2.5 px-3 text-right">{t.publishedIntensityCol}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {LINER_SERVICE_LINES.map((line) => (
+                      <tr key={line.lineCode} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3">
+                          <p className="font-bold text-slate-900">
+                            <span className="font-mono text-blue-700">{line.lineCode}</span> · {line.lineName}
+                          </p>
+                          <p className="text-[11px] text-slate-500">{line.carrier} · {line.corridorLabel}</p>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono tabular-nums">
+                          <p className="font-semibold text-slate-800">{line.departureWindowUtc}</p>
+                          <p className="text-[11px] font-sans text-slate-500">{line.frequency}</p>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono tabular-nums">
+                          <p className="font-bold text-teal-700">{line.predictableEtaWindow}</p>
+                          <p className="text-[11px] text-slate-500">{line.scheduleReliabilityPct.toFixed(1)}% OTIF</p>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
+                          <p className="font-extrabold text-emerald-700">
+                            {line.publishedEmissionGPerTeuKm.toFixed(1)} g/TEU-km · {line.publishedEmissionKgPerTkm.toFixed(3)} kg/t·km
+                          </p>
+                          <p className="text-[11px] font-sans text-slate-500">
+                            {line.publishedVoyageKgPerTeu} kg/TEU · {line.publicationStandard} ({line.yoyIntensityDeltaPct}%)
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
           )}
 

@@ -23,7 +23,9 @@ import {
   getShipmentContainers,
   getShipmentDistanceKm,
   getShipmentScheduleReliability,
+  getShipmentSeaServiceType,
   getShipmentTeuKm,
+  getVesselTypeSpec,
   isShipmentOnTime
 } from '../services/carbon';
 import GlecMethodPanel from './GlecMethodPanel';
@@ -329,8 +331,14 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
                       <p className="font-extrabold text-slate-900 font-mono">{s.id}</p>
                       <p className="text-[11px] text-slate-500">{s.customerName}</p>
                     </td>
-                    <td className="py-4 font-bold text-slate-700">
-                      {s.origin} → {s.destination}
+                    <td className="py-4">
+                      <span className="font-bold text-slate-700 block">{s.origin} → {s.destination}</span>
+                      {getShipmentSeaServiceType(s) && (
+                        <span className="text-[11px] font-medium text-slate-500 block">
+                          {getShipmentSeaServiceType(s) === 'TRAMP' ? t.seaTramp : t.seaLiner}
+                          {s.vesselType ? ` · ${t[getVesselTypeSpec(s.vesselType).labelKey]}` : ''}
+                        </span>
+                      )}
                     </td>
                     <td className="py-4">
                       <span className="font-bold text-slate-900">{s.weightTonnes}t · {teuCount} TEU</span>

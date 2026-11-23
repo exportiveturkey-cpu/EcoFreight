@@ -1,5 +1,17 @@
 
-import { TransportMode, RouteCostOption, Shipment, ScheduleReliabilityPoint, SpeedProfile, CarbonAwareTradeOff } from '../types';
+import {
+  TransportMode,
+  RouteCostOption,
+  Shipment,
+  ScheduleReliabilityPoint,
+  SpeedProfile,
+  CarbonAwareTradeOff,
+  SeaServiceType,
+  VesselType,
+  LinerServiceLine,
+  LinerAlertEvent,
+  LinerNotificationPrefs
+} from '../types';
 
 /**
  * GLEC Framework v3.0 / ISO 14083 Well-to-Wheel (WTW) default emission intensity factors
@@ -14,6 +26,322 @@ export interface GlecModeFactorSpec {
   tocSource: string;
 }
 
+export interface VesselTypeSpec {
+  id: VesselType;
+  serviceType: SeaServiceType;
+  labelKey:
+    | 'vesselContainerDeepsea'
+    | 'vesselContainerFeeder'
+    | 'vesselRoroFerry'
+    | 'vesselMppTramp'
+    | 'vesselHandysizeBulk'
+    | 'vesselCoastalCharter';
+  capacityLabel: string;
+  defaultSpeedKts: number;
+  wtw: number;
+  ttw: number;
+  wtt: number;
+  freightMult: number;
+  fuelMult: number;
+  reliabilityDelta: number;
+  tocSource: string;
+}
+
+export const VESSEL_TYPE_SPECS: Record<VesselType, VesselTypeSpec> = {
+  CONTAINER_DEEPSEA: {
+    id: 'CONTAINER_DEEPSEA',
+    serviceType: 'LINER',
+    labelKey: 'vesselContainerDeepsea',
+    capacityLabel: '14,000 TEU',
+    defaultSpeedKts: 20.0,
+    wtw: 0.011,
+    ttw: 0.009,
+    wtt: 0.002,
+    freightMult: 0.96,
+    fuelMult: 0.94,
+    reliabilityDelta: 0,
+    tocSource: 'Deep-Sea Container Liner 14k TEU (VLSFO/LNG, GLEC v3.0)'
+  },
+  CONTAINER_FEEDER: {
+    id: 'CONTAINER_FEEDER',
+    serviceType: 'LINER',
+    labelKey: 'vesselContainerFeeder',
+    capacityLabel: '2,500 TEU',
+    defaultSpeedKts: 18.0,
+    wtw: 0.014,
+    ttw: 0.012,
+    wtt: 0.002,
+    freightMult: 1.03,
+    fuelMult: 1.05,
+    reliabilityDelta: 1.0,
+    tocSource: 'Short-Sea Feeder Container Liner 2.5k TEU (GLEC v3.0)'
+  },
+  RORO_FERRY: {
+    id: 'RORO_FERRY',
+    serviceType: 'LINER',
+    labelKey: 'vesselRoroFerry',
+    capacityLabel: '4,200 lane-m',
+    defaultSpeedKts: 21.0,
+    wtw: 0.019,
+    ttw: 0.016,
+    wtt: 0.003,
+    freightMult: 1.14,
+    fuelMult: 1.18,
+    reliabilityDelta: 2.5,
+    tocSource: 'Scheduled Ro-Ro / ConRo Liner Vessel (GLEC v3.0)'
+  },
+  MULTI_PURPOSE_TRAMP: {
+    id: 'MULTI_PURPOSE_TRAMP',
+    serviceType: 'TRAMP',
+    labelKey: 'vesselMppTramp',
+    capacityLabel: '15,000 DWT',
+    defaultSpeedKts: 14.5,
+    wtw: 0.016,
+    ttw: 0.013,
+    wtt: 0.003,
+    freightMult: 1.0,
+    fuelMult: 1.04,
+    reliabilityDelta: 0,
+    tocSource: 'Multi-Purpose Tramp Charter 15k DWT (+12% Ballast, GLEC v3.0)'
+  },
+  HANDYSIZE_BULK: {
+    id: 'HANDYSIZE_BULK',
+    serviceType: 'TRAMP',
+    labelKey: 'vesselHandysizeBulk',
+    capacityLabel: '32,000 DWT',
+    defaultSpeedKts: 14.0,
+    wtw: 0.013,
+    ttw: 0.011,
+    wtt: 0.002,
+    freightMult: 0.87,
+    fuelMult: 0.91,
+    reliabilityDelta: -1.5,
+    tocSource: 'Handysize Bulk Spot Charter 32k DWT (+12% Ballast, GLEC v3.0)'
+  },
+  COASTAL_CHARTER: {
+    id: 'COASTAL_CHARTER',
+    serviceType: 'TRAMP',
+    labelKey: 'vesselCoastalCharter',
+    capacityLabel: '5,000 DWT',
+    defaultSpeedKts: 12.5,
+    wtw: 0.018,
+    ttw: 0.015,
+    wtt: 0.003,
+    freightMult: 0.94,
+    fuelMult: 1.08,
+    reliabilityDelta: 1.5,
+    tocSource: 'Coastal General Cargo Coaster Tramp 5k DWT (+12% Ballast, GLEC v3.0)'
+  }
+};
+
+export const LINER_VESSEL_TYPES: VesselType[] = [
+  'CONTAINER_DEEPSEA',
+  'CONTAINER_FEEDER',
+  'RORO_FERRY'
+];
+
+export const TRAMP_VESSEL_TYPES: VesselType[] = [
+  'MULTI_PURPOSE_TRAMP',
+  'HANDYSIZE_BULK',
+  'COASTAL_CHARTER'
+];
+
+export const getVesselTypeSpec = (vesselType?: VesselType, mode?: string): VesselTypeSpec => {
+  if (vesselType && VESSEL_TYPE_SPECS[vesselType]) {
+    return VESSEL_TYPE_SPECS[vesselType];
+  }
+  if (mode === 'SEA_TRAMP') return VESSEL_TYPE_SPECS.MULTI_PURPOSE_TRAMP;
+  if (mode === 'SEA_RAIL') return VESSEL_TYPE_SPECS.CONTAINER_FEEDER;
+  return VESSEL_TYPE_SPECS.CONTAINER_DEEPSEA;
+};
+
+export const isMaritimeRouteMode = (mode: string): boolean => {
+  return mode === 'SEA' || mode === 'SEA_LINER' || mode === 'SEA_TRAMP' || mode === 'SEA_RAIL';
+};
+
+export const LINER_SERVICE_LINES: LinerServiceLine[] = [
+  {
+    lineCode: 'MED-FE1',
+    lineName: 'Med–Asia Deep-Sea Loop',
+    carrier: 'Global Maritime Group',
+    corridorLabel: 'Rotterdam / Piraeus ↔ Singapore',
+    corridorKeywords: ['rotterdam', 'singapore', 'asia', 'shanghai', 'suex', 'suez', 'nl', 'sg'],
+    vesselType: 'CONTAINER_DEEPSEA',
+    frequency: 'Weekly Fixed-Day',
+    departureWindowUtc: 'Thu 22:00 UTC',
+    cutoffWindowUtc: 'Thu 12:00 UTC',
+    predictableEtaWindow: 'Fixed 14d · ±3h berth window',
+    etaToleranceHours: 3,
+    scheduleReliabilityPct: 91.4,
+    weatherWindowStatus: 'clear',
+    weatherWindowSummary: 'Clear passage across Med & Red Sea transit gate (Wave < 1.8m)',
+    publishedEmissionKgPerTkm: 0.011,
+    publishedEmissionGPerTeuKm: 10.8,
+    publishedVoyageKgPerTeu: 46.2,
+    publicationStandard: 'ISO 14083 / GLEC v3.0 WTW',
+    fuelBlend: 'Dual-Fuel LNG + Shore Power',
+    yoyIntensityDeltaPct: -12.5
+  },
+  {
+    lineCode: 'AEG-NWE',
+    lineName: 'Aegean–North Sea Express',
+    carrier: 'Hellenic Container Lines',
+    corridorLabel: 'Piraeus / Izmir ↔ Hamburg / Rotterdam',
+    corridorKeywords: ['piraeus', 'athens', 'thessaloniki', 'izmir', 'hamburg', 'felixstowe', 'gr', 'de', 'tr'],
+    vesselType: 'CONTAINER_FEEDER',
+    frequency: '2× Weekly Fixed',
+    departureWindowUtc: 'Tue & Fri 18:00 UTC',
+    cutoffWindowUtc: 'Mon & Thu 16:00 UTC',
+    predictableEtaWindow: 'Fixed 7d · ±2h berth window',
+    etaToleranceHours: 2,
+    scheduleReliabilityPct: 92.8,
+    weatherWindowStatus: 'watch',
+    weatherWindowSummary: 'Aegean NE Meltemi 22 kt forecast · Weather routing window open (+1.5h buffer)',
+    publishedEmissionKgPerTkm: 0.014,
+    publishedEmissionGPerTeuKm: 13.6,
+    publishedVoyageKgPerTeu: 32.8,
+    publicationStandard: 'Clean Cargo / GLEC v3.0 Audited',
+    fuelBlend: 'VLSFO + 15% Bio-LNG',
+    yoyIntensityDeltaPct: -9.2
+  },
+  {
+    lineCode: 'BAL-NSL',
+    lineName: 'Nordic–Antwerp Ro-Ro Loop',
+    carrier: 'Nordic Ro-Ro Express',
+    corridorLabel: 'Gothenburg / Oslo ↔ Antwerp / Gdańsk',
+    corridorKeywords: ['gothenburg', 'oslo', 'helsinki', 'copenhagen', 'antwerp', 'gdansk', 'gdańsk', 'se', 'no', 'fi', 'dk', 'be', 'pl'],
+    vesselType: 'RORO_FERRY',
+    frequency: '3× Weekly Fixed',
+    departureWindowUtc: 'Mon / Wed / Fri 20:00 UTC',
+    cutoffWindowUtc: '4h prior to ETD',
+    predictableEtaWindow: 'Fixed 3d · ±1.5h berth window',
+    etaToleranceHours: 1.5,
+    scheduleReliabilityPct: 94.6,
+    weatherWindowStatus: 'clear',
+    weatherWindowSummary: 'North Sea Skagerrak weather window green (Beaufort 3)',
+    publishedEmissionKgPerTkm: 0.019,
+    publishedEmissionGPerTeuKm: 18.2,
+    publishedVoyageKgPerTeu: 21.4,
+    publicationStandard: 'EU MRV + GLEC v3.0 Verified',
+    fuelBlend: 'Battery-Hybrid + MGO',
+    yoyIntensityDeltaPct: -14.1
+  },
+  {
+    lineCode: 'ION-ADR',
+    lineName: 'Ionian–Adriatic Feeder Line',
+    carrier: 'Adriatic Intermodal Liner',
+    corridorLabel: 'Igoumenitsa / Valencia ↔ Bari / Genoa',
+    corridorKeywords: ['igoumenitsa', 'bari', 'venice', 'genoa', 'milan', 'valencia', 'barcelona', 'split', 'it', 'es', 'hr'],
+    vesselType: 'CONTAINER_FEEDER',
+    frequency: 'Every 48h Fixed',
+    departureWindowUtc: 'Mon / Wed / Fri / Sun 14:00 UTC',
+    cutoffWindowUtc: '6h prior to ETD',
+    predictableEtaWindow: 'Fixed 2d · ±2h berth window',
+    etaToleranceHours: 2,
+    scheduleReliabilityPct: 92.1,
+    weatherWindowStatus: 'advisory',
+    weatherWindowSummary: 'Adriatic southerly swell window advisory Tue 06:00–14:00 UTC',
+    publishedEmissionKgPerTkm: 0.014,
+    publishedEmissionGPerTeuKm: 14.1,
+    publishedVoyageKgPerTeu: 19.5,
+    publicationStandard: 'Clean Cargo / GLEC v3.0 Audited',
+    fuelBlend: 'VLSFO + Cold Ironing',
+    yoyIntensityDeltaPct: -7.6
+  }
+];
+
+export const matchLinerLineForCorridor = (
+  origin: string,
+  destination: string,
+  vesselType?: VesselType
+): LinerServiceLine => {
+  const combined = `${origin} ${destination}`.toLowerCase();
+  const scored = LINER_SERVICE_LINES.map((line) => {
+    let score = 0;
+    for (const kw of line.corridorKeywords) {
+      if (combined.includes(kw)) score += 2;
+    }
+    if (vesselType && line.vesselType === vesselType) {
+      score += 3;
+    }
+    return { line, score };
+  }).sort((a, b) => b.score - a.score);
+
+  return scored[0]?.line ?? LINER_SERVICE_LINES[0];
+};
+
+export const DEFAULT_LINER_NOTIFICATION_PREFS: LinerNotificationPrefs = {
+  smsEnabled: true,
+  inAppEnabled: true,
+  scheduleChanges: true,
+  weatherWindows: true,
+  recipientPhone: '+30 694 018 4420'
+};
+
+export const INITIAL_LINER_ALERTS: LinerAlertEvent[] = [
+  {
+    id: 'AL-101',
+    shipmentId: 'SH-8291',
+    lineCode: 'MED-FE1',
+    lineName: 'Med–Asia Deep-Sea Loop',
+    category: 'schedule_change',
+    severity: 'info',
+    channel: 'sms_and_app',
+    recipientPhone: '+30 694 018 4420',
+    title: 'Fixed Berth Slot Confirmed · +1.5h Suez Convoy Window',
+    message: 'MED-FE1 northbound convoy clearance confirmed; PSA Singapore ETA remains within predictable ±3h SLA window.',
+    etaImpact: 'ETA within ±3h SLA',
+    timestamp: '2026-10-06T14:40:00Z',
+    read: false
+  },
+  {
+    id: 'AL-102',
+    shipmentId: 'SH-9849',
+    lineCode: 'AEG-NWE',
+    lineName: 'Aegean–North Sea Express',
+    category: 'weather_window',
+    severity: 'warning',
+    channel: 'sms_and_app',
+    recipientPhone: '+30 694 018 4420',
+    title: 'Weather Window Notice · Aegean NE Wind (22 kts)',
+    message: 'AEG-NWE feeder adjusted Cyclades passage timing; Piraeus rail handover berth slot preserved.',
+    etaImpact: '+1.5h buffer · Intermodal connection safe',
+    timestamp: '2026-10-06T16:10:00Z',
+    read: false
+  }
+];
+
+export const createSimulatedLinerAlert = (
+  category: 'schedule_change' | 'weather_window',
+  shipmentId: string,
+  line: LinerServiceLine,
+  prefs: LinerNotificationPrefs
+): LinerAlertEvent => {
+  const nowIso = new Date().toISOString();
+  const isSchedule = category === 'schedule_change';
+  return {
+    id: `AL-${Math.floor(200 + Math.random() * 799)}`,
+    shipmentId,
+    lineCode: line.lineCode,
+    lineName: line.lineName,
+    category,
+    severity: isSchedule ? 'info' : 'warning',
+    channel: prefs.smsEnabled ? 'sms_and_app' : 'app_only',
+    recipientPhone: prefs.recipientPhone || '+30 694 018 4420',
+    title: isSchedule
+      ? `[Demo] Berth Schedule Shift · ${line.lineCode} (${line.departureWindowUtc})`
+      : `[Demo] Marine Weather Window Advisory · ${line.lineCode}`,
+    message: isSchedule
+      ? `Liner loop ${line.lineName} shifted departure window by +2h due to terminal crane balancing. Predictable ETA tolerance (±${line.etaToleranceHours}h) remains locked.`
+      : `${line.weatherWindowSummary}. Vessel speed trimmed -5% inside calm corridor window with no missed rail handover.`,
+    etaImpact: isSchedule
+      ? `ETD +2h · ETA within ±${line.etaToleranceHours}h`
+      : 'Weather window buffer +2h · Published SLA held',
+    timestamp: nowIso,
+    read: false
+  };
+};
+
 export const GLEC_FRAMEWORK_METADATA = {
   framework: 'GLEC Framework v3.0',
   standard: 'ISO 14083:2023 Aligned',
@@ -22,6 +350,22 @@ export const GLEC_FRAMEWORK_METADATA = {
 };
 
 export const GLEC_MODE_FACTORS: Record<string, GlecModeFactorSpec> = {
+  SEA_LINER: {
+    mode: 'SEA_LINER',
+    wtw: 0.012,
+    ttw: 0.010,
+    wtt: 0.002,
+    unit: 'kg CO2e / t·km',
+    tocSource: 'Scheduled Container Liner Vessel (VLSFO/LNG, GLEC v3.0)'
+  },
+  SEA_TRAMP: {
+    mode: 'SEA_TRAMP',
+    wtw: 0.016,
+    ttw: 0.013,
+    wtt: 0.003,
+    unit: 'kg CO2e / t·km',
+    tocSource: 'Tramp / Voyage Charter Vessel (+12% Ballast Repositioning, GLEC v3.0)'
+  },
   [TransportMode.SEA]: {
     mode: TransportMode.SEA,
     wtw: 0.012,
@@ -36,7 +380,7 @@ export const GLEC_MODE_FACTORS: Record<string, GlecModeFactorSpec> = {
     ttw: 0.007,
     wtt: 0.010,
     unit: 'kg CO2e / t·km',
-    tocSource: 'Maritime + Electrified Rail Intermodal Composite (GLEC v3.0)'
+    tocSource: 'Maritime Liner + Electrified Rail Intermodal Composite (GLEC v3.0)'
   },
   [TransportMode.RAIL]: {
     mode: TransportMode.RAIL,
@@ -69,6 +413,8 @@ export const EMISSION_FACTORS: Record<string, number> = {
   [TransportMode.ROAD]: GLEC_MODE_FACTORS[TransportMode.ROAD].wtw,
   [TransportMode.RAIL]: GLEC_MODE_FACTORS[TransportMode.RAIL].wtw,
   [TransportMode.SEA]: GLEC_MODE_FACTORS[TransportMode.SEA].wtw,
+  SEA_LINER: GLEC_MODE_FACTORS.SEA_LINER.wtw,
+  SEA_TRAMP: GLEC_MODE_FACTORS.SEA_TRAMP.wtw,
   SEA_RAIL: GLEC_MODE_FACTORS.SEA_RAIL.wtw
 };
 
@@ -102,7 +448,8 @@ export interface DwellImpactBreakdown {
 }
 
 export const getDwellModeShare = (mode: string, applyToAllModes: boolean = false): number => {
-  if (mode === 'SEA') return 1.0;
+  if (mode === 'SEA_TRAMP') return 1.35; // Unscheduled charter berth queueing & NOR laytime exposure
+  if (mode === 'SEA' || mode === 'SEA_LINER') return 1.0; // Scheduled berth slot
   if (mode === 'SEA_RAIL') return 0.65;
   return applyToAllModes ? 0.25 : 0;
 };
@@ -133,10 +480,12 @@ export const computeDwellImpact = (
     };
   }
 
-  const isMaritime = mode === 'SEA' || mode === 'SEA_RAIL';
+  const isMaritime = isMaritimeRouteMode(mode);
+  const isTramp = mode === 'SEA_TRAMP';
   // GLEC v3.0 auxiliary hoteling / logistics terminal emission intensity (kg CO2e / TEU·h)
-  const wtwPerTeuHour = isMaritime ? 2.8 : 1.2;
-  const ttwPerTeuHour = isMaritime ? 2.3 : 0.85;
+  const wtwPerTeuHour = isTramp ? 3.1 : isMaritime ? 2.8 : 1.2;
+  const ttwPerTeuHour = isTramp ? 2.55 : isMaritime ? 2.3 : 0.85;
+  const demurrageRateMult = isTramp ? 1.25 : 1.0;
 
   const dwellEmissionsKg = Math.round(dwellHours * safeContainers * wtwPerTeuHour);
   const dwellTtwKg = Math.round(dwellHours * safeContainers * ttwPerTeuHour);
@@ -145,7 +494,8 @@ export const computeDwellImpact = (
   const dwellOperationalCost = Math.round(
     dwellHours *
       safeContainers *
-      (DWELL_STORAGE_EUR_PER_TEU_HOUR + DWELL_AUX_FUEL_EUR_PER_TEU_HOUR * Math.max(0.3, fuelMultiplier))
+      (DWELL_STORAGE_EUR_PER_TEU_HOUR + DWELL_AUX_FUEL_EUR_PER_TEU_HOUR * Math.max(0.3, fuelMultiplier)) *
+      demurrageRateMult
   );
   const dwellCost = dwellOperationalCost + dwellCo2Cost;
   const dwellDaysAdded = Number((dwellHours / 24).toFixed(1));
@@ -165,6 +515,8 @@ export const computeDwellImpact = (
 export const SCHEDULE_SLA_TARGET_PCT = 88.0;
 
 export const MODE_BASELINE_SCHEDULE_RELIABILITY: Record<string, number> = {
+  SEA_LINER: 90.5,
+  SEA_TRAMP: 76.5,
   SEA: 88.5,
   SEA_RAIL: 93.0,
   RAIL: 94.5,
@@ -175,12 +527,18 @@ export const MODE_BASELINE_SCHEDULE_RELIABILITY: Record<string, number> = {
 export const computeModeScheduleReliability = (
   mode: string,
   dwellTimeHours: number = 0,
-  applyToAllModes: boolean = false
+  applyToAllModes: boolean = false,
+  vesselType?: VesselType
 ): { baselineReliabilityPct: number; scheduleReliabilityPct: number } => {
-  const baseline = MODE_BASELINE_SCHEDULE_RELIABILITY[mode] ?? 88.5;
+  const vesselDelta =
+    vesselType && VESSEL_TYPE_SPECS[vesselType] && (mode === 'SEA_LINER' || mode === 'SEA_TRAMP' || mode === 'SEA')
+      ? VESSEL_TYPE_SPECS[vesselType].reliabilityDelta
+      : 0;
+  const baseline = Number(((MODE_BASELINE_SCHEDULE_RELIABILITY[mode] ?? 88.5) + vesselDelta).toFixed(1));
   const share = getDwellModeShare(mode, applyToAllModes);
   const effectiveDwell = Math.max(0, Number(dwellTimeHours) || 0) * share;
-  const penalty = Math.min(25, effectiveDwell * 0.18);
+  const decayRate = mode === 'SEA_TRAMP' ? 0.22 : 0.15;
+  const penalty = Math.min(25, effectiveDwell * decayRate);
   const scheduleReliabilityPct = Number(Math.max(55, baseline - penalty).toFixed(1));
   return {
     baselineReliabilityPct: baseline,
@@ -188,11 +546,24 @@ export const computeModeScheduleReliability = (
   };
 };
 
+export const getShipmentSeaServiceType = (shipment: Shipment): SeaServiceType | undefined => {
+  if (shipment.seaServiceType) return shipment.seaServiceType;
+  const legWithService = (shipment.legs || []).find((l) => l.seaServiceType);
+  if (legWithService?.seaServiceType) return legWithService.seaServiceType;
+  const hasSea = (shipment.legs || []).some((l) => l.mode === TransportMode.SEA);
+  if (!hasSea) return undefined;
+  return (shipment.weightTonnes || 0) >= 20 && (shipment.scheduleReliabilityPct ?? 90) < 84 ? 'TRAMP' : 'LINER';
+};
+
 export const getShipmentPrimaryMode = (shipment: Shipment): string => {
   const legs = shipment.legs || [];
-  if (legs.length === 0) return TransportMode.SEA;
+  if (legs.length === 0) return 'SEA_LINER';
   const modes = new Set(legs.map((l) => l.mode));
   if (modes.has(TransportMode.SEA) && modes.has(TransportMode.RAIL)) return 'SEA_RAIL';
+  if (legs[0].mode === TransportMode.SEA) {
+    const svc = getShipmentSeaServiceType(shipment);
+    return svc === 'TRAMP' ? 'SEA_TRAMP' : 'SEA_LINER';
+  }
   return legs[0].mode;
 };
 
@@ -203,7 +574,7 @@ export const getShipmentScheduleReliability = (shipment: Shipment): number => {
   const mode = getShipmentPrimaryMode(shipment);
   const dwell = shipment.dwellTimeHours ?? 0;
   const delayPenalty = Math.min(20, Math.max(0, Number(shipment.scheduleDelayHours) || 0) * 0.45);
-  const base = computeModeScheduleReliability(mode, dwell, false).scheduleReliabilityPct;
+  const base = computeModeScheduleReliability(mode, dwell, false, shipment.vesselType).scheduleReliabilityPct;
   return Number(Math.max(55, base - (dwell > 0 ? 0 : delayPenalty)).toFixed(1));
 };
 
@@ -257,7 +628,10 @@ export const getScheduleReliabilitySeries = (
   const liveOnTime = summary?.onTimeCount ?? 0;
   const liveTotal = summary?.totalCount ?? 0;
   const liveAvgDelay = summary?.avgDelayHours ?? 2.8;
-  const liveSea = avgMode((m) => m === TransportMode.SEA, 85.2);
+  const liveSea = avgMode(
+    (m) => m === TransportMode.SEA || m === 'SEA_LINER' || m === 'SEA_TRAMP',
+    85.2
+  );
   const liveIntermodal = avgMode((m) => m === 'SEA_RAIL' || m === TransportMode.RAIL, 93.4);
   const liveRoad = avgMode((m) => m === TransportMode.ROAD, 95.8);
 
@@ -308,8 +682,19 @@ export const getShipmentTeuKm = (shipment: Shipment): number => {
   return calculateTeuKm(getShipmentDistanceKm(shipment), getShipmentContainers(shipment));
 };
 
-export const getGlecFactorSpec = (mode: string): GlecModeFactorSpec => {
-  return GLEC_MODE_FACTORS[mode] ?? GLEC_MODE_FACTORS[TransportMode.SEA];
+export const getGlecFactorSpec = (mode: string, vesselType?: VesselType): GlecModeFactorSpec => {
+  if (vesselType && VESSEL_TYPE_SPECS[vesselType] && (mode === 'SEA_LINER' || mode === 'SEA_TRAMP' || mode === 'SEA')) {
+    const v = VESSEL_TYPE_SPECS[vesselType];
+    return {
+      mode,
+      wtw: v.wtw,
+      ttw: v.ttw,
+      wtt: v.wtt,
+      unit: 'kg CO2e / t·km',
+      tocSource: v.tocSource
+    };
+  }
+  return GLEC_MODE_FACTORS[mode] ?? GLEC_MODE_FACTORS.SEA_LINER;
 };
 
 export interface GlecEmissionBreakdown {
@@ -328,9 +713,10 @@ export interface GlecEmissionBreakdown {
 export const calculateGlecBreakdown = (
   mode: string,
   distanceKm: number,
-  weightTonnes: number
+  weightTonnes: number,
+  vesselType?: VesselType
 ): GlecEmissionBreakdown => {
-  const spec = getGlecFactorSpec(mode);
+  const spec = getGlecFactorSpec(mode, vesselType);
   const d = Math.max(0, Number(distanceKm) || 0);
   const w = Math.max(0, Number(weightTonnes) || 0);
   const ttwKg = Math.round(d * w * spec.ttw);
@@ -439,11 +825,11 @@ export const computeApplicablePortFee = (
   const oFee = Math.max(0, Number(originPortFee) || 0);
   const dFee = Math.max(0, Number(destinationPortFee) || 0);
 
-  if (mode === 'SEA') {
+  if (mode === 'SEA' || mode === 'SEA_LINER' || mode === 'SEA_TRAMP') {
     return Math.round(oFee + dFee);
   }
   if (mode === 'SEA_RAIL') {
-    // Origin maritime port dues + inland intermodal rail terminal discharge (or full if all-modes enabled)
+    // Origin maritime liner port dues + inland intermodal rail terminal discharge (or full if all-modes enabled)
     return applyToAllModes
       ? Math.round(oFee + dFee)
       : Math.round(oFee + dFee * 0.55);
@@ -544,6 +930,15 @@ export const SLOW_STEAMING_TIERS = [
   { pct: 25, knots: 15.0, labelKey: 'slowSteaming25' }
 ] as const;
 
+export const getBaselineVesselSpeedKts = (mode: string, vesselType?: VesselType): number => {
+  if (vesselType && VESSEL_TYPE_SPECS[vesselType]) {
+    return VESSEL_TYPE_SPECS[vesselType].defaultSpeedKts;
+  }
+  if (mode === 'SEA_TRAMP') return 14.5;
+  if (mode === 'SEA_RAIL') return 18.0;
+  return BASELINE_VESSEL_SPEED_KTS;
+};
+
 export const applySlowSteamingToRoute = (
   route: RouteCostOption,
   slowSteamingPct: number,
@@ -551,9 +946,10 @@ export const applySlowSteamingToRoute = (
 ): RouteCostOption => {
   const pct = Math.min(30, Math.max(0, Number(slowSteamingPct) || 0));
   const speedRatio = 1 - pct / 100;
-  const isMaritime = route.mode === 'SEA' || route.mode === 'SEA_RAIL';
+  const isMaritime = isMaritimeRouteMode(route.mode);
+  const baseVesselSpeedKts = getBaselineVesselSpeedKts(route.mode, route.vesselType);
   const vesselSpeedKnots = isMaritime
-    ? Number((BASELINE_VESSEL_SPEED_KTS * speedRatio).toFixed(1))
+    ? Number((baseVesselSpeedKts * speedRatio).toFixed(1))
     : undefined;
 
   if (pct <= 0) {
@@ -570,19 +966,24 @@ export const applySlowSteamingToRoute = (
     };
   }
 
-  // Admiralty / Propeller Law: maritime propulsion fuel burn per nm scales with speed^2 (~15% constant aux load)
-  const maritimePropulsionFactor = 0.15 + 0.85 * (speedRatio * speedRatio);
+  // Admiralty / Propeller Law: maritime propulsion fuel burn per nm scales with speed^2 (~15% aux on Liner, ~18% on Tramp)
+  const linerPropulsionFactor = 0.15 + 0.85 * (speedRatio * speedRatio);
+  const trampPropulsionFactor = 0.18 + 0.82 * (speedRatio * speedRatio);
   let energyMult = 1;
   let baseFreightMult = 1;
   let reliabilityDelta = 0;
 
-  if (route.mode === 'SEA') {
-    energyMult = maritimePropulsionFactor;
-    baseFreightMult = 1 + (pct / 100) * 0.28; // slight charter-days overhead offset by major fuel savings
+  if (route.mode === 'SEA_LINER' || route.mode === 'SEA') {
+    energyMult = linerPropulsionFactor;
+    baseFreightMult = 1 + (pct / 100) * 0.25;
     reliabilityDelta = Math.min(2.2, pct * 0.09);
+  } else if (route.mode === 'SEA_TRAMP') {
+    energyMult = trampPropulsionFactor;
+    baseFreightMult = 1 + (pct / 100) * 0.42; // Daily charter hire increases slightly more per extra voyage day
+    reliabilityDelta = Math.min(1.5, pct * 0.06);
   } else if (route.mode === 'SEA_RAIL') {
     const railEcoFactor = 1 - (pct / 100) * 0.45;
-    energyMult = 0.65 * maritimePropulsionFactor + 0.35 * railEcoFactor;
+    energyMult = 0.65 * linerPropulsionFactor + 0.35 * railEcoFactor;
     baseFreightMult = 1 + (pct / 100) * 0.2;
     reliabilityDelta = Math.min(1.4, pct * 0.055);
   } else if (route.mode === 'RAIL') {
@@ -621,7 +1022,7 @@ export const applySlowSteamingToRoute = (
 
   const linehaulBaseDays = Math.max(1, route.estimatedDays - (route.dwellDaysAdded ?? 0));
   const speedTransitShare =
-    route.mode === 'SEA'
+    route.mode === 'SEA_LINER' || route.mode === 'SEA_TRAMP' || route.mode === 'SEA'
       ? 0.9
       : route.mode === 'SEA_RAIL'
         ? 0.65
@@ -806,7 +1207,9 @@ export const buildDeterministicRouteOptions = (
   customDestinationPortFee?: number,
   applyPortFeeToAllModes: boolean = false,
   customContainers?: number,
-  dwellTimeHours: number = DEFAULT_PORT_DWELL_HOURS
+  dwellTimeHours: number = DEFAULT_PORT_DWELL_HOURS,
+  linerVesselType: VesselType = 'CONTAINER_DEEPSEA',
+  trampVesselType: VesselType = 'MULTI_PURPOSE_TRAMP'
 ): RouteCostOption[] => {
   const w = Math.max(0.5, Number(weightTonnes) || 1);
   const containers = Math.max(0.5, Number(customContainers ?? estimateTeuFromCargo(w)) || 1);
@@ -815,24 +1218,71 @@ export const buildDeterministicRouteOptions = (
   const originPortFee = customOriginPortFee ?? defaults.originPortFee;
   const destinationPortFee = customDestinationPortFee ?? defaults.destinationPortFee;
 
-  const specs = [
+  const linerVessel = getVesselTypeSpec(linerVesselType, 'SEA_LINER');
+  const trampVessel = getVesselTypeSpec(trampVesselType, 'SEA_TRAMP');
+  const intermodalVessel = linerVesselType === 'RORO_FERRY' ? VESSEL_TYPE_SPECS.RORO_FERRY : VESSEL_TYPE_SPECS.CONTAINER_FEEDER;
+
+  const specs: Array<{
+    mode: string;
+    seaServiceType?: SeaServiceType;
+    vesselType?: VesselType;
+    ballastPct?: number;
+    dwellMultiplier?: number;
+    distFactor: number;
+    daysPer1000Km: number;
+    minDays: number;
+    baseRatePerTKm: number;
+    minBase: number;
+    fuelRatePerTKm: number;
+    minFuel: number;
+    fuelUnit: string;
+    fuelAmountFactor: number;
+    label: string;
+    reasoning: string;
+  }> = [
     {
-      mode: 'SEA',
+      mode: 'SEA_LINER',
+      seaServiceType: 'LINER',
+      vesselType: linerVessel.id,
+      ballastPct: 0,
+      dwellMultiplier: 1.0,
       distFactor: 1.18,
-      daysPer1000Km: 2.8,
+      daysPer1000Km: Number((2.7 * (20 / linerVessel.defaultSpeedKts)).toFixed(2)),
       minDays: 4,
-      baseRatePerTKm: 0.022,
-      minBase: 480,
-      fuelRatePerTKm: 0.011,
-      minFuel: 190,
+      baseRatePerTKm: Number((0.023 * linerVessel.freightMult).toFixed(4)),
+      minBase: Math.round(470 * linerVessel.freightMult),
+      fuelRatePerTKm: Number((0.0105 * linerVessel.fuelMult).toFixed(4)),
+      minFuel: Math.round(180 * linerVessel.fuelMult),
       fuelUnit: 'L VLSFO',
-      fuelAmountFactor: 0.0042,
-      emissionFactor: EMISSION_FACTORS[TransportMode.SEA],
-      label: 'All-Sea Maritime Corridor',
-      reasoning: 'Deep-sea or short-sea feeder vessel minimizes fuel burn per tonne-km and keeps EU ETS CO2 exposure lowest.'
+      fuelAmountFactor: Number((0.0040 * linerVessel.fuelMult).toFixed(5)),
+      label: `Scheduled Liner · ${linerVessel.capacityLabel}`,
+      reasoning: 'Fixed weekly timetable with TEU slot tariff, priority berth window (0% ballast repositioning), and high schedule adherence.'
+    },
+    {
+      mode: 'SEA_TRAMP',
+      seaServiceType: 'TRAMP',
+      vesselType: trampVessel.id,
+      ballastPct: 12,
+      dwellMultiplier: 1.35,
+      distFactor: 1.21,
+      daysPer1000Km: Number((3.4 * (14.5 / trampVessel.defaultSpeedKts)).toFixed(2)),
+      minDays: 5,
+      // Tramp charter has higher fixed mobilization floor for small loads, but lower marginal rate per t·km for heavy cargo
+      baseRatePerTKm: Number((0.0175 * trampVessel.freightMult).toFixed(4)),
+      minBase: Math.round(780 * trampVessel.freightMult),
+      fuelRatePerTKm: Number((0.0132 * trampVessel.fuelMult * 1.12).toFixed(4)),
+      minFuel: Math.round(250 * trampVessel.fuelMult),
+      fuelUnit: 'L VLSFO/MGO',
+      fuelAmountFactor: Number((0.0048 * trampVessel.fuelMult * 1.12).toFixed(5)),
+      label: `Voyage Charter Tramp · ${trampVessel.capacityLabel}`,
+      reasoning: 'On-demand spot charter with economies of scale for heavy tonnage, offset by +12% ballast leg fuel and +35% berth laytime queueing exposure.'
     },
     {
       mode: 'SEA_RAIL',
+      seaServiceType: 'LINER',
+      vesselType: intermodalVessel.id,
+      ballastPct: 0,
+      dwellMultiplier: 0.65,
       distFactor: 1.06,
       daysPer1000Km: 1.9,
       minDays: 3,
@@ -842,9 +1292,8 @@ export const buildDeterministicRouteOptions = (
       minFuel: 230,
       fuelUnit: 'Mixed (VLSFO + kWh)',
       fuelAmountFactor: 0.005,
-      emissionFactor: EMISSION_FACTORS.SEA_RAIL,
-      label: 'Sea + Electric Rail Intermodal',
-      reasoning: 'Combines coastal maritime efficiency with electrified inland rail to balance lead time, port dues, and carbon cost.'
+      label: 'Sea (Liner) + Electric Rail Intermodal',
+      reasoning: 'Combines scheduled coastal liner feeder with electrified inland rail to balance lead time, port dues, and carbon cost.'
     },
     {
       mode: 'RAIL',
@@ -857,7 +1306,6 @@ export const buildDeterministicRouteOptions = (
       minFuel: 260,
       fuelUnit: 'kWh',
       fuelAmountFactor: 0.022,
-      emissionFactor: EMISSION_FACTORS[TransportMode.RAIL],
       label: 'Direct Electric Rail Corridor',
       reasoning: 'High traction energy stability shields against diesel volatility and avoids maritime port congestion dues.'
     },
@@ -872,7 +1320,6 @@ export const buildDeterministicRouteOptions = (
       minFuel: 420,
       fuelUnit: 'L Diesel',
       fuelAmountFactor: 0.028,
-      emissionFactor: EMISSION_FACTORS[TransportMode.ROAD],
       label: 'Direct Heavy-Duty Road',
       reasoning: 'Door-to-door flexibility without maritime port dues, but exposed to steep diesel and CO2 compliance costs.'
     },
@@ -887,19 +1334,22 @@ export const buildDeterministicRouteOptions = (
       minFuel: 1300,
       fuelUnit: 'L Jet-A1',
       fuelAmountFactor: 0.32,
-      emissionFactor: EMISSION_FACTORS[TransportMode.AIR],
       label: 'Express Air Freight',
       reasoning: 'Shortest transit window for time-critical cargo, carrying maximum Jet-A1 fuel and carbon cost overhead.'
     }
   ];
+
+  const matchedLiner = matchLinerLineForCorridor(origin, destination, linerVessel.id);
+  const matchedFeederLiner = matchLinerLineForCorridor(origin, destination, intermodalVessel.id);
 
   return specs.map((spec) => {
     const distanceKm = Math.round(baseKm * spec.distFactor);
     const baseEstimatedDays = Math.max(spec.minDays, Math.round((distanceKm / 1000) * spec.daysPer1000Km));
     const baseFreightCost = Math.round(Math.max(spec.minBase, distanceKm * w * spec.baseRatePerTKm));
     const fuelCost = Math.round(Math.max(spec.minFuel, distanceKm * w * spec.fuelRatePerTKm) * fuelMultiplier);
-    const glec = calculateGlecBreakdown(spec.mode, distanceKm, w);
-    const linehaulEmissionsKg = glec.totalKg;
+    const glec = calculateGlecBreakdown(spec.mode, distanceKm, w, spec.vesselType);
+    const ballastFactor = 1 + (spec.ballastPct ?? 0) / 100;
+    const linehaulEmissionsKg = Math.round(glec.totalKg * ballastFactor);
     const co2Cost = calculateCO2Cost(linehaulEmissionsKg, carbonPricePerTonne);
     const fuelPlusCo2Cost = fuelCost + co2Cost;
     const portFeeTotal = computeApplicablePortFee(
@@ -918,17 +1368,49 @@ export const buildDeterministicRouteOptions = (
     );
     const estimatedDays = Number((baseEstimatedDays + dwell.dwellDaysAdded).toFixed(1));
     const estimatedEmissionsKg = linehaulEmissionsKg + dwell.dwellEmissionsKg;
-    const ttwEmissionsKg = glec.ttwKg + dwell.dwellTtwKg;
-    const wttEmissionsKg = glec.wttKg + dwell.dwellWttKg;
+    const ttwEmissionsKg = Math.round(glec.ttwKg * ballastFactor) + dwell.dwellTtwKg;
+    const wttEmissionsKg = Math.max(0, linehaulEmissionsKg - Math.round(glec.ttwKg * ballastFactor)) + dwell.dwellWttKg;
     const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwell.dwellCost;
     const fuelConsumption = Math.round(distanceKm * w * spec.fuelAmountFactor);
     const teuKm = calculateTeuKm(distanceKm, containers);
     const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
     const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
-    const rel = computeModeScheduleReliability(spec.mode, dwellTimeHours, applyPortFeeToAllModes);
+    const rel = computeModeScheduleReliability(spec.mode, dwellTimeHours, applyPortFeeToAllModes, spec.vesselType);
+    const isLinerLine = spec.mode === 'SEA_LINER' || spec.mode === 'SEA_RAIL';
+    const activeLine = spec.mode === 'SEA_LINER' ? matchedLiner : spec.mode === 'SEA_RAIL' ? matchedFeederLiner : undefined;
+    const etaTolerance = spec.mode === 'SEA_LINER'
+      ? (activeLine?.etaToleranceHours ?? 2.5)
+      : spec.mode === 'SEA_RAIL'
+        ? 4
+        : spec.mode === 'SEA_TRAMP'
+          ? 28
+          : undefined;
+    const predictableEtaWindow = spec.mode === 'SEA_LINER' && activeLine
+      ? `Fixed ${estimatedDays}d (±${activeLine.etaToleranceHours}h)`
+      : spec.mode === 'SEA_RAIL'
+        ? `Fixed ${estimatedDays}d (±4h)`
+        : spec.mode === 'SEA_TRAMP'
+          ? `Unscheduled ${estimatedDays}d (±24–36h)`
+          : undefined;
 
     return {
       mode: spec.mode,
+      seaServiceType: spec.seaServiceType,
+      vesselType: spec.vesselType,
+      linerLineCode: activeLine?.lineCode,
+      linerLineName: activeLine?.lineName,
+      fixedDepartureUtc: isLinerLine ? activeLine?.departureWindowUtc : undefined,
+      predictableEtaWindow,
+      etaConfidenceHours: etaTolerance,
+      publishedEmissionGPerTeuKm: isLinerLine
+        ? Number((glec.factorWtw * 980).toFixed(1))
+        : undefined,
+      publishedEmissionMethod: isLinerLine ? activeLine?.publicationStandard : undefined,
+      ballastPct: spec.ballastPct,
+      dwellMultiplier: spec.dwellMultiplier,
+      vesselSpeedKnots: isMaritimeRouteMode(spec.mode)
+        ? getBaselineVesselSpeedKts(spec.mode, spec.vesselType)
+        : undefined,
       estimatedDays,
       dwellHours: dwell.dwellHours,
       dwellDaysAdded: dwell.dwellDaysAdded,
@@ -951,7 +1433,7 @@ export const buildDeterministicRouteOptions = (
       linehaulEmissionsKg,
       estimatedCost,
       estimatedEmissionsKg,
-      glecFactorWtw: glec.factorWtw,
+      glecFactorWtw: Number((glec.factorWtw * ballastFactor).toFixed(4)),
       ttwEmissionsKg,
       wttEmissionsKg,
       glecSource: glec.tocSource,

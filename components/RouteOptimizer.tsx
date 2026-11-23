@@ -34,16 +34,19 @@ import {
   ZAxis,
   ReferenceLine
 } from 'recharts';
-import { RouteCostOption, Shipment, ShipmentStatus, SpeedProfile, TransportMode } from '../types';
+import { RouteCostOption, Shipment, ShipmentStatus, SpeedProfile, TransportMode, VesselType } from '../types';
 import {
-  BASELINE_VESSEL_SPEED_KTS,
   CARBON_PRICE_PRESETS,
   DEFAULT_ECO_SLOW_STEAMING_PCT,
   DEFAULT_EU_ETS_CARBON_PRICE,
   DEFAULT_PORT_DWELL_HOURS,
   DWELL_TIME_PRESETS,
+  LINER_SERVICE_LINES,
+  LINER_VESSEL_TYPES,
   SCHEDULE_SLA_TARGET_PCT,
   SLOW_STEAMING_TIERS,
+  TRAMP_VESSEL_TYPES,
+  VESSEL_TYPE_SPECS,
   applySlowSteamingToRoute,
   applySpeedProfileToRoute,
   buildDeterministicRouteOptions,
@@ -55,7 +58,11 @@ import {
   computeModeScheduleReliability,
   estimatePortFees,
   estimateTeuFromCargo,
-  getGlecFactorSpec
+  getBaselineVesselSpeedKts,
+  getGlecFactorSpec,
+  getVesselTypeSpec,
+  isMaritimeRouteMode,
+  matchLinerLineForCorridor
 } from '../services/carbon';
 import { getRouteComparison } from '../services/gemini';
 import { formatEUR, formatNumber, formatEmissions } from '../services/formatters';
@@ -79,10 +86,14 @@ const CORRIDOR_PRESETS = [
 
 const getModeLabel = (mode: string, t: typeof translations['en']) => {
   switch (mode) {
+    case 'SEA_LINER':
+      return t.seaLiner;
+    case 'SEA_TRAMP':
+      return t.seaTramp;
     case 'SEA':
       return t.sea;
     case 'SEA_RAIL':
-      return `${t.sea} + ${t.rail}`;
+      return `${t.seaLiner} + ${t.rail}`;
     case 'RAIL':
       return t.rail;
     case 'ROAD':
@@ -96,8 +107,11 @@ const getModeLabel = (mode: string, t: typeof translations['en']) => {
 
 const getModeIcon = (mode: string) => {
   switch (mode) {
+    case 'SEA_LINER':
     case 'SEA':
       return <Ship size={18} className="text-blue-600" />;
+    case 'SEA_TRAMP':
+      return <Anchor size={18} className="text-indigo-600" />;
     case 'SEA_RAIL':
       return <Layers size={18} className="text-emerald-600" />;
     case 'RAIL':
@@ -138,6 +152,9 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const speedProfile: SpeedProfile = slowSteamingPct > 0 ? 'eco' : 'standard';
   const [costTolerancePct, setCostTolerancePct] = useState<number>(10);
   const [objective, setObjective] = useState<OptimizationObjective>('total_cost');
+  const [linerVesselType, setLinerVesselType] = useState<VesselType>('CONTAINER_DEEPSEA');
+  const [trampVesselType, setTrampVesselType] = useState<VesselType>('MULTI_PURPOSE_TRAMP');
+  const [seaServiceFilter, setSeaServiceFilter] = useState<'ALL' | 'LINER' | 'TRAMP'>('ALL');
 
   const [rawOptions, setRawOptions] = useState<RouteCostOption[]>(() =>
     buildDeterministicRouteOptions(
@@ -150,11 +167,13 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       initialPorts.destinationPortFee,
       false,
       estimateTeuFromCargo(12),
-      0
+      0,
+      'CONTAINER_DEEPSEA',
+      'MULTI_PURPOSE_TRAMP'
     )
   );
   const [loading, setLoading] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<string>('SEA_RAIL');
+  const [selectedMode, setSelectedMode] = useState<string>('SEA_LINER');
   const [bookingConfirmed, setBookingConfirmed] = useState<string | null>(null);
   const [showGlecMethod, setShowGlecMethod] = useState(false);
 
@@ -165,7 +184,9 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     targetOriginFee = originPortFee,
     targetDestFee = destinationPortFee,
     targetAllModes = applyPortFeeToAllModes,
-    targetContainers = containersTeu
+    targetContainers = containersTeu,
+    targetLinerVessel = linerVesselType,
+    targetTrampVessel = trampVesselType
   ) => {
     setLoading(true);
     setBookingConfirmed(null);
@@ -180,14 +201,26 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       targetDestFee,
       targetAllModes,
       targetContainers,
-      0
+      0,
+      targetLinerVessel,
+      targetTrampVessel
     );
     setRawOptions(options);
     setLoading(false);
   };
 
   useEffect(() => {
-    runAnalysis('Piraeus, GR', 'Hamburg, DE', 12, initialPorts.originPortFee, initialPorts.destinationPortFee, false, estimateTeuFromCargo(12));
+    runAnalysis(
+      'Piraeus, GR',
+      'Hamburg, DE',
+      12,
+      initialPorts.originPortFee,
+      initialPorts.destinationPortFee,
+      false,
+      estimateTeuFromCargo(12),
+      'CONTAINER_DEEPSEA',
+      'MULTI_PURPOSE_TRAMP'
+    );
   }, []);
 
   const handleAutoEstimatePorts = (
@@ -202,14 +235,34 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     return est;
   };
 
-  // Dynamically recompute Standard-speed options whenever inputs/sliders change
+  // Dynamically recompute Standard-speed options whenever inputs/sliders/vessel specs change
   const standardComputedOptions = useMemo(() => {
     const fuelMult = fuelIndexPct / 100;
     return rawOptions.map((opt) => {
-      const adjustedFuel = Math.round(opt.fuelCost * fuelMult);
-      const linehaulEmissionsKg =
+      const baseVessel = getVesselTypeSpec(opt.vesselType, opt.mode);
+      const activeVesselType: VesselType | undefined =
+        opt.mode === 'SEA_TRAMP'
+          ? trampVesselType
+          : opt.mode === 'SEA_LINER'
+            ? linerVesselType
+            : opt.mode === 'SEA_RAIL'
+              ? linerVesselType === 'RORO_FERRY'
+                ? 'RORO_FERRY'
+                : 'CONTAINER_FEEDER'
+              : opt.vesselType;
+      const targetVessel = activeVesselType ? getVesselTypeSpec(activeVesselType, opt.mode) : baseVessel;
+      const isSeaSubcategory = opt.mode === 'SEA_LINER' || opt.mode === 'SEA_TRAMP';
+      const freightScale = isSeaSubcategory ? targetVessel.freightMult / baseVessel.freightMult : 1;
+      const vesselFuelScale = isSeaSubcategory ? targetVessel.fuelMult / baseVessel.fuelMult : 1;
+      const wtwScale = isSeaSubcategory && baseVessel.wtw > 0 ? targetVessel.wtw / baseVessel.wtw : 1;
+      const speedTimeScale = isSeaSubcategory ? baseVessel.defaultSpeedKts / targetVessel.defaultSpeedKts : 1;
+
+      const baseFreightCost = Math.round(opt.baseFreightCost * freightScale);
+      const adjustedFuel = Math.round(opt.fuelCost * vesselFuelScale * fuelMult);
+      const baseLinehaulEmissionsKg =
         opt.linehaulEmissionsKg ?? Math.max(0, opt.estimatedEmissionsKg - (opt.dwellEmissionsKg ?? 0));
-      const spec = getGlecFactorSpec(opt.mode);
+      const linehaulEmissionsKg = Math.round(baseLinehaulEmissionsKg * wtwScale);
+      const spec = getGlecFactorSpec(opt.mode, activeVesselType);
       const ratioTtw = spec.wtw > 0 ? spec.ttw / spec.wtw : 0.75;
       const linehaulTtwKg = Math.round(linehaulEmissionsKg * ratioTtw);
       const linehaulWttKg = Math.max(0, Math.round(linehaulEmissionsKg - linehaulTtwKg));
@@ -232,21 +285,69 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         destinationPortFee,
         applyPortFeeToAllModes
       );
-      const estimatedCost = opt.baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwell.dwellCost;
+      const estimatedCost = baseFreightCost + fuelPlusCo2Cost + portFeeTotal + dwell.dwellCost;
       const estimatedEmissionsKg = linehaulEmissionsKg + dwell.dwellEmissionsKg;
       const ttwEmissionsKg = linehaulTtwKg + dwell.dwellTtwKg;
       const wttEmissionsKg = linehaulWttKg + dwell.dwellWttKg;
-      const baseDays = opt.dwellDaysAdded
+      const rawLinehaulDays = opt.dwellDaysAdded
         ? Math.max(1, Number((opt.estimatedDays - opt.dwellDaysAdded).toFixed(1)))
         : opt.estimatedDays;
-      const estimatedDays = Number((baseDays + dwell.dwellDaysAdded).toFixed(1));
+      const scaledLinehaulDays = Number((rawLinehaulDays * speedTimeScale).toFixed(1));
+      const estimatedDays = Number((scaledLinehaulDays + dwell.dwellDaysAdded).toFixed(1));
       const teuKm = calculateTeuKm(opt.estimatedDistanceKm, effectiveContainers);
       const costPerTeuKm = teuKm > 0 ? Number((estimatedCost / teuKm).toFixed(2)) : 0;
       const emissionsPerTeuKm = teuKm > 0 ? Number((estimatedEmissionsKg / teuKm).toFixed(3)) : 0;
-      const rel = computeModeScheduleReliability(opt.mode, dwellTimeHours, applyPortFeeToAllModes);
+      const rel = computeModeScheduleReliability(opt.mode, dwellTimeHours, applyPortFeeToAllModes, activeVesselType);
+      const ballastFactor = 1 + (opt.ballastPct ?? (opt.mode === 'SEA_TRAMP' ? 12 : 0)) / 100;
+      const isLinerService = opt.mode === 'SEA_LINER' || opt.mode === 'SEA_RAIL';
+      const activeLinerLine = isLinerService
+        ? matchLinerLineForCorridor(origin, destination, activeVesselType)
+        : undefined;
+      const etaTolerance =
+        opt.mode === 'SEA_LINER'
+          ? (activeLinerLine?.etaToleranceHours ?? 2.5)
+          : opt.mode === 'SEA_RAIL'
+            ? 4
+            : opt.mode === 'SEA_TRAMP'
+              ? 28
+              : undefined;
+      const predictableEtaWindow =
+        opt.mode === 'SEA_LINER' && activeLinerLine
+          ? `Fixed ${estimatedDays}d (±${activeLinerLine.etaToleranceHours}h)`
+          : opt.mode === 'SEA_RAIL'
+            ? `Fixed ${estimatedDays}d (±4h)`
+            : opt.mode === 'SEA_TRAMP'
+              ? `Unscheduled ${estimatedDays}d (±24–36h)`
+              : opt.predictableEtaWindow;
 
       return {
         ...opt,
+        seaServiceType:
+          opt.seaServiceType ??
+          (opt.mode === 'SEA_TRAMP'
+            ? 'TRAMP'
+            : opt.mode === 'SEA_LINER' || opt.mode === 'SEA_RAIL'
+              ? 'LINER'
+              : undefined),
+        vesselType: activeVesselType,
+        linerLineCode: activeLinerLine?.lineCode ?? opt.linerLineCode,
+        linerLineName: activeLinerLine?.lineName ?? opt.linerLineName,
+        fixedDepartureUtc: isLinerService ? (activeLinerLine?.departureWindowUtc ?? opt.fixedDepartureUtc) : undefined,
+        predictableEtaWindow,
+        etaConfidenceHours: etaTolerance,
+        publishedEmissionGPerTeuKm: isLinerService
+          ? Number((spec.wtw * 980).toFixed(1))
+          : undefined,
+        publishedEmissionMethod: isLinerService ? (activeLinerLine?.publicationStandard ?? opt.publishedEmissionMethod) : undefined,
+        vesselSpeedKnots: isMaritimeRouteMode(opt.mode)
+          ? getBaselineVesselSpeedKts(opt.mode, activeVesselType)
+          : opt.vesselSpeedKnots,
+        label:
+          opt.mode === 'SEA_LINER' && activeLinerLine
+            ? `${activeLinerLine.lineCode} · ${t.linerServiceLabel} (${targetVessel.capacityLabel})`
+            : opt.mode === 'SEA_TRAMP'
+              ? `${t.trampServiceLabel} · ${targetVessel.capacityLabel}`
+              : opt.label,
         speedProfile: 'standard' as SpeedProfile,
         estimatedDays,
         dwellHours: dwell.dwellHours,
@@ -257,12 +358,13 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         teuKm,
         costPerTeuKm,
         emissionsPerTeuKm,
-        glecFactorWtw: opt.glecFactorWtw ?? spec.wtw,
+        glecFactorWtw: Number((spec.wtw * (isSeaSubcategory ? ballastFactor : 1)).toFixed(4)),
         ttwEmissionsKg,
         wttEmissionsKg,
         linehaulEmissionsKg,
         dwellEmissionsKg: dwell.dwellEmissionsKg,
-        glecSource: opt.glecSource ?? spec.tocSource,
+        glecSource: spec.tocSource,
+        baseFreightCost,
         fuelCost: adjustedFuel,
         co2Cost,
         fuelPlusCo2Cost,
@@ -274,17 +376,47 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         estimatedEmissionsKg
       };
     });
-  }, [rawOptions, carbonPricePerTonne, fuelIndexPct, originPortFee, destinationPortFee, applyPortFeeToAllModes, containersTeu, dwellTimeHours]);
+  }, [
+    rawOptions,
+    origin,
+    destination,
+    carbonPricePerTonne,
+    fuelIndexPct,
+    originPortFee,
+    destinationPortFee,
+    applyPortFeeToAllModes,
+    containersTeu,
+    dwellTimeHours,
+    linerVesselType,
+    trampVesselType,
+    t
+  ]);
+
+  const filteredStandardOptions = useMemo(() => {
+    if (seaServiceFilter === 'ALL') return standardComputedOptions;
+    if (seaServiceFilter === 'LINER') {
+      return standardComputedOptions.filter((o) => o.mode !== 'SEA_TRAMP');
+    }
+    return standardComputedOptions.filter((o) => o.mode !== 'SEA_LINER' && o.mode !== 'SEA_RAIL');
+  }, [standardComputedOptions, seaServiceFilter]);
 
   const ecoComputedOptions = useMemo(
     () =>
-      standardComputedOptions.map((opt) =>
+      filteredStandardOptions.map((opt) =>
         applySpeedProfileToRoute(opt, 'eco', carbonPricePerTonne)
       ),
-    [standardComputedOptions, carbonPricePerTonne]
+    [filteredStandardOptions, carbonPricePerTonne]
   );
 
   const activeSpeedComputedOptions = useMemo(
+    () =>
+      filteredStandardOptions.map((opt) =>
+        applySlowSteamingToRoute(opt, slowSteamingPct, carbonPricePerTonne)
+      ),
+    [filteredStandardOptions, slowSteamingPct, carbonPricePerTonne]
+  );
+
+  const activeSpeedAllOptions = useMemo(
     () =>
       standardComputedOptions.map((opt) =>
         applySlowSteamingToRoute(opt, slowSteamingPct, carbonPricePerTonne)
@@ -292,9 +424,18 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     [standardComputedOptions, slowSteamingPct, carbonPricePerTonne]
   );
 
+  const linerComparisonRoute = useMemo(
+    () => activeSpeedAllOptions.find((o) => o.mode === 'SEA_LINER') || null,
+    [activeSpeedAllOptions]
+  );
+  const trampComparisonRoute = useMemo(
+    () => activeSpeedAllOptions.find((o) => o.mode === 'SEA_TRAMP') || null,
+    [activeSpeedAllOptions]
+  );
+
   const carbonAwareTradeOff = useMemo(
-    () => computeCarbonAwareTradeOff(standardComputedOptions, carbonPricePerTonne, costTolerancePct),
-    [standardComputedOptions, carbonPricePerTonne, costTolerancePct]
+    () => computeCarbonAwareTradeOff(filteredStandardOptions, carbonPricePerTonne, costTolerancePct),
+    [filteredStandardOptions, carbonPricePerTonne, costTolerancePct]
   );
 
   const computedOptions = useMemo(() => {
@@ -327,7 +468,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     if (optimalRoute) {
       setSelectedMode(optimalRoute.mode);
     }
-  }, [optimalRoute?.mode, objective]);
+  }, [optimalRoute?.mode, objective, seaServiceFilter]);
 
   const roadSavingsEur =
     roadBaseline && optimalRoute
@@ -348,7 +489,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
   const scatterData = useMemo(() => {
     return {
-      standard: standardComputedOptions.map((opt) => ({
+      standard: filteredStandardOptions.map((opt) => ({
         name: `${getModeLabel(opt.mode, t)} (${t.standardSpeed})`,
         mode: getModeLabel(opt.mode, t),
         cost: opt.estimatedCost,
@@ -365,7 +506,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         speed: t.ecoSpeedLabel
       }))
     };
-  }, [standardComputedOptions, ecoComputedOptions, t]);
+  }, [filteredStandardOptions, ecoComputedOptions, t]);
 
   const handleApplyCarbonAware = () => {
     if (!carbonAwareTradeOff) return;
@@ -380,23 +521,30 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
     selectedRoute?.mode === carbonAwareTradeOff.recommendedRoute.mode &&
     speedProfile === (carbonAwareTradeOff.recommendedRoute.speedProfile ?? 'standard');
 
-  // Maritime Slow Steaming analysis for active maritime corridor (SEA or SEA_RAIL if selected, else SEA)
+  // Maritime Slow Steaming analysis for active maritime corridor (SEA_LINER, SEA_TRAMP, SEA_RAIL)
   const slowSteamingAnalysis = useMemo(() => {
-    const targetMode =
-      selectedMode === 'SEA' || selectedMode === 'SEA_RAIL' ? selectedMode : 'SEA';
+    const targetMode = isMaritimeRouteMode(selectedMode)
+      ? selectedMode
+      : seaServiceFilter === 'TRAMP'
+        ? 'SEA_TRAMP'
+        : 'SEA_LINER';
     const baseOption =
-      standardComputedOptions.find((o) => o.mode === targetMode) || standardComputedOptions[0];
+      standardComputedOptions.find((o) => o.mode === targetMode) ||
+      standardComputedOptions.find((o) => isMaritimeRouteMode(o.mode)) ||
+      standardComputedOptions[0];
     if (!baseOption) return null;
 
+    const activeBaseKts = getBaselineVesselSpeedKts(baseOption.mode, baseOption.vesselType);
     const activeSlow = applySlowSteamingToRoute(baseOption, slowSteamingPct, carbonPricePerTonne);
     const previewPct = slowSteamingPct > 0 ? slowSteamingPct : DEFAULT_ECO_SLOW_STEAMING_PCT;
     const previewOption = applySlowSteamingToRoute(baseOption, previewPct, carbonPricePerTonne);
     const tiers = SLOW_STEAMING_TIERS.map((tier) => {
       const calc = applySlowSteamingToRoute(baseOption, tier.pct, carbonPricePerTonne);
+      const tierKnots = Number((activeBaseKts * (1 - tier.pct / 100)).toFixed(1));
       return {
         pct: tier.pct,
-        knots: tier.knots,
-        label: tier.pct === 0 ? 'Normal (20 kts)' : `-${tier.pct}% (${tier.knots} kts)`,
+        knots: tierKnots,
+        label: tier.pct === 0 ? `0% (${tierKnots} kts)` : `-${tier.pct}% (${tierKnots} kts)`,
         fuelSavedEur: calc.fuelSavedEur ?? 0,
         co2SavedEur: calc.co2SavedEur ?? 0,
         fuelSavedUnits: calc.fuelSavedUnits ?? 0,
@@ -409,12 +557,13 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
 
     return {
       baseOption,
+      activeBaseKts,
       activeSlow,
       previewOption,
       previewPct,
       tiers
     };
-  }, [standardComputedOptions, selectedMode, slowSteamingPct, carbonPricePerTonne]);
+  }, [standardComputedOptions, selectedMode, seaServiceFilter, slowSteamingPct, carbonPricePerTonne]);
 
   const chartData = useMemo(
     () =>
@@ -483,7 +632,9 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
   const handleBookSelected = () => {
     if (!selectedRoute || isReadOnly) return;
     const mappedMode: TransportMode =
-      selectedRoute.mode === 'SEA_RAIL'
+      selectedRoute.mode === 'SEA_RAIL' ||
+      selectedRoute.mode === 'SEA_LINER' ||
+      selectedRoute.mode === 'SEA_TRAMP'
         ? TransportMode.SEA
         : (selectedRoute.mode as TransportMode);
 
@@ -493,6 +644,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             {
               id: 'L1',
               mode: TransportMode.SEA,
+              seaServiceType: selectedRoute.seaServiceType ?? 'LINER',
+              vesselType: selectedRoute.vesselType,
               origin,
               destination: 'Intermodal Rail Port Hub',
               distanceKm: Math.round(selectedRoute.estimatedDistanceKm * 0.55),
@@ -513,6 +666,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             {
               id: 'L1',
               mode: mappedMode,
+              seaServiceType: selectedRoute.seaServiceType,
+              vesselType: selectedRoute.vesselType,
               origin,
               destination,
               distanceKm: selectedRoute.estimatedDistanceKm,
@@ -531,6 +686,14 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       weightTonnes,
       volumeCbm: parseFloat((weightTonnes * 2.4).toFixed(1)),
       containers: containersTeu,
+      seaServiceType: selectedRoute.seaServiceType,
+      vesselType: selectedRoute.vesselType,
+      linerLineCode: selectedRoute.linerLineCode,
+      linerLineName: selectedRoute.linerLineName,
+      fixedDepartureUtc: selectedRoute.fixedDepartureUtc,
+      predictableEtaWindow: selectedRoute.predictableEtaWindow,
+      etaConfidenceHours: selectedRoute.etaConfidenceHours,
+      publishedEmissionGPerTeuKm: selectedRoute.publishedEmissionGPerTeuKm,
       dwellTimeHours: selectedRoute.dwellHours ?? dwellTimeHours,
       scheduleDelayHours: selectedRoute.dwellHours ? Math.round((selectedRoute.dwellHours ?? 0) * 0.25) : 0,
       scheduleReliabilityPct: selectedRoute.scheduleReliabilityPct,
@@ -554,7 +717,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
           status: 'Booked',
           location: origin,
           timestamp: new Date().toISOString(),
-          description: `Optimized via ${getModeLabel(selectedRoute.mode, t)} (${t.fuelCost}: ${formatEUR(selectedRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(selectedRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(selectedRoute.portFeeTotal, 0)} · ${t.dwellCost}: ${formatEUR(selectedRoute.dwellCost ?? 0, 0)})`
+          description: `Optimized via ${getModeLabel(selectedRoute.mode, t)}${selectedRoute.vesselType ? ` (${t[getVesselTypeSpec(selectedRoute.vesselType).labelKey]})` : ''} · ${t.fuelCost}: ${formatEUR(selectedRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(selectedRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(selectedRoute.portFeeTotal, 0)}`
         }
       ],
       createdAt: new Date().toISOString()
@@ -619,6 +782,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
           liveExample={{
             label: getModeLabel(selectedRoute.mode, t),
             mode: selectedRoute.mode,
+            vesselType: selectedRoute.vesselType,
             distanceKm: selectedRoute.estimatedDistanceKm,
             weightTonnes,
             ttwKg: selectedRoute.ttwEmissionsKg ?? 0,
@@ -845,6 +1009,77 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
               <span className="text-[11px] font-sans text-slate-500 mt-0.5">{t.dwellNote}</span>
             </div>
           </div>
+
+          {/* Vessel & Sea Service Subcategories Row (Liner vs. Tramp) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end pt-4 border-t border-slate-100">
+            <div className="lg:col-span-4 space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Ship size={14} className="text-blue-600" />
+                <span>{t.linerVesselTypeLabel}</span>
+              </label>
+              <select
+                value={linerVesselType}
+                onChange={(e) => setLinerVesselType(e.target.value as VesselType)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+              >
+                {LINER_VESSEL_TYPES.map((vt) => {
+                  const spec = VESSEL_TYPE_SPECS[vt];
+                  return (
+                    <option key={vt} value={vt}>
+                      {t[spec.labelKey]} · {spec.defaultSpeedKts} kts · {spec.wtw.toFixed(3)} kg/t·km
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="lg:col-span-4 space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Anchor size={14} className="text-indigo-600" />
+                <span>{t.trampVesselTypeLabel}</span>
+              </label>
+              <select
+                value={trampVesselType}
+                onChange={(e) => setTrampVesselType(e.target.value as VesselType)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+              >
+                {TRAMP_VESSEL_TYPES.map((vt) => {
+                  const spec = VESSEL_TYPE_SPECS[vt];
+                  return (
+                    <option key={vt} value={vt}>
+                      {t[spec.labelKey]} · {spec.defaultSpeedKts} kts · {spec.wtw.toFixed(3)} kg/t·km
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="lg:col-span-4 space-y-1.5">
+              <span className="block text-xs font-semibold text-slate-700">
+                {t.seaServiceSubcategories}
+              </span>
+              <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-xl">
+                {([
+                  ['ALL', t.seaFilterAll],
+                  ['LINER', t.seaFilterLiner],
+                  ['TRAMP', t.seaFilterTramp]
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSeaServiceFilter(key)}
+                    className={`px-2 py-2 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap truncate ${
+                      seaServiceFilter === key
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Interactive Fuel + Carbon Sensitivity Controls */}
@@ -920,7 +1155,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                   {t.slowSteamingSpeedReduction}
                 </label>
                 <span className="text-[11px] font-mono tabular-nums font-bold text-emerald-700">
-                  {Number((BASELINE_VESSEL_SPEED_KTS * (1 - slowSteamingPct / 100)).toFixed(1))} kts
+                  {Number(((slowSteamingAnalysis?.activeBaseKts ?? 20.0) * (1 - slowSteamingPct / 100)).toFixed(1))} kts
                   {slowSteamingPct > 0 ? ` (-${slowSteamingPct}%)` : ''}
                 </span>
               </div>
@@ -1092,6 +1327,194 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono tabular-nums">
               <span>{formatEUR(optimalRoute.costPerTeuKm, 2)}/TEU-km</span>
               <span>{optimalRoute.emissionsPerTeuKm.toFixed(2)} kg/TEU-km</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Liner vs. Tramp Maritime Operating Logic Comparison Panel */}
+      {linerComparisonRoute && trampComparisonRoute && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900">{t.serviceLogicTitle}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {t.seaLiner} ({t[getVesselTypeSpec(linerVesselType).labelKey]}) vs. {t.seaTramp} ({t[getVesselTypeSpec(trampVesselType).labelKey]})
+              </p>
+            </div>
+            <div className="text-xs font-mono tabular-nums text-slate-600">
+              {t.seaLiner} vs {t.seaTramp}:{' '}
+              <strong className={trampComparisonRoute.estimatedCost < linerComparisonRoute.estimatedCost ? 'text-indigo-700' : 'text-blue-700'}>
+                {trampComparisonRoute.estimatedCost < linerComparisonRoute.estimatedCost
+                  ? `${t.seaTramp} -${formatEUR(linerComparisonRoute.estimatedCost - trampComparisonRoute.estimatedCost, 0)}`
+                  : `${t.seaLiner} -${formatEUR(trampComparisonRoute.estimatedCost - linerComparisonRoute.estimatedCost, 0)}`}
+              </strong>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+            <div
+              onClick={() => {
+                if (seaServiceFilter === 'TRAMP') setSeaServiceFilter('ALL');
+                setSelectedMode('SEA_LINER');
+              }}
+              className={`cursor-pointer rounded-xl p-4 border transition-colors ${
+                selectedRoute?.mode === 'SEA_LINER'
+                  ? 'border-blue-500 bg-blue-50/40'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Ship size={16} className="text-blue-600" />
+                  <span className="text-sm font-extrabold text-slate-900">
+                    {t.linerServiceLabel} {linerComparisonRoute.linerLineCode ? `· ${linerComparisonRoute.linerLineCode}` : ''}
+                  </span>
+                </div>
+                <span className="text-sm font-extrabold font-mono tabular-nums text-blue-700">
+                  {formatEUR(linerComparisonRoute.estimatedCost, 0)}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                {t.linerLogicSummary}
+                {linerComparisonRoute.fixedDepartureUtc ? ` · ${linerComparisonRoute.fixedDepartureUtc} · ${linerComparisonRoute.predictableEtaWindow}` : ''}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200/70 text-[11px] font-mono tabular-nums">
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.pricingModelLabel}</span>
+                  <span className="font-bold text-slate-800">{formatEUR(linerComparisonRoute.baseFreightCost, 0)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.predictableEtaLabel}</span>
+                  <span className="font-bold text-blue-700">±{linerComparisonRoute.etaConfidenceHours ?? 2}h ({linerComparisonRoute.fixedDepartureUtc ?? 'Weekly'})</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.publishedIntensityCol}</span>
+                  <span className="font-bold text-emerald-700">{linerComparisonRoute.publishedEmissionGPerTeuKm ?? 11.8} g/TEU-km</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.reliabilityBaselineLabel}</span>
+                  <span className="font-bold text-teal-700">{(linerComparisonRoute.scheduleReliabilityPct ?? 90).toFixed(1)}% · {linerComparisonRoute.vesselSpeedKnots ?? 20} kts</span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              onClick={() => {
+                if (seaServiceFilter === 'LINER') setSeaServiceFilter('ALL');
+                setSelectedMode('SEA_TRAMP');
+              }}
+              className={`cursor-pointer rounded-xl p-4 border transition-colors ${
+                selectedRoute?.mode === 'SEA_TRAMP'
+                  ? 'border-indigo-500 bg-indigo-50/40'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Anchor size={16} className="text-indigo-600" />
+                  <span className="text-sm font-extrabold text-slate-900">{t.trampServiceLabel}</span>
+                </div>
+                <span className="text-sm font-extrabold font-mono tabular-nums text-indigo-700">
+                  {formatEUR(trampComparisonRoute.estimatedCost, 0)}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">{t.trampLogicSummary}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200/70 text-[11px] font-mono tabular-nums">
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.pricingModelLabel}</span>
+                  <span className="font-bold text-slate-800">{formatEUR(trampComparisonRoute.baseFreightCost, 0)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.berthDwellLogicLabel}</span>
+                  <span className="font-bold text-rose-700">1.35× ({trampComparisonRoute.dwellHours ?? 0}h)</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.ballastFactorLabel}</span>
+                  <span className="font-bold text-amber-700">+12% ({formatEmissions(trampComparisonRoute.estimatedEmissionsKg)})</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block">{t.reliabilityBaselineLabel}</span>
+                  <span className="font-bold text-amber-700">{(trampComparisonRoute.scheduleReliabilityPct ?? 76).toFixed(1)}% · ±24–36h</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Published Liner Line Schedules & Emissions Directory */}
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">{t.publishedLineEmissionsTitle}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{t.publishedLineEmissionsDesc}</p>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500">
+                    <th className="py-2.5 px-3">{t.linerLineCol}</th>
+                    <th className="py-2.5 px-3">{t.sailingScheduleCol}</th>
+                    <th className="py-2.5 px-3">{t.etaWindowCol}</th>
+                    <th className="py-2.5 px-3">{t.weatherWindowCol}</th>
+                    <th className="py-2.5 px-3 text-right">{t.publishedIntensityCol}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {LINER_SERVICE_LINES.map((line) => {
+                    const isMatched = linerComparisonRoute.linerLineCode === line.lineCode;
+                    return (
+                      <tr
+                        key={line.lineCode}
+                        onClick={() => {
+                          setLinerVesselType(line.vesselType);
+                          if (seaServiceFilter === 'TRAMP') setSeaServiceFilter('ALL');
+                          setSelectedMode('SEA_LINER');
+                        }}
+                        className={`cursor-pointer transition-colors ${
+                          isMatched ? 'bg-blue-50/60' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <td className="py-2.5 px-3">
+                          <p className="font-bold text-slate-900">
+                            <span className="font-mono text-blue-700">{line.lineCode}</span> · {line.lineName}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {line.carrier} · {line.corridorLabel}
+                          </p>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono tabular-nums">
+                          <p className="font-semibold text-slate-800">{line.departureWindowUtc}</p>
+                          <p className="text-[11px] font-sans text-slate-500">
+                            {line.frequency} · {t.cutoffLabel}: {line.cutoffWindowUtc}
+                          </p>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono tabular-nums">
+                          <p className="font-bold text-teal-700">{line.predictableEtaWindow}</p>
+                          <p className="text-[11px] text-slate-500">{line.scheduleReliabilityPct.toFixed(1)}% OTIF</p>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <p className={`text-[11px] font-bold ${
+                            line.weatherWindowStatus === 'clear'
+                              ? 'text-emerald-700'
+                              : line.weatherWindowStatus === 'watch'
+                                ? 'text-amber-700'
+                                : 'text-rose-700'
+                          }`}>
+                            {line.weatherWindowSummary}
+                          </p>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
+                          <p className="font-extrabold text-emerald-700">
+                            {line.publishedEmissionGPerTeuKm.toFixed(1)} g/TEU-km · {line.publishedEmissionKgPerTkm.toFixed(3)} kg/t·km
+                          </p>
+                          <p className="text-[11px] font-sans text-slate-500">
+                            {line.publishedVoyageKgPerTeu} kg/TEU · {line.publicationStandard} ({line.yoyIntensityDeltaPct}% YoY)
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1319,12 +1742,12 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-lg shrink-0">
-                {SLOW_STEAMING_TIERS.map((tier) => (
+                {slowSteamingAnalysis.tiers.map((tier) => (
                   <button
                     key={tier.pct}
                     type="button"
                     onClick={() => setSlowSteamingPct(tier.pct)}
-                    className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-mono tabular-nums font-semibold transition-colors whitespace-nowrap ${
                       slowSteamingPct === tier.pct
                         ? tier.pct === 0
                           ? 'bg-white text-slate-900 shadow-sm'
@@ -1332,7 +1755,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    {t[tier.labelKey]}
+                    {tier.label}
                   </button>
                 ))}
               </div>
@@ -1506,8 +1929,17 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                               )}
                             </div>
                             <p className="text-[11px] text-slate-500 font-mono tabular-nums">
-                              {formatNumber(opt.estimatedDistanceKm)} km · {formatEmissions(opt.estimatedEmissionsKg)} · {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode).wtw).toFixed(3)} kg/t·km
+                              {opt.linerLineCode ? `${opt.linerLineCode} · ` : ''}
+                              {opt.vesselType ? `${t[getVesselTypeSpec(opt.vesselType, opt.mode).labelKey]} · ` : ''}
+                              {formatNumber(opt.estimatedDistanceKm)} km · {formatEmissions(opt.estimatedEmissionsKg)} · {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode, opt.vesselType).wtw).toFixed(3)} kg/t·km
+                              {opt.publishedEmissionGPerTeuKm ? ` (${opt.publishedEmissionGPerTeuKm} g/TEU-km)` : ''}
+                              {opt.ballastPct ? ` · +${opt.ballastPct}% ballast` : ''}
                             </p>
+                            {opt.predictableEtaWindow && (
+                              <p className={`text-[10px] font-mono tabular-nums mt-0.5 ${opt.mode === 'SEA_TRAMP' ? 'text-amber-700' : 'text-blue-700 font-semibold'}`}>
+                                {opt.fixedDepartureUtc ? `${opt.fixedDepartureUtc} · ` : ''}{opt.predictableEtaWindow}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -1518,9 +1950,12 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
                         )}
                       </td>
                       <td className="py-3.5 px-2 text-right font-mono tabular-nums whitespace-nowrap">
-                        <span className={`font-bold ${relPct >= SCHEDULE_SLA_TARGET_PCT ? 'text-teal-700' : 'text-amber-700'}`}>
+                        <span className={`font-bold block ${relPct >= SCHEDULE_SLA_TARGET_PCT ? 'text-teal-700' : 'text-amber-700'}`}>
                           {relPct.toFixed(1)}%
                         </span>
+                        {opt.etaConfidenceHours && (
+                          <span className="text-[10px] text-slate-500">±{opt.etaConfidenceHours}h</span>
+                        )}
                       </td>
                       <td className="py-3.5 px-2 text-right font-mono tabular-nums whitespace-nowrap">
                         <div className="font-semibold text-slate-800">{formatNumber(opt.teuKm)}</div>

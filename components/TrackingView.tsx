@@ -3,15 +3,36 @@ import {
   Search, MapPin, Navigation, Clock, CheckCircle2, Sparkles, ExternalLink, 
   Loader2, Globe, LocateFixed, Zap, Radio, Shield, Ship, Plane, Truck, Train, 
   Info, ArrowRight, BrainCircuit, Activity, RefreshCcw, Scale, Gauge, AlertOctagon, 
-  Camera, UploadCloud, XCircle, CheckCircle, Compass, Anchor, Wind
+  Camera, UploadCloud, XCircle, CheckCircle, Compass, Anchor, Wind, Bell, MessageSquare
 } from 'lucide-react';
-import { Shipment, Leg, TransportMode } from '../types';
+import { Shipment, Leg, TransportMode, LinerAlertEvent, LinerNotificationPrefs } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
 import { getLocationInsights, MapInsight, predictShipmentETA, getRiskAlerts, analyzeCargoDamage } from '../services/gemini';
-import { getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime } from '../services/carbon';
+import {
+  DEFAULT_LINER_NOTIFICATION_PREFS,
+  INITIAL_LINER_ALERTS,
+  createSimulatedLinerAlert,
+  getShipmentContainers,
+  getShipmentDistanceKm,
+  getShipmentGlecBreakdown,
+  getShipmentScheduleReliability,
+  getShipmentSeaServiceType,
+  getShipmentTeuKm,
+  isShipmentOnTime,
+  matchLinerLineForCorridor
+} from '../services/carbon';
 import { formatNumber } from '../services/formatters';
 
-interface TrackingViewProps { shipments: Shipment[]; lang: Language; }
+interface TrackingViewProps {
+  shipments: Shipment[];
+  lang: Language;
+  linerAlerts?: LinerAlertEvent[];
+  linerPrefs?: LinerNotificationPrefs;
+  onUpdateLinerPrefs?: (prefs: LinerNotificationPrefs) => void;
+  onTriggerLinerAlert?: (category: 'schedule_change' | 'weather_window', shipment: Shipment) => void;
+  onMarkAlertsRead?: () => void;
+  requestedSection?: 'map' | 'risks' | 'damage' | 'telemetry' | 'liner_alerts';
+}
 
 interface Waypoint {
   name: string;
@@ -75,18 +96,37 @@ const getRouteWaypoints = (origin: string, destination: string): Waypoint[] => {
   ];
 };
 
-const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
+const TrackingView: React.FC<TrackingViewProps> = ({
+  shipments,
+  lang,
+  linerAlerts: externalAlerts,
+  linerPrefs: externalPrefs,
+  onUpdateLinerPrefs,
+  onTriggerLinerAlert,
+  onMarkAlertsRead,
+  requestedSection
+}) => {
   const t = translations[lang];
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(shipments[0] || null);
   const [activeLegId, setActiveLegId] = useState<string | null>(null);
-  const [section, setSection] = useState<'map' | 'risks' | 'damage' | 'telemetry'>('map');
+  const [section, setSection] = useState<'map' | 'risks' | 'damage' | 'telemetry' | 'liner_alerts'>(requestedSection || 'map');
   const [activeWaypoint, setActiveWaypoint] = useState<Waypoint | null>(null);
   const [risks, setRisks] = useState<any[]>([]);
   const [loadingRisks, setLoadingRisks] = useState(false);
   const [damageReport, setDamageReport] = useState<any>(null);
   const [isAnalyzingDamage, setIsAnalyzingDamage] = useState(false);
   const [mapMode, setMapMode] = useState<'satellite' | 'vector'>('vector');
+  const [localAlerts, setLocalAlerts] = useState<LinerAlertEvent[]>(INITIAL_LINER_ALERTS);
+  const [localPrefs, setLocalPrefs] = useState<LinerNotificationPrefs>(DEFAULT_LINER_NOTIFICATION_PREFS);
+  const [lastDispatchedToast, setLastDispatchedToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activeAlerts = externalAlerts ?? localAlerts;
+  const activePrefs = externalPrefs ?? localPrefs;
+
+  useEffect(() => {
+    if (requestedSection) setSection(requestedSection);
+  }, [requestedSection]);
 
   useEffect(() => {
     if (selectedShipment) {
@@ -125,22 +165,47 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
 
   const currentWp = waypoints.find(w => w.status === 'current') || waypoints[0];
 
+  const matchedLinerLine = selectedShipment
+    ? matchLinerLineForCorridor(selectedShipment.origin, selectedShipment.destination, selectedShipment.vesselType)
+    : matchLinerLineForCorridor('Rotterdam', 'Singapore');
+
+  const updatePrefs = (next: LinerNotificationPrefs) => {
+    if (onUpdateLinerPrefs) onUpdateLinerPrefs(next);
+    else setLocalPrefs(next);
+  };
+
+  const triggerDemoAlert = (category: 'schedule_change' | 'weather_window') => {
+    if (!selectedShipment) return;
+    if (onTriggerLinerAlert) {
+      onTriggerLinerAlert(category, selectedShipment);
+    } else {
+      const ev = createSimulatedLinerAlert(category, selectedShipment.id, matchedLinerLine, activePrefs);
+      setLocalAlerts((prev) => [ev, ...prev]);
+    }
+    setLastDispatchedToast(
+      category === 'schedule_change'
+        ? `${matchedLinerLine.lineCode} · ${selectedShipment.id} (${activePrefs.smsEnabled ? `SMS → ${activePrefs.recipientPhone}` : 'In-App'})`
+        : `${matchedLinerLine.lineCode} · Weather window advisory (${activePrefs.smsEnabled ? `SMS → ${activePrefs.recipientPhone}` : 'In-App'})`
+    );
+    setTimeout(() => setLastDispatchedToast(null), 4000);
+  };
+
+  const unreadCount = activeAlerts.filter((a) => !a.read).length;
+
   return (
     <div className="h-full flex flex-col gap-6 animate-in slide-in-from-right-4 duration-700">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t.trackTitle}</h1>
-          <p className="text-slate-500 font-medium flex items-center gap-2">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+          <p className="text-slate-500 font-medium">
             {t.trackSubtitle}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm text-xs font-bold">
-            <span className="text-slate-400">TELEMETRY:</span>
-            <span className="text-emerald-600 flex items-center gap-1.5 font-mono">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-              LIVE AIS (18.4 KTS)
+            <span className="text-slate-400">AIS FEED:</span>
+            <span className="text-emerald-700 font-mono tabular-nums">
+              18.4 KTS
             </span>
           </div>
         </div>
@@ -148,16 +213,17 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
 
       <div className="inline-flex bg-white border border-slate-200 p-1 rounded-2xl shadow-sm flex-wrap self-start">
         {([
-          ['map', lang === 'el' ? 'Χάρτης' : 'Map'],
-          ['risks', lang === 'el' ? 'Κίνδυνοι' : 'Risks'],
-          ['damage', lang === 'el' ? 'Έλεγχος φορτίου' : 'Cargo check'],
-          ['telemetry', lang === 'el' ? 'Τηλεμετρία' : 'Telemetry'],
+          ['map', lang === 'el' ? 'Χάρτης' : lang === 'tr' ? 'Harita' : 'Map'],
+          ['risks', lang === 'el' ? 'Κίνδυνοι' : lang === 'tr' ? 'Riskler' : 'Risks'],
+          ['damage', lang === 'el' ? 'Έλεγχος φορτίου' : lang === 'tr' ? 'Yük Kontrolü' : 'Cargo check'],
+          ['telemetry', lang === 'el' ? 'Τηλεμετρία' : lang === 'tr' ? 'Telemetri' : 'Telemetry'],
+          ['liner_alerts', `${t.smsAlertsTitle}${unreadCount > 0 ? ` (${unreadCount})` : ''}`],
         ] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
             onClick={() => setSection(id)}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${section === id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap shrink-0 ${section === id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
           >
             {label}
           </button>
@@ -457,7 +523,26 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                   label={t.scheduleReliability}
                   value={selectedShipment ? `${getShipmentScheduleReliability(selectedShipment).toFixed(1)}% (${isShipmentOnTime(selectedShipment) ? t.onTime : `${t.delayed} +${selectedShipment.scheduleDelayHours ?? 0}h`})` : '—'}
                 />
-                <StatRow icon={<Wind size={14}/>} label="Weather / Sea" value="Sea State 2 (Calm)" />
+                {selectedShipment && getShipmentSeaServiceType(selectedShipment) === 'LINER' && (
+                  <>
+                    <StatRow
+                      icon={<Ship size={14}/>}
+                      label={t.fixedScheduleLabel}
+                      value={`${selectedShipment.linerLineCode ?? matchedLinerLine.lineCode} · ${selectedShipment.fixedDepartureUtc ?? matchedLinerLine.departureWindowUtc}`}
+                    />
+                    <StatRow
+                      icon={<Clock size={14}/>}
+                      label={t.predictableEtaLabel}
+                      value={selectedShipment.predictableEtaWindow ?? matchedLinerLine.predictableEtaWindow}
+                    />
+                    <StatRow
+                      icon={<Wind size={14}/>}
+                      label={t.publishedIntensityCol}
+                      value={`${selectedShipment.publishedEmissionGPerTeuKm ?? matchedLinerLine.publishedEmissionGPerTeuKm} g CO2e/TEU-km`}
+                    />
+                  </>
+                )}
+                <StatRow icon={<Wind size={14}/>} label="Weather / Sea" value={matchedLinerLine.weatherWindowStatus === 'clear' ? 'Sea State 2 (Clear Window)' : matchedLinerLine.weatherWindowSummary} />
                 <StatRow icon={<Shield size={14}/>} label="Incoterms" value={selectedShipment?.incoterms || 'DAP'} />
              </div>
           </div>
@@ -477,6 +562,192 @@ const TrackingView: React.FC<TrackingViewProps> = ({ shipments, lang }) => {
                ))}
              </div>
           </div>
+          </div>
+          )}
+
+          {section === 'liner_alerts' && (
+          <div className="space-y-6">
+            {/* Fixed Schedule & Predictable ETA Card for Selected Shipment / Liner Line */}
+            <div className="bg-white rounded-[2rem] p-6 border border-slate-200 shadow-sm space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <Ship size={17} className="text-blue-600" />
+                    <span>
+                      {selectedShipment?.linerLineCode ?? matchedLinerLine.lineCode} · {selectedShipment?.linerLineName ?? matchedLinerLine.lineName}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {matchedLinerLine.carrier} · {selectedShipment ? `${selectedShipment.id} (${selectedShipment.origin} → ${selectedShipment.destination})` : matchedLinerLine.corridorLabel}
+                  </p>
+                </div>
+                <span className="text-xs font-mono tabular-nums font-bold text-teal-700">
+                  {matchedLinerLine.scheduleReliabilityPct.toFixed(1)}% OTIF · {matchedLinerLine.publishedEmissionGPerTeuKm.toFixed(1)} g CO2e/TEU-km
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100 text-xs font-mono tabular-nums">
+                <div>
+                  <span className="text-slate-500 font-sans block text-[11px]">{t.fixedScheduleLabel}</span>
+                  <span className="font-bold text-slate-900 mt-0.5 block">{selectedShipment?.fixedDepartureUtc ?? matchedLinerLine.departureWindowUtc}</span>
+                  <span className="text-[11px] font-sans text-slate-500">{t.cutoffLabel}: {matchedLinerLine.cutoffWindowUtc}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-sans block text-[11px]">{t.predictableEtaLabel}</span>
+                  <span className="font-bold text-blue-700 mt-0.5 block">{selectedShipment?.predictableEtaWindow ?? matchedLinerLine.predictableEtaWindow}</span>
+                  <span className="text-[11px] font-sans text-slate-500">{matchedLinerLine.frequency}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-sans block text-[11px]">{t.weatherWindowCol}</span>
+                  <span className={`font-bold font-sans mt-0.5 block ${
+                    matchedLinerLine.weatherWindowStatus === 'clear'
+                      ? 'text-emerald-700'
+                      : matchedLinerLine.weatherWindowStatus === 'watch'
+                        ? 'text-amber-700'
+                        : 'text-rose-700'
+                  }`}>
+                    {matchedLinerLine.weatherWindowSummary}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-sans block text-[11px]">{t.publishedIntensityCol}</span>
+                  <span className="font-bold text-emerald-700 mt-0.5 block">
+                    {matchedLinerLine.publishedEmissionKgPerTkm.toFixed(3)} kg/t·km · {matchedLinerLine.publishedVoyageKgPerTeu} kg/TEU
+                  </span>
+                  <span className="text-[11px] font-sans text-slate-500">{matchedLinerLine.publicationStandard}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* SMS & In-App Notification Preferences + Demo Dispatch Controls */}
+            <div className="bg-white rounded-[2rem] p-6 border border-slate-200 shadow-sm space-y-5">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <Bell size={17} className="text-emerald-600" />
+                    <span>{t.smsAlertsTitle}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">{t.smsAlertsScopeNote}</p>
+                </div>
+                {onMarkAlertsRead && unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={onMarkAlertsRead}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 whitespace-nowrap shrink-0"
+                  >
+                    {t.markAllReadBtn} ({unreadCount})
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 pt-4 border-t border-slate-100 items-end">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={activePrefs.smsEnabled}
+                    onChange={(e) => updatePrefs({ ...activePrefs, smsEnabled: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                  />
+                  <span>{t.smsChannelLabel}</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={activePrefs.inAppEnabled}
+                    onChange={(e) => updatePrefs({ ...activePrefs, inAppEnabled: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                  />
+                  <span>{t.inAppChannelLabel}</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={activePrefs.scheduleChanges}
+                    onChange={(e) => updatePrefs({ ...activePrefs, scheduleChanges: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                  />
+                  <span>{t.scheduleChangeAlertsLabel}</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={activePrefs.weatherWindows}
+                    onChange={(e) => updatePrefs({ ...activePrefs, weatherWindows: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                  />
+                  <span>{t.weatherWindowAlertsLabel}</span>
+                </label>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">{t.demoPhoneLabel}</label>
+                  <input
+                    type="tel"
+                    value={activePrefs.recipientPhone}
+                    onChange={(e) => updatePrefs({ ...activePrefs, recipientPhone: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono tabular-nums font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => triggerDemoAlert('schedule_change')}
+                  disabled={!selectedShipment}
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
+                >
+                  <MessageSquare size={14} />
+                  <span>{t.simulateScheduleAlertBtn}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => triggerDemoAlert('weather_window')}
+                  disabled={!selectedShipment}
+                  className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
+                >
+                  <Wind size={14} />
+                  <span>{t.simulateWeatherAlertBtn}</span>
+                </button>
+                {lastDispatchedToast && (
+                  <span className="text-xs font-mono tabular-nums font-bold text-emerald-700">
+                    Dispatched: {lastDispatchedToast}
+                  </span>
+                )}
+              </div>
+
+              {/* Dispatched Alerts & SMS Preview Log */}
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <p className="text-xs font-bold text-slate-700">{t.alertDispatchedLogTitle}</p>
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {activeAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`p-4 rounded-xl border text-xs space-y-1.5 ${
+                        alert.severity === 'warning'
+                          ? 'bg-amber-50/50 border-amber-200'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-extrabold text-slate-900">
+                          <span className="font-mono text-blue-700">{alert.lineCode}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span className="font-mono text-slate-700">{alert.shipmentId}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span>{alert.title}</span>
+                        </p>
+                        <span className="text-[11px] font-mono tabular-nums text-slate-500">
+                          {alert.channel === 'sms_and_app' ? `SMS → ${alert.recipientPhone} + App` : 'In-App'} · {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed">{alert.message}</p>
+                      <p className="text-[11px] font-mono tabular-nums font-bold text-teal-700">
+                        {alert.etaImpact}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
           )}
         </div>

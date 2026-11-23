@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Shield, Award, Leaf, Zap, Globe, Star, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { Language, translations } from '../services/i18n';
+import { LINER_SERVICE_LINES } from '../services/carbon';
 
 const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
   const t = translations[lang];
@@ -123,6 +124,54 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
              </button>
           </div>
         ))}
+      </div>
+
+      {/* Published Emissions & Fixed Schedules per Liner Line */}
+      <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm space-y-4">
+        <div>
+          <h2 className="text-lg font-black text-slate-900 tracking-tight">{t.publishedLineEmissionsTitle}</h2>
+          <p className="text-xs text-slate-500 mt-0.5">{t.publishedLineEmissionsDesc}</p>
+        </div>
+        <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500">
+                <th className="py-3 px-4">{t.linerLineCol}</th>
+                <th className="py-3 px-4">{t.sailingScheduleCol}</th>
+                <th className="py-3 px-4">{t.etaWindowCol}</th>
+                <th className="py-3 px-4 text-right">{t.publishedIntensityCol}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {LINER_SERVICE_LINES.map((line) => (
+                <tr key={line.lineCode} className="hover:bg-slate-50">
+                  <td className="py-3 px-4">
+                    <p className="font-extrabold text-slate-900">
+                      <span className="font-mono text-blue-700">{line.lineCode}</span> · {line.lineName}
+                    </p>
+                    <p className="text-[11px] text-slate-500">{line.carrier} · {line.corridorLabel} · {line.fuelBlend}</p>
+                  </td>
+                  <td className="py-3 px-4 font-mono tabular-nums">
+                    <p className="font-bold text-slate-800">{line.departureWindowUtc}</p>
+                    <p className="text-[11px] font-sans text-slate-500">{line.frequency} · {t.cutoffLabel}: {line.cutoffWindowUtc}</p>
+                  </td>
+                  <td className="py-3 px-4 font-mono tabular-nums">
+                    <p className="font-bold text-teal-700">{line.predictableEtaWindow}</p>
+                    <p className="text-[11px] text-slate-500">{line.scheduleReliabilityPct.toFixed(1)}% OTIF</p>
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono tabular-nums">
+                    <p className="font-extrabold text-emerald-700">
+                      {line.publishedEmissionGPerTeuKm.toFixed(1)} g/TEU-km · {line.publishedEmissionKgPerTkm.toFixed(3)} kg/t·km
+                    </p>
+                    <p className="text-[11px] font-sans text-slate-500">
+                      {line.publishedVoyageKgPerTeu} kg/TEU · {line.publicationStandard} ({line.yoyIntensityDeltaPct}%)
+                    </p>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="bg-slate-900 rounded-[3rem] p-12 text-white overflow-hidden relative shadow-2xl">

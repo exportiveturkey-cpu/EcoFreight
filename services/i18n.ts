@@ -302,6 +302,56 @@ export interface Translations {
   vesselSpeedLabel: string;
   speedSavingsCurveTitle: string;
   propellerLawNote: string;
+
+  // Vessel & Sea Service Subcategories (Liner vs. Tramp)
+  seaLiner: string;
+  seaTramp: string;
+  seaServiceSubcategories: string;
+  linerServiceLabel: string;
+  trampServiceLabel: string;
+  linerVesselTypeLabel: string;
+  trampVesselTypeLabel: string;
+  seaFilterAll: string;
+  seaFilterLiner: string;
+  seaFilterTramp: string;
+  linerLogicSummary: string;
+  trampLogicSummary: string;
+  serviceLogicTitle: string;
+  pricingModelLabel: string;
+  berthDwellLogicLabel: string;
+  ballastFactorLabel: string;
+  reliabilityBaselineLabel: string;
+  cruisingSpeedLabel: string;
+  vesselContainerDeepsea: string;
+  vesselContainerFeeder: string;
+  vesselRoroFerry: string;
+  vesselMppTramp: string;
+  vesselHandysizeBulk: string;
+  vesselCoastalCharter: string;
+
+  // Liner Fixed Schedules, Predictable ETAs, SMS/Weather Alerts & Published Line Emissions
+  fixedScheduleLabel: string;
+  predictableEtaLabel: string;
+  publishedLineEmissionsTitle: string;
+  publishedLineEmissionsDesc: string;
+  linerLineCol: string;
+  sailingScheduleCol: string;
+  etaWindowCol: string;
+  publishedIntensityCol: string;
+  weatherWindowCol: string;
+  smsAlertsTitle: string;
+  smsAlertsScopeNote: string;
+  smsChannelLabel: string;
+  inAppChannelLabel: string;
+  scheduleChangeAlertsLabel: string;
+  weatherWindowAlertsLabel: string;
+  demoPhoneLabel: string;
+  simulateScheduleAlertBtn: string;
+  simulateWeatherAlertBtn: string;
+  alertDispatchedLogTitle: string;
+  markAllReadBtn: string;
+  cutoffLabel: string;
+  yoyTrendLabel: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -589,7 +639,53 @@ export const translations: Record<Language, Translations> = {
     combinedSavingsLabel: "Fuel + CO2 Savings",
     vesselSpeedLabel: "Vessel Speed",
     speedSavingsCurveTitle: "Savings by Speed Reduction Tier",
-    propellerLawNote: "Propeller curve: reducing vessel speed 15% cuts propulsion fuel & CO2e by ~23.6%."
+    propellerLawNote: "Propeller curve: reducing vessel speed 15% cuts propulsion fuel & CO2e by ~23.6%.",
+    seaLiner: "Sea (Liner)",
+    seaTramp: "Sea (Tramp)",
+    seaServiceSubcategories: "Vessel & Sea Service Subcategories",
+    linerServiceLabel: "Liner Service",
+    trampServiceLabel: "Tramp Charter",
+    linerVesselTypeLabel: "Liner Vessel Type",
+    trampVesselTypeLabel: "Tramp Vessel Type",
+    seaFilterAll: "All (Liner + Tramp)",
+    seaFilterLiner: "Liner Only",
+    seaFilterTramp: "Tramp Only",
+    linerLogicSummary: "Fixed weekly sailing · TEU slot tariff · Priority berth · 0% ballast",
+    trampLogicSummary: "Spot voyage charter · Tonnage scale rate · 1.35× berth laytime · +12% ballast",
+    serviceLogicTitle: "Liner vs. Tramp Maritime Operating Logic",
+    pricingModelLabel: "Freight Tariff Model",
+    berthDwellLogicLabel: "Berth & Dwell Rule",
+    ballastFactorLabel: "Ballast Repositioning",
+    reliabilityBaselineLabel: "Schedule Adherence",
+    cruisingSpeedLabel: "Design Speed",
+    vesselContainerDeepsea: "Deep-Sea Container Liner (14k TEU)",
+    vesselContainerFeeder: "Short-Sea Feeder Container (2.5k TEU)",
+    vesselRoroFerry: "Ro-Ro / ConRo Liner",
+    vesselMppTramp: "Multi-Purpose Tramp (15k DWT)",
+    vesselHandysizeBulk: "Handysize Bulk Charter (32k DWT)",
+    vesselCoastalCharter: "Short-Sea Coaster Tramp (5k DWT)",
+    fixedScheduleLabel: "Fixed Sailing Schedule",
+    predictableEtaLabel: "Predictable ETA Window",
+    publishedLineEmissionsTitle: "Liner Fixed Schedules & Published Emissions per Line",
+    publishedLineEmissionsDesc: "Fixed weekly sailing windows, predictable berth ETAs (±1.5–3h), and audited Well-to-Wheel emissions per liner service loop.",
+    linerLineCol: "Liner Line / Carrier",
+    sailingScheduleCol: "Fixed Sailing & Cut-Off",
+    etaWindowCol: "Predictable ETA & SLA",
+    publishedIntensityCol: "Published Line Emissions",
+    weatherWindowCol: "Weather Window",
+    smsAlertsTitle: "Liner Schedule & Weather Window Alerts",
+    smsAlertsScopeNote: "Demo scope: in-app notification center + simulated SMS dispatch preview (no external carrier telecom gateway billed).",
+    smsChannelLabel: "SMS Dispatch (Demo)",
+    inAppChannelLabel: "In-App Bell Alerts",
+    scheduleChangeAlertsLabel: "Schedule / Berth Shift (>2h)",
+    weatherWindowAlertsLabel: "Marine Weather Windows",
+    demoPhoneLabel: "Demo SMS Recipient",
+    simulateScheduleAlertBtn: "Simulate Schedule Change Alert",
+    simulateWeatherAlertBtn: "Simulate Weather Window Alert",
+    alertDispatchedLogTitle: "Dispatched Liner Alerts & SMS Log",
+    markAllReadBtn: "Mark all read",
+    cutoffLabel: "Cargo Cut-Off",
+    yoyTrendLabel: "YoY Intensity"
   },
   tr: {
     dashboard: "Panel",
@@ -875,7 +971,53 @@ export const translations: Record<Language, Translations> = {
     combinedSavingsLabel: "Yakıt + CO2 Tasarrufu",
     vesselSpeedLabel: "Gemi Hızı",
     speedSavingsCurveTitle: "Hız Kademesine Göre Tasarruf",
-    propellerLawNote: "Pervane eğrisi: hızı %15 düşürmek ana makine yakıtını ve CO2e salımını ~%23,6 azaltır."
+    propellerLawNote: "Pervane eğrisi: hızı %15 düşürmek ana makine yakıtını ve CO2e salımını ~%23,6 azaltır.",
+    seaLiner: "Deniz (Liner)",
+    seaTramp: "Deniz (Tramp)",
+    seaServiceSubcategories: "Gemi & Deniz Hizmet Alt Kategorileri",
+    linerServiceLabel: "Liner (Düzenli Hat)",
+    trampServiceLabel: "Tramp (Sefer Charter)",
+    linerVesselTypeLabel: "Liner Gemi Tipi",
+    trampVesselTypeLabel: "Tramp Gemi Tipi",
+    seaFilterAll: "Tümü (Liner + Tramp)",
+    seaFilterLiner: "Yalnızca Liner",
+    seaFilterTramp: "Yalnızca Tramp",
+    linerLogicSummary: "Sabit sefer takvimi · TEU slot tarifesi · Öncelikli rıhtım · %0 balast",
+    trampLogicSummary: "Spot sefer kiralama · Tonaj ölçeği tarifesi · 1,35× rıhtım beklemesi · +%12 balast",
+    serviceLogicTitle: "Liner ve Tramp Denizcilik Operasyon Mantığı",
+    pricingModelLabel: "Navlun Tarife Modeli",
+    berthDwellLogicLabel: "Rıhtım & Bekleme Kuralı",
+    ballastFactorLabel: "Balast Konumlandırma",
+    reliabilityBaselineLabel: "Tarife Uyumu",
+    cruisingSpeedLabel: "Tasarım Hızı",
+    vesselContainerDeepsea: "Açık Deniz Konteyner Liner (14k TEU)",
+    vesselContainerFeeder: "Kısa Mesafe Feeder Konteyner (2,5k TEU)",
+    vesselRoroFerry: "Ro-Ro / ConRo Liner",
+    vesselMppTramp: "Çok Amaçlı Tramp (15k DWT)",
+    vesselHandysizeBulk: "Handysize Dökme Yük Charter (32k DWT)",
+    vesselCoastalCharter: "Kısa Mesafe Coaster Tramp (5k DWT)",
+    fixedScheduleLabel: "Sabit Sefer Takvimi",
+    predictableEtaLabel: "Öngörülebilir ETA Penceresi",
+    publishedLineEmissionsTitle: "Liner Sabit Sefer Takvimi ve Hat Bazlı Yayınlanan Emisyonlar",
+    publishedLineEmissionsDesc: "Haftalık sabit kalkış pencereleri, öngörülebilir rıhtım ETA aralıkları (±1,5–3 saat) ve hat bazlı doğrulanmış WTW emisyon yoğunlukları.",
+    linerLineCol: "Liner Hattı / Armatör",
+    sailingScheduleCol: "Sabit Kalkış & Cut-Off",
+    etaWindowCol: "Öngörülebilir ETA & SLA",
+    publishedIntensityCol: "Hat Bazlı Yayınlanan Emisyon",
+    weatherWindowCol: "Hava Penceresi",
+    smsAlertsTitle: "Liner Takvim ve Hava Penceresi Bildirimleri",
+    smsAlertsScopeNote: "Demo kapsamı: uygulama içi bildirim merkezi + simüle edilmiş SMS gönderim önizlemesi (canlı operatör SMS geçidi bağlı değildir).",
+    smsChannelLabel: "SMS Gönderimi (Demo)",
+    inAppChannelLabel: "Uygulama İçi Zil Bildirimi",
+    scheduleChangeAlertsLabel: "Tarife / Rıhtım Değişikliği (>2s)",
+    weatherWindowAlertsLabel: "Deniz Hava Pencereleri",
+    demoPhoneLabel: "Demo SMS Alıcısı",
+    simulateScheduleAlertBtn: "Tarife Değişikliği Bildirimi Test Et",
+    simulateWeatherAlertBtn: "Hava Penceresi Uyarısı Test Et",
+    alertDispatchedLogTitle: "Gönderilen Liner Uyarıları ve SMS Kaydı",
+    markAllReadBtn: "Tümünü okundu say",
+    cutoffLabel: "Yük Cut-Off",
+    yoyTrendLabel: "Yıllık Yoğunluk"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -1161,7 +1303,53 @@ export const translations: Record<Language, Translations> = {
     combinedSavingsLabel: "Σύνολο Καύσιμα + CO2",
     vesselSpeedLabel: "Ταχύτητα Πλοίου",
     speedSavingsCurveTitle: "Εξοικονόμηση ανά Κλίμακα Ταχύτητας",
-    propellerLawNote: "Νόμος Έλικα: 15% μείωση ταχύτητας μειώνει καύσιμα & CO2e κατά ~23,6%."
+    propellerLawNote: "Νόμος Έλικα: 15% μείωση ταχύτητας μειώνει καύσιμα & CO2e κατά ~23,6%.",
+    seaLiner: "Θαλάσσιο (Liner)",
+    seaTramp: "Θαλάσσιο (Tramp)",
+    seaServiceSubcategories: "Τύποι Πλοίων & Ναυτιλιακών Υπηρεσιών",
+    linerServiceLabel: "Τακτική Γραμμή (Liner)",
+    trampServiceLabel: "Ναύλωση Ταξιδιού (Tramp)",
+    linerVesselTypeLabel: "Τύπος Πλοίου Liner",
+    trampVesselTypeLabel: "Τύπος Πλοίου Tramp",
+    seaFilterAll: "Όλα (Liner + Tramp)",
+    seaFilterLiner: "Μόνο Liner",
+    seaFilterTramp: "Μόνο Tramp",
+    linerLogicSummary: "Σταθερό δρομολόγιο · Τιμολόγιο slot TEU · Προτεραιότητα ελλιμενισμού · 0% έρμα",
+    trampLogicSummary: "Spot ναύλωση · Κλιμακωτό ναύλο τόνου · 1,35× αναμονή θέσης · +12% έρμα",
+    serviceLogicTitle: "Λογική Λειτουργίας Liner έναντι Tramp",
+    pricingModelLabel: "Μοντέλο Ναύλου",
+    berthDwellLogicLabel: "Κανόνας Αναμονής Λιμένα",
+    ballastFactorLabel: "Μετακίνηση Έρματος",
+    reliabilityBaselineLabel: "Τήρηση Χρονοδιαγράμματος",
+    cruisingSpeedLabel: "Ταχύτητα Πλεύσης",
+    vesselContainerDeepsea: "Πλοίο Εμπορευματοκιβωτίων Deep-Sea (14k TEU)",
+    vesselContainerFeeder: "Τροφοδοτικό Container Feeder (2,5k TEU)",
+    vesselRoroFerry: "Πλοίο Ro-Ro / ConRo Liner",
+    vesselMppTramp: "Πλοίο Πολλαπλών Χρήσεων Tramp (15k DWT)",
+    vesselHandysizeBulk: "Ναύλωση Χύδην Φορτίου Handysize (32k DWT)",
+    vesselCoastalCharter: "Ακτοπλοϊκό Coaster Tramp (5k DWT)",
+    fixedScheduleLabel: "Σταθερό Πρόγραμμα Απόπλου",
+    predictableEtaLabel: "Προβλέψιμο Παράθυρο ETA",
+    publishedLineEmissionsTitle: "Σταθερά Δρομολόγια Liner & Δημοσιευμένες Εκπομπές ανά Γραμμή",
+    publishedLineEmissionsDesc: "Σταθερές εβδομαδιαίες αναχωρήσεις, προβλέψιμα παράθυρα ETA (±1,5–3 ώρες) και πιστοποιημένες εκπομπές WTW ανά γραμμή Liner.",
+    linerLineCol: "Γραμμή Liner / Μεταφορέας",
+    sailingScheduleCol: "Σταθερός Απόπλους & Cut-Off",
+    etaWindowCol: "Προβλέψιμο ETA & SLA",
+    publishedIntensityCol: "Δημοσιευμένες Εκπομπές Γραμμής",
+    weatherWindowCol: "Καιρικό Παράθυρο",
+    smsAlertsTitle: "Ειδοποιήσεις Δρομολογίων & Καιρού Liner",
+    smsAlertsScopeNote: "Εύρος demo: ειδοποιήσεις εφαρμογής + προσομοίωση αποστολής SMS (χωρίς εξωτερική πύλη τηλεπικοινωνιών).",
+    smsChannelLabel: "Αποστολή SMS (Demo)",
+    inAppChannelLabel: "Ειδοποιήσεις Εφαρμογής",
+    scheduleChangeAlertsLabel: "Αλλαγή Προγράμματος (>2ώ)",
+    weatherWindowAlertsLabel: "Θαλάσσια Καιρικά Παράθυρα",
+    demoPhoneLabel: "Παραλήπτης SMS Demo",
+    simulateScheduleAlertBtn: "Προσομοίωση Αλλαγής Προγράμματος",
+    simulateWeatherAlertBtn: "Προσομοίωση Καιρικού Παραθύρου",
+    alertDispatchedLogTitle: "Ιστορικό Ειδοποιήσεων & SMS Liner",
+    markAllReadBtn: "Σήμανση όλων ως αναγνωσμένα",
+    cutoffLabel: "Cut-Off Φορτίου",
+    yoyTrendLabel: "Ετήσια Μεταβολή"
   }
 };
 

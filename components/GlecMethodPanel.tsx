@@ -1,12 +1,14 @@
 import React from 'react';
 import { BookOpenCheck, X } from 'lucide-react';
 import { GLEC_FRAMEWORK_METADATA, GLEC_MODE_FACTORS, getGlecFactorSpec } from '../services/carbon';
+import { VesselType } from '../types';
 import { formatNumber } from '../services/formatters';
 import { Language, translations } from '../services/i18n';
 
 export interface GlecLiveExample {
   label: string;
   mode: string;
+  vesselType?: VesselType;
   distanceKm: number;
   weightTonnes: number;
   ttwKg: number;
@@ -27,10 +29,14 @@ interface GlecMethodPanelProps {
 
 const getModeDisplay = (mode: string, t: typeof translations['en']) => {
   switch (mode) {
+    case 'SEA_LINER':
+      return t.seaLiner;
+    case 'SEA_TRAMP':
+      return t.seaTramp;
     case 'SEA':
       return t.sea;
     case 'SEA_RAIL':
-      return `${t.sea} + ${t.rail}`;
+      return `${t.seaLiner} + ${t.rail}`;
     case 'RAIL':
       return t.rail;
     case 'ROAD':
@@ -50,8 +56,8 @@ const GlecMethodPanel: React.FC<GlecMethodPanelProps> = ({
   compact = false
 }) => {
   const t = translations[lang] || translations.en;
-  const factors = Object.values(GLEC_MODE_FACTORS);
-  const exampleSpec = liveExample ? getGlecFactorSpec(liveExample.mode) : null;
+  const factors = Object.values(GLEC_MODE_FACTORS).filter((spec) => spec.mode !== 'SEA');
+  const exampleSpec = liveExample ? getGlecFactorSpec(liveExample.mode, liveExample.vesselType) : null;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">

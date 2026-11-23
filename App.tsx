@@ -38,10 +38,16 @@ import RouteOptimizer from './components/RouteOptimizer';
 import VerticalSelect from './components/VerticalSelect';
 import RoadApp from './verticals/road/RoadApp';
 import Login, { createDemoProfile, DemoType } from './components/Login';
-import { Shipment, ShipmentStatus, TransportMode } from './types';
+import { Shipment, ShipmentStatus, TransportMode, LinerAlertEvent, LinerNotificationPrefs } from './types';
 import { Language, translations } from './services/i18n';
 import { auth, onAuthStateChanged, signOut } from './services/firebase';
 import { INITIAL_SAMPLE_SHIPMENTS } from './services/sampleData';
+import {
+  DEFAULT_LINER_NOTIFICATION_PREFS,
+  INITIAL_LINER_ALERTS,
+  createSimulatedLinerAlert,
+  matchLinerLineForCorridor
+} from './services/carbon';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'shipments' | 'routes' | 'tracking' | 'sustainability' | 'network' | 'docs' | 'ai-assistant'>('dashboard');
@@ -65,6 +71,9 @@ const App: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [vertical, setVertical] = useState<'maritime' | 'road' | null>(null);
+  const [linerAlerts, setLinerAlerts] = useState<LinerAlertEvent[]>(INITIAL_LINER_ALERTS);
+  const [linerPrefs, setLinerPrefs] = useState<LinerNotificationPrefs>(DEFAULT_LINER_NOTIFICATION_PREFS);
+  const [trackingSectionReq, setTrackingSectionReq] = useState<'map' | 'risks' | 'damage' | 'telemetry' | 'liner_alerts' | undefined>(undefined);
 
   const t = translations[lang] || translations.en;
 
@@ -184,6 +193,18 @@ const App: React.FC = () => {
     .flatMap(s => s.trackingHistory.map(e => ({ ...e, shipmentId: s.id })))
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     .slice(0, 5);
+
+  const unreadLinerCount = linerAlerts.filter(a => !a.read).length;
+
+  const handleTriggerLinerAlert = (category: 'schedule_change' | 'weather_window', shipment: Shipment) => {
+    const line = matchLinerLineForCorridor(shipment.origin, shipment.destination, shipment.vesselType);
+    const alert = createSimulatedLinerAlert(category, shipment.id, line, linerPrefs);
+    setLinerAlerts(prev => [alert, ...prev]);
+  };
+
+  const handleMarkAlertsRead = () => {
+    setLinerAlerts(prev => prev.map(a => ({ ...a, read: true })));
+  };
 
   const demoLabel = user?.demoType === 'demo' ? t.demoAccount : user?.isReadOnly ? t.demoClient : t.demoJury;
   const isDemoExpired = user?.isDemo && user.daysRemaining !== undefined && user.daysRemaining <= 0;
@@ -338,19 +359,87 @@ const App: React.FC = () => {
             </div>
 
             <div className="relative">
-              <button type="button" className="relative block" onClick={() => setShowNotifications(!showNotifications)} title={t.notifications}>
-                <Bell size={22} className="text-slate-500 hover:text-slate-200" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#080e14]"></span>
+              <button
+                type="button"
+                className="relative flex items-center justify-center p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                onClick={() => setShowNotifications(!showNotifications)}
+                title={t.notifications}
+              >
+                <Bell size={20} className="text-slate-400 hover:text-slate-200" />
+                {unreadLinerCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-emerald-500 text-[#060d19] rounded-md text-[10px] font-black tabular-nums flex items-center justify-center border border-[#080e14]">
+                    {unreadLinerCount}
+                  </span>
+                )}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 top-10 w-80 bg-[#0d1b2a] rounded-2xl border border-white/10 shadow-2xl shadow-black/40 p-4 z-50 space-y-3">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.notifications}</p>
-                  {latestEvents.map((e, i) => (
-                    <div key={i} className="text-xs border-b border-white/5 last:border-0 pb-2 last:pb-0">
-                      <p className="font-bold text-slate-200"><span className="font-mono text-emerald-400">{e.shipmentId}</span> · {e.status}</p>
-                      <p className="text-slate-500">{e.location} · {new Date(e.timestamp).toLocaleDateString()}</p>
+                <div className="absolute right-0 top-11 w-96 max-w-[calc(100vw-2rem)] bg-[#0d1b2a] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 p-4 z-50 space-y-3">
+                  <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+                    <div>
+                      <p className="text-[11px] font-black text-white uppercase tracking-wider">{t.smsAlertsTitle}</p>
+                      <p className="text-[10px] text-slate-400">{t.smsAlertsScopeNote}</p>
                     </div>
-                  ))}
+                    {unreadLinerCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAlertsRead}
+                        className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 shrink-0"
+                      >
+                        {t.markAllReadBtn}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                    {linerAlerts.slice(0, 4).map(alert => (
+                      <div
+                        key={alert.id}
+                        className={`p-2.5 rounded-xl border text-xs space-y-1 ${
+                          alert.read
+                            ? 'bg-white/[0.02] border-white/5 text-slate-400'
+                            : 'bg-emerald-500/5 border-emerald-500/20 text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-[10px] font-bold text-emerald-400">
+                            {alert.lineCode} · {alert.shipmentId}
+                          </span>
+                          <span className="text-[10px] font-semibold text-sky-400">
+                            {alert.channel === 'sms_and_app' ? `SMS → ${alert.recipientPhone}` : 'In-App'}
+                          </span>
+                        </div>
+                        <p className="font-bold text-slate-100 leading-snug">{alert.title}</p>
+                        <p className="text-[11px] text-slate-400 leading-snug">{alert.message}</p>
+                        <p className="text-[10px] font-semibold text-amber-300 tabular-nums">{alert.etaImpact}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrackingSectionReq('liner_alerts');
+                      setActiveTab('tracking');
+                      setShowNotifications(false);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Bell size={13} />
+                    <span>{t.smsAlertsTitle}</span>
+                    <ChevronRight size={13} />
+                  </button>
+
+                  {latestEvents.length > 0 && (
+                    <div className="pt-2 border-t border-white/10 space-y-1.5">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.notifications}</p>
+                      {latestEvents.slice(0, 3).map((e, i) => (
+                        <div key={i} className="text-[11px] border-b border-white/5 last:border-0 pb-1.5 last:pb-0">
+                          <p className="font-semibold text-slate-300"><span className="font-mono text-emerald-400">{e.shipmentId}</span> · {e.status}</p>
+                          <p className="text-slate-500 text-[10px]">{e.location} · {new Date(e.timestamp).toLocaleDateString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -409,7 +498,19 @@ const App: React.FC = () => {
               }}
             />
           )}
-          {activeTab === 'tracking' && <TrackingView key={q} shipments={visibleShipments} lang={lang} />}
+          {activeTab === 'tracking' && (
+            <TrackingView
+              key={q}
+              shipments={visibleShipments}
+              lang={lang}
+              linerAlerts={linerAlerts}
+              linerPrefs={linerPrefs}
+              onUpdateLinerPrefs={setLinerPrefs}
+              onTriggerLinerAlert={handleTriggerLinerAlert}
+              onMarkAlertsRead={handleMarkAlertsRead}
+              requestedSection={trackingSectionReq}
+            />
+          )}
           {activeTab === 'network' && <NetworkManager lang={lang} />}
           {activeTab === 'sustainability' && <SustainabilityHub shipments={shipments} lang={lang} />}
           {activeTab === 'ai-assistant' && <AIAssistant lang={lang} />}

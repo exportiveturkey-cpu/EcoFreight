@@ -1,4 +1,4 @@
-import { Shipment, Recommendation, RouteCostOption } from "../types";
+import { Shipment, Recommendation, RouteCostOption, VesselType } from "../types";
 import { buildDeterministicRouteOptions, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS } from "./carbon";
 
 export type RouteOption = RouteCostOption;
@@ -47,7 +47,9 @@ export const getRouteComparison = async (
   destinationPortFee?: number,
   applyPortFeeToAllModes: boolean = false,
   containers?: number,
-  dwellTimeHours: number = DEFAULT_PORT_DWELL_HOURS
+  dwellTimeHours: number = DEFAULT_PORT_DWELL_HOURS,
+  linerVesselType: VesselType = 'CONTAINER_DEEPSEA',
+  trampVesselType: VesselType = 'MULTI_PURPOSE_TRAMP'
 ): Promise<RouteOption[]> => {
   try {
     const res = await fetch("/api/gemini/route-comparison", {
@@ -64,6 +66,8 @@ export const getRouteComparison = async (
         applyPortFeeToAllModes,
         containers,
         dwellTimeHours,
+        linerVesselType,
+        trampVesselType,
       }),
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -84,7 +88,9 @@ export const getRouteComparison = async (
       destinationPortFee,
       applyPortFeeToAllModes,
       containers,
-      dwellTimeHours
+      dwellTimeHours,
+      linerVesselType,
+      trampVesselType
     );
   }
 };

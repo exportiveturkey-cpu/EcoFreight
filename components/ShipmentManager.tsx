@@ -2,8 +2,8 @@
 import React, { useState, useRef, useMemo } from 'react';
 // Added Leaf to the icons imported from lucide-react
 import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw, BookOpenCheck } from 'lucide-react';
-import { Shipment, ShipmentStatus, SpeedProfile, TransportMode } from '../types';
-import { applySlowSteamingToRoute, calculateLegEmissions, computeCarbonAwareTradeOff, DEFAULT_ECO_SLOW_STEAMING_PCT, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentTeuKm, isShipmentOnTime, SLOW_STEAMING_TIERS } from '../services/carbon';
+import { Shipment, ShipmentStatus, SpeedProfile, TransportMode, VesselType } from '../types';
+import { applySlowSteamingToRoute, calculateLegEmissions, computeCarbonAwareTradeOff, DEFAULT_ECO_SLOW_STEAMING_PCT, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentSeaServiceType, getShipmentTeuKm, getVesselTypeSpec, isShipmentOnTime, LINER_VESSEL_TYPES, SLOW_STEAMING_TIERS, TRAMP_VESSEL_TYPES } from '../services/carbon';
 import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
@@ -42,8 +42,20 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   const [containersEdited, setContainersEdited] = useState(false);
   const [applyPortFeeToAllModes, setApplyPortFeeToAllModes] = useState(false);
   const [dwellTimeHours, setDwellTimeHours] = useState<number>(DEFAULT_PORT_DWELL_HOURS);
+  const [linerVesselType, setLinerVesselType] = useState<VesselType>('CONTAINER_DEEPSEA');
+  const [trampVesselType, setTrampVesselType] = useState<VesselType>('MULTI_PURPOSE_TRAMP');
   const [slowSteamingPct, setSlowSteamingPct] = useState<number>(0);
   const speedProfile: SpeedProfile = slowSteamingPct > 0 ? 'eco' : 'standard';
+
+  const getRouteModeDisplay = (mode: string) => {
+    if (mode === 'SEA_LINER') return t.seaLiner;
+    if (mode === 'SEA_TRAMP') return t.seaTramp;
+    if (mode === 'SEA_RAIL') return `${t.sea} + ${t.rail}`;
+    if (mode === 'RAIL') return t.rail;
+    if (mode === 'ROAD') return t.road;
+    if (mode === 'AIR') return t.air;
+    return t.sea;
+  };
 
   const displayedRouteOptions = useMemo(() => {
     const mapped = routeOptions.map((opt) =>
@@ -73,6 +85,8 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
     setContainersEdited(false);
     setApplyPortFeeToAllModes(false);
     setDwellTimeHours(DEFAULT_PORT_DWELL_HOURS);
+    setLinerVesselType('CONTAINER_DEEPSEA');
+    setTrampVesselType('MULTI_PURPOSE_TRAMP');
     setCarbonPrice(DEFAULT_EU_ETS_CARBON_PRICE);
     setSlowSteamingPct(0);
     setRouteOptions([]);
@@ -130,7 +144,9 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       destinationPortFee,
       applyPortFeeToAllModes,
       newShipment.containers,
-      dwellTimeHours
+      dwellTimeHours,
+      linerVesselType,
+      trampVesselType
     );
     const sorted = [...options].sort((a, b) => a.estimatedCost - b.estimatedCost);
     setRouteOptions(sorted);
@@ -143,9 +159,19 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
     const chosenRoute = activeSelectedRoute;
     if (!chosenRoute) return;
     const mappedMode: TransportMode =
-      chosenRoute.mode === 'SEA_RAIL'
+      chosenRoute.mode === 'SEA_RAIL' ||
+      chosenRoute.mode === 'SEA_LINER' ||
+      chosenRoute.mode === 'SEA_TRAMP'
         ? TransportMode.SEA
         : (chosenRoute.mode as TransportMode);
+    const seaServiceType =
+      chosenRoute.seaServiceType ??
+      (chosenRoute.mode === 'SEA_TRAMP'
+        ? 'TRAMP'
+        : chosenRoute.mode === 'SEA_LINER' || chosenRoute.mode === 'SEA_RAIL'
+        ? 'LINER'
+        : undefined);
+    const vesselType = chosenRoute.vesselType;
     const s: Shipment = {
       id: `SH-${Math.floor(1000 + Math.random() * 8999)}`,
       customerName: newShipment.customer,
@@ -161,8 +187,26 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       scheduleReliabilityPct: chosenRoute.scheduleReliabilityPct,
       speedProfile,
       slowSteamingPct,
+      seaServiceType,
+      vesselType,
+      linerLineCode: chosenRoute.linerLineCode,
+      linerLineName: chosenRoute.linerLineName,
+      fixedDepartureUtc: chosenRoute.fixedDepartureUtc,
+      predictableEtaWindow: chosenRoute.predictableEtaWindow,
+      etaConfidenceHours: chosenRoute.etaConfidenceHours,
+      publishedEmissionGPerTeuKm: chosenRoute.publishedEmissionGPerTeuKm,
       status: ShipmentStatus.BOOKED,
-      legs: [{ id: 'L1', mode: mappedMode, origin: newShipment.origin, destination: newShipment.destination, distanceKm: chosenRoute.estimatedDistanceKm || 0, cost: chosenRoute.estimatedCost, emissionsKg: chosenRoute.estimatedEmissionsKg }],
+      legs: [{
+        id: 'L1',
+        mode: mappedMode,
+        seaServiceType,
+        vesselType,
+        origin: newShipment.origin,
+        destination: newShipment.destination,
+        distanceKm: chosenRoute.estimatedDistanceKm || 0,
+        cost: chosenRoute.estimatedCost,
+        emissionsKg: chosenRoute.estimatedEmissionsKg
+      }],
       costBreakdown: {
         freight: chosenRoute.baseFreightCost,
         fuelSurcharge: chosenRoute.fuelCost,
@@ -174,7 +218,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       },
       totalCost: chosenRoute.estimatedCost,
       totalEmissionsKg: chosenRoute.estimatedEmissionsKg,
-      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed} · ${t.fuelCost}: ${formatEUR(chosenRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(chosenRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(chosenRoute.portFeeTotal, 0)} · ${t.dwellCost}: ${formatEUR(chosenRoute.dwellCost ?? 0, 0)})` }],
+      trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${getRouteModeDisplay(chosenRoute.mode)} · ${speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed} · ${t.fuelCost}: ${formatEUR(chosenRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(chosenRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(chosenRoute.portFeeTotal, 0)} · ${t.dwellCost}: ${formatEUR(chosenRoute.dwellCost ?? 0, 0)})` }],
       createdAt: new Date().toISOString()
     };
     onAdd(s);
@@ -266,13 +310,23 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
               const distKm = getShipmentDistanceKm(s);
               const teuCount = getShipmentContainers(s);
               const teuKm = getShipmentTeuKm(s);
+              const seaService = getShipmentSeaServiceType(s);
+              const vesselSpec = s.vesselType ? getVesselTypeSpec(s.vesselType) : null;
               return (
               <tr key={s.id} className="hover:bg-slate-50 group">
                 <td className="px-8 py-6">
                   <p className="text-sm font-black text-slate-900">{s.id}</p>
                   <p className="text-xs text-slate-500 font-medium">{s.customerName}</p>
                 </td>
-                <td className="px-8 py-6 text-sm font-bold text-slate-700">{s.origin} → {s.destination}</td>
+                <td className="px-8 py-6">
+                  <p className="text-sm font-bold text-slate-700">{s.origin} → {s.destination}</p>
+                  {seaService && (
+                    <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                      {seaService === 'TRAMP' ? t.seaTramp : t.seaLiner}
+                      {vesselSpec ? ` · ${t[vesselSpec.labelKey]}` : ''}
+                    </p>
+                  )}
+                </td>
                 <td className="px-6 py-6 text-right font-mono tabular-nums">
                   <p className="text-xs font-bold text-slate-900">{formatNumber(teuKm)}</p>
                   <p className="text-[10px] text-slate-400">{teuCount} TEU × {formatNumber(distKm)} km</p>
@@ -346,7 +400,22 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.shipmentDetails}</p>
                 <h2 className="text-2xl font-black text-slate-900">{analyticsShipment.id} · {analyticsShipment.customerName}</h2>
-                <p className="text-sm font-bold text-slate-500">{analyticsShipment.origin} → {analyticsShipment.destination} · {analyticsShipment.weightTonnes}t · {analyticsShipment.incoterms}</p>
+                <p className="text-sm font-bold text-slate-500">
+                  {analyticsShipment.origin} → {analyticsShipment.destination} · {analyticsShipment.weightTonnes}t · {analyticsShipment.incoterms}
+                  {getShipmentSeaServiceType(analyticsShipment) && (
+                    <>
+                      {' · '}
+                      {getShipmentSeaServiceType(analyticsShipment) === 'TRAMP' ? t.seaTramp : t.seaLiner}
+                      {analyticsShipment.vesselType ? ` (${t[getVesselTypeSpec(analyticsShipment.vesselType).labelKey]})` : ''}
+                    </>
+                  )}
+                </p>
+                {analyticsShipment.linerLineCode && (
+                  <p className="text-xs font-mono tabular-nums text-blue-700 font-semibold mt-1">
+                    {analyticsShipment.linerLineCode} · {analyticsShipment.fixedDepartureUtc} · {analyticsShipment.predictableEtaWindow}
+                    {analyticsShipment.publishedEmissionGPerTeuKm ? ` · ${analyticsShipment.publishedEmissionGPerTeuKm} g CO2e/TEU-km` : ''}
+                  </p>
+                )}
               </div>
               <button onClick={() => setAnalyticsShipment(null)} className="p-2 hover:bg-slate-100 rounded-xl" title={t.close}><X size={20} /></button>
             </div>
@@ -412,12 +481,24 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
             <div className="space-y-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.legs}</p>
               {analyticsShipment.legs.map(l => {
-                const factorSpec = getGlecFactorSpec(l.mode);
+                const effectiveVessel = l.vesselType ?? analyticsShipment.vesselType;
+                const legService = l.seaServiceType ?? (l.mode === TransportMode.SEA ? getShipmentSeaServiceType(analyticsShipment) : undefined);
+                const glecModeKey = l.mode === TransportMode.SEA && legService
+                  ? (legService === 'TRAMP' ? 'SEA_TRAMP' : 'SEA_LINER')
+                  : l.mode;
+                const factorSpec = getGlecFactorSpec(glecModeKey, effectiveVessel);
                 return (
                 <div key={l.id} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 text-xs">
-                  <span className="font-black text-slate-700 w-14">{l.mode}</span>
+                  <span className="font-black text-slate-700 w-24 shrink-0">
+                    {l.mode === TransportMode.SEA && legService
+                      ? (legService === 'TRAMP' ? 'TRAMP' : 'LINER')
+                      : l.mode}
+                  </span>
                   <div className="flex-1 min-w-0 pr-2">
-                    <span className="font-bold text-slate-600 truncate block">{l.origin} → {l.destination}</span>
+                    <span className="font-bold text-slate-600 truncate block">
+                      {l.origin} → {l.destination}
+                      {effectiveVessel ? ` · ${t[getVesselTypeSpec(effectiveVessel).labelKey]}` : ''}
+                    </span>
                     <span className="text-[10px] font-mono tabular-nums text-emerald-700">GLEC v3.0 WTW: {factorSpec.wtw.toFixed(3)} kg/t·km</span>
                   </div>
                   <span className="font-mono tabular-nums text-slate-500 w-20 text-right">{formatNumber(l.distanceKm)} km</span>
@@ -522,6 +603,40 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                           ))}
                         </div>
                       </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-700 mb-1 px-1 flex items-center gap-1"><Ship size={11} /> {t.linerVesselTypeLabel}</label>
+                        <select
+                          value={linerVesselType}
+                          onChange={e => setLinerVesselType(e.target.value as VesselType)}
+                          className="w-full p-3 bg-slate-50 rounded-xl border text-xs font-bold text-slate-800"
+                        >
+                          {LINER_VESSEL_TYPES.map((vt) => {
+                            const spec = getVesselTypeSpec(vt);
+                            return (
+                              <option key={vt} value={vt}>
+                                {t[spec.labelKey]} ({spec.capacityLabel})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-amber-700 mb-1 px-1 flex items-center gap-1"><Anchor size={11} /> {t.trampVesselTypeLabel}</label>
+                        <select
+                          value={trampVesselType}
+                          onChange={e => setTrampVesselType(e.target.value as VesselType)}
+                          className="w-full p-3 bg-slate-50 rounded-xl border text-xs font-bold text-slate-800"
+                        >
+                          {TRAMP_VESSEL_TYPES.map((vt) => {
+                            const spec = getVesselTypeSpec(vt);
+                            return (
+                              <option key={vt} value={vt}>
+                                {t[spec.labelKey]} ({spec.capacityLabel})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
                    </div>
                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
                      <input type="checkbox" checked={applyPortFeeToAllModes} onChange={e => setApplyPortFeeToAllModes(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-indigo-600" />
@@ -541,7 +656,7 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                          <p className="text-xs font-extrabold text-emerald-900 flex items-center gap-1.5">
                            <Leaf size={14} className="text-emerald-700" />
                            <span>
-                             {t.carbonAwareOption}: {carbonAwareSummary.recommendedRoute.mode} ({carbonAwareSummary.recommendedRoute.speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed})
+                             {t.carbonAwareOption}: {getRouteModeDisplay(carbonAwareSummary.recommendedRoute.mode)} ({carbonAwareSummary.recommendedRoute.speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed})
                            </span>
                          </p>
                          <p className="text-[11px] font-mono tabular-nums text-emerald-800">
@@ -587,13 +702,25 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                      </div>
                    </div>
                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[50vh] overflow-y-auto pr-1">
-                      {displayedRouteOptions.map((opt, i) => (
+                      {displayedRouteOptions.map((opt, i) => {
+                        const vesselSpec = opt.vesselType ? getVesselTypeSpec(opt.vesselType, opt.mode) : null;
+                        return (
                         <div key={opt.mode} onClick={() => setSelectedRoute(opt)} className={`p-5 rounded-2xl border-2 cursor-pointer transition-colors ${activeSelectedRoute?.mode === opt.mode ? 'border-emerald-600 bg-emerald-50/70' : 'border-slate-200 hover:border-slate-300'}`}>
                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
                              <span>{opt.label}</span>
                              {i === 0 && <span className="text-emerald-700">{t.optimalChoice}</span>}
                            </div>
-                           <h4 className="font-extrabold text-base text-slate-900">{opt.mode === 'SEA_RAIL' ? `${t.sea} + ${t.rail}` : opt.mode} · {opt.estimatedDays}d</h4>
+                           <h4 className="font-extrabold text-base text-slate-900">{getRouteModeDisplay(opt.mode)} · {opt.estimatedDays}d</h4>
+                           {vesselSpec && (
+                             <p className="text-[11px] font-medium text-slate-600 mt-0.5">
+                               {opt.linerLineCode ? `${opt.linerLineCode} · ` : ''}{t[vesselSpec.labelKey]} · {opt.ballastPct ? `+${opt.ballastPct}% ballast` : '0% ballast'} · {(opt.dwellMultiplier ?? 1).toFixed(2).replace(/\.00$/, '')}× dwell
+                             </p>
+                           )}
+                           {opt.predictableEtaWindow && (
+                             <p className={`text-[10px] font-mono tabular-nums mt-0.5 font-semibold ${opt.mode === 'SEA_TRAMP' ? 'text-amber-700' : 'text-blue-700'}`}>
+                               {opt.fixedDepartureUtc ? `${opt.fixedDepartureUtc} · ` : ''}{opt.predictableEtaWindow}
+                             </p>
+                           )}
                            <div className="mt-3 pt-3 border-t border-slate-200/70 space-y-1 text-xs font-mono tabular-nums">
                              <div className="flex justify-between text-slate-600">
                                <span>{t.baseFreight}</span>
@@ -629,7 +756,8 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                              </p>
                            )}
                            <p className="text-[10px] text-emerald-700 mt-1 font-mono tabular-nums">
-                             GLEC v3.0 WTW: {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode).wtw).toFixed(3)} kg/t·km
+                             GLEC v3.0 WTW: {(opt.glecFactorWtw ?? getGlecFactorSpec(opt.mode, opt.vesselType).wtw).toFixed(3)} kg/t·km
+                             {opt.publishedEmissionGPerTeuKm ? ` · ${opt.publishedEmissionGPerTeuKm} g/TEU-km` : ''}
                            </p>
                            {typeof opt.scheduleReliabilityPct === 'number' && (
                              <p className="text-[10px] text-cyan-700 mt-0.5 font-mono tabular-nums font-bold">
@@ -637,7 +765,8 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                              </p>
                            )}
                         </div>
-                      ))}
+                        );
+                      })}
                    </div>
                    <div className="flex gap-3">
                       <button onClick={() => setStep(1)} className="px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black uppercase tracking-widest text-xs">{t.back}</button>
