@@ -12,12 +12,13 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import { Ship, Leaf, Euro, Activity, Box, BookOpenCheck, Clock } from 'lucide-react';
+import { Ship, Leaf, Euro, Activity, Box, BookOpenCheck, Clock, ShieldCheck, Calculator } from 'lucide-react';
 import { Shipment, ShipmentStatus } from '../types';
 import { Language, translations, statusLabel } from '../services/i18n';
 import { formatEUR, formatNumber, formatEmissions } from '../services/formatters';
 import {
   SCHEDULE_SLA_TARGET_PCT,
+  getPortfolioComplianceAccountingSummary,
   getPortfolioScheduleReliability,
   getScheduleReliabilitySeries,
   getShipmentContainers,
@@ -53,6 +54,7 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
 
   const reliabilitySummary = getPortfolioScheduleReliability(shipments);
   const reliabilitySeries = getScheduleReliabilitySeries(shipments, reliabilityRange);
+  const complianceSummary = getPortfolioComplianceAccountingSummary(shipments);
 
   // Dynamic weekly trend data scaled to actual total portfolio
   const baseAvgDailyEmissions = totalEmissions / 7;
@@ -287,6 +289,46 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
               <p className="text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100">
                 {t.scheduleReliabilityNote}
               </p>
+            </div>
+          </div>
+
+          {/* Compliance & Trip ESG Accounting Executive Strip */}
+          <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0"><ShieldCheck size={20} /></div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.eexiCiiTrackerTitle}</p>
+                <p className="text-xl font-black font-mono tabular-nums text-slate-900 mt-0.5">
+                  CII {complianceSummary.portfolioCiiGrade} <span className="text-xs font-semibold text-slate-500">({complianceSummary.avgCiiRatio.toFixed(2)} AER)</span>
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {complianceSummary.eexiCompliantCount}/{complianceSummary.maritimeCount} {t.eexiCompliantLabel}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 md:border-l md:border-slate-100 md:pl-6">
+              <div className="p-2.5 rounded-xl bg-teal-50 text-teal-600 shrink-0"><Calculator size={20} /></div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.tceCo2TripTitle}</p>
+                <p className="text-xl font-black font-mono tabular-nums text-teal-700 mt-0.5">
+                  {formatEUR(complianceSummary.avgTceEurPerDay, 0)}/d
+                </p>
+                <p className="text-xs text-slate-500 font-mono tabular-nums mt-0.5">
+                  {t.co2PerTripLabel}: {formatEmissions(complianceSummary.avgCo2PerTripKg)} avg
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 md:border-l md:border-slate-100 md:pl-6">
+              <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 shrink-0"><Leaf size={20} /></div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.esgCostAccountingTitle}</p>
+                <p className="text-xl font-black font-mono tabular-nums text-indigo-700 mt-0.5">
+                  {formatEUR(complianceSummary.totalEsgCostEur, 0)}
+                </p>
+                <p className="text-xs text-slate-500 font-mono tabular-nums mt-0.5">
+                  {formatEUR(complianceSummary.avgEsgCostPerTripEur, 0)}/trip ({complianceSummary.portfolioEsgSharePct}% ESG share)
+                </p>
+              </div>
             </div>
           </div>
         </>

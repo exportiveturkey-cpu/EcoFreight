@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 // Added Leaf to the icons imported from lucide-react
-import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw, BookOpenCheck } from 'lucide-react';
+import { Plus, Download, MoreVertical, X, ArrowRight, DollarSign, Package, FileText, Sparkles, Loader2, UploadCloud, CheckCircle2, Trash2, Eye, FileOutput, BarChart3, TrendingUp, Info, Ship, Plane, Truck, Train, Clock, Gauge, Award, BrainCircuit, Share2, Globe, Leaf, Lock, ShieldAlert, Anchor, RotateCcw, BookOpenCheck, Calculator, ShieldCheck } from 'lucide-react';
 import { Shipment, ShipmentStatus, SpeedProfile, TransportMode, VesselType } from '../types';
-import { applySlowSteamingToRoute, calculateLegEmissions, computeCarbonAwareTradeOff, DEFAULT_ECO_SLOW_STEAMING_PCT, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getGlecFactorSpec, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentSeaServiceType, getShipmentTeuKm, getVesselTypeSpec, isShipmentOnTime, LINER_VESSEL_TYPES, SLOW_STEAMING_TIERS, TRAMP_VESSEL_TYPES } from '../services/carbon';
+import { applySlowSteamingToRoute, calculateLegEmissions, computeCarbonAwareTradeOff, computeRouteTripAccounting, DEFAULT_ECO_SLOW_STEAMING_PCT, DEFAULT_EU_ETS_CARBON_PRICE, DEFAULT_PORT_DWELL_HOURS, DWELL_TIME_PRESETS, estimatePortFees, estimateTeuFromCargo, getEffectiveVesselCompliance, getGlecFactorSpec, getShipmentComplianceAccounting, getShipmentContainers, getShipmentDistanceKm, getShipmentGlecBreakdown, getShipmentScheduleReliability, getShipmentSeaServiceType, getShipmentTeuKm, getVesselTypeSpec, isMaritimeRouteMode, isShipmentOnTime, LINER_VESSEL_TYPES, SLOW_STEAMING_TIERS, TRAMP_VESSEL_TYPES } from '../services/carbon';
 import { Language, translations, statusLabel } from '../services/i18n';
 // RouteOption is now correctly exported from gemini.ts
 import { processShipmentDocument, getRouteComparison, RouteOption } from '../services/gemini';
@@ -58,11 +58,18 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
   };
 
   const displayedRouteOptions = useMemo(() => {
-    const mapped = routeOptions.map((opt) =>
-      applySlowSteamingToRoute(opt, slowSteamingPct, carbonPrice)
-    );
+    const mapped = routeOptions.map((opt) => {
+      const slow = applySlowSteamingToRoute(opt, slowSteamingPct, carbonPrice);
+      return {
+        ...slow,
+        eexiCii: isMaritimeRouteMode(slow.mode)
+          ? getEffectiveVesselCompliance(slow.vesselType, slow.slowSteamingPct ?? 0, slow.mode)
+          : undefined,
+        tripAccounting: computeRouteTripAccounting(slow, carbonPrice, newShipment.weight)
+      };
+    });
     return [...mapped].sort((a, b) => a.estimatedCost - b.estimatedCost);
-  }, [routeOptions, slowSteamingPct, carbonPrice]);
+  }, [routeOptions, slowSteamingPct, carbonPrice, newShipment.weight]);
 
   const carbonAwareSummary = useMemo(
     () => computeCarbonAwareTradeOff(routeOptions, carbonPrice, 10),
@@ -218,6 +225,8 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
       },
       totalCost: chosenRoute.estimatedCost,
       totalEmissionsKg: chosenRoute.estimatedEmissionsKg,
+      eexiCii: chosenRoute.eexiCii,
+      tripAccounting: chosenRoute.tripAccounting,
       trackingHistory: [{ status: 'Booked', location: newShipment.origin, timestamp: new Date().toISOString(), description: `Confirmed (${getRouteModeDisplay(chosenRoute.mode)} · ${speedProfile === 'eco' ? t.ecoSpeedLabel : t.standardSpeed} · ${t.fuelCost}: ${formatEUR(chosenRoute.fuelCost, 0)} · ${t.co2Cost}: ${formatEUR(chosenRoute.co2Cost, 0)} · ${t.portFees}: ${formatEUR(chosenRoute.portFeeTotal, 0)} · ${t.dwellCost}: ${formatEUR(chosenRoute.dwellCost ?? 0, 0)})` }],
       createdAt: new Date().toISOString()
     };
@@ -510,23 +519,59 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
             </div>
             {(() => {
               const glecSummary = getShipmentGlecBreakdown(analyticsShipment);
+              const { compliance, accounting } = getShipmentComplianceAccounting(analyticsShipment);
               return (
-                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <p className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
-                      <BookOpenCheck size={14} className="text-emerald-700" />
-                      <span>{t.glecMethodTitle}</span>
-                    </p>
-                    <p className="text-[11px] font-mono tabular-nums text-emerald-800">
-                      Σ (km × {analyticsShipment.weightTonnes} t × EF_WTW) · ISO 14083 WTW
-                    </p>
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] font-extrabold text-slate-900 flex items-center gap-1.5">
+                        <Calculator size={14} className="text-indigo-600" />
+                        <span>{t.complianceAccountingTitle}</span>
+                      </p>
+                      {compliance && (
+                        <span className="text-[11px] font-mono tabular-nums font-bold text-blue-700">
+                          {compliance.vesselName} · EEXI -{compliance.eexiMarginPct}% · CII {compliance.ciiGrade} ({compliance.ciiRatio.toFixed(2)})
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono tabular-nums">
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <span className="text-[10px] font-sans text-slate-500 block">{t.tcePerDayLabel}</span>
+                        <span className="font-extrabold text-teal-700">{formatEUR(accounting.tceEurPerDay, 0)}/d</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <span className="text-[10px] font-sans text-slate-500 block">{t.co2PerDayLabel}</span>
+                        <span className="font-bold text-emerald-700">{formatNumber(accounting.co2PerDayKg)} kg/d</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <span className="text-[10px] font-sans text-slate-500 block">{t.euEtsLiabilityLabel} / FuelEU</span>
+                        <span className="font-bold text-slate-900">
+                          {formatEUR(accounting.euEtsCostEur, 0)} / {accounting.fuelEuComplianceEur > 0 ? `+${formatEUR(accounting.fuelEuComplianceEur, 0)}` : formatEUR(accounting.fuelEuComplianceEur, 0)}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <span className="text-[10px] font-sans text-slate-500 block">{t.totalEsgCostTripLabel}</span>
+                        <span className="font-extrabold text-indigo-700">{formatEUR(accounting.totalEsgCostEur, 0)} ({accounting.esgSharePct}%)</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-mono tabular-nums shrink-0 text-emerald-900">
-                    <span>TTW: <strong>{formatNumber(glecSummary.ttwKg)} kg</strong></span>
-                    <span aria-hidden="true">+</span>
-                    <span>WTT: <strong>{formatNumber(glecSummary.wttKg)} kg</strong></span>
-                    <span aria-hidden="true">=</span>
-                    <span><strong>{formatNumber(glecSummary.totalKg)} kg CO2e</strong></span>
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <p className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
+                        <BookOpenCheck size={14} className="text-emerald-700" />
+                        <span>{t.glecMethodTitle}</span>
+                      </p>
+                      <p className="text-[11px] font-mono tabular-nums text-emerald-800">
+                        Σ (km × {analyticsShipment.weightTonnes} t × EF_WTW) · ISO 14083 WTW
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-mono tabular-nums shrink-0 text-emerald-900">
+                      <span>TTW: <strong>{formatNumber(glecSummary.ttwKg)} kg</strong></span>
+                      <span aria-hidden="true">+</span>
+                      <span>WTT: <strong>{formatNumber(glecSummary.wttKg)} kg</strong></span>
+                      <span aria-hidden="true">=</span>
+                      <span><strong>{formatNumber(glecSummary.totalKg)} kg CO2e</strong></span>
+                    </div>
                   </div>
                 </div>
               );
@@ -762,6 +807,12 @@ const ShipmentManager: React.FC<ShipmentManagerProps> = ({ shipments, isReadOnly
                            {typeof opt.scheduleReliabilityPct === 'number' && (
                              <p className="text-[10px] text-cyan-700 mt-0.5 font-mono tabular-nums font-bold">
                                {t.scheduleReliability}: {opt.scheduleReliabilityPct.toFixed(1)}%
+                             </p>
+                           )}
+                           {opt.tripAccounting && (
+                             <p className="text-[10px] text-indigo-700 mt-0.5 font-mono tabular-nums font-semibold">
+                               {opt.eexiCii ? `CII ${opt.eexiCii.ciiGrade} · ` : ''}
+                               TCE {formatEUR(opt.tripAccounting.tceEurPerDay, 0)}/d · ESG {formatEUR(opt.tripAccounting.totalEsgCostEur, 0)}
                              </p>
                            )}
                         </div>

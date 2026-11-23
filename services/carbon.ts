@@ -10,7 +10,10 @@ import {
   VesselType,
   LinerServiceLine,
   LinerAlertEvent,
-  LinerNotificationPrefs
+  LinerNotificationPrefs,
+  CiiGrade,
+  EexiCiiRecord,
+  TripComplianceAccounting
 } from '../types';
 
 /**
@@ -1444,3 +1447,401 @@ export const buildDeterministicRouteOptions = (
     };
   });
 };
+
+export const FLEET_EEXI_CII_RECORDS: Record<VesselType, EexiCiiRecord> = {
+  CONTAINER_DEEPSEA: {
+    vesselType: 'CONTAINER_DEEPSEA',
+    vesselName: 'MV Aegea Horizon',
+    imoNumber: 'IMO 9842105',
+    dwt: 145000,
+    attainedEexi: 11.4,
+    requiredEexi: 14.2,
+    eexiMarginPct: 19.7,
+    eexiCompliant: true,
+    eplPowerLimitPct: 0,
+    attainedCii: 5.38,
+    requiredCii: 6.9,
+    ciiRatio: 0.78,
+    ciiGrade: 'A',
+    ciiProjectedNextYear: 'A',
+    fuelEuIntensityGPerMj: 79.4
+  },
+  CONTAINER_FEEDER: {
+    vesselType: 'CONTAINER_FEEDER',
+    vesselName: 'MV Piraeus Express',
+    imoNumber: 'IMO 9718440',
+    dwt: 32000,
+    attainedEexi: 16.8,
+    requiredEexi: 18.9,
+    eexiMarginPct: 11.1,
+    eexiCompliant: true,
+    eplPowerLimitPct: 0,
+    attainedCii: 8.62,
+    requiredCii: 9.8,
+    ciiRatio: 0.88,
+    ciiGrade: 'B',
+    ciiProjectedNextYear: 'B',
+    fuelEuIntensityGPerMj: 86.2
+  },
+  RORO_FERRY: {
+    vesselType: 'RORO_FERRY',
+    vesselName: 'MV Nordic Skagerrak',
+    imoNumber: 'IMO 9690312',
+    dwt: 18500,
+    attainedEexi: 19.6,
+    requiredEexi: 22.1,
+    eexiMarginPct: 11.3,
+    eexiCompliant: true,
+    eplPowerLimitPct: 0,
+    attainedCii: 10.63,
+    requiredCii: 12.5,
+    ciiRatio: 0.85,
+    ciiGrade: 'B',
+    ciiProjectedNextYear: 'B',
+    fuelEuIntensityGPerMj: 81.8
+  },
+  MULTI_PURPOSE_TRAMP: {
+    vesselType: 'MULTI_PURPOSE_TRAMP',
+    vesselName: 'MV Levante Tramp',
+    imoNumber: 'IMO 9485122',
+    dwt: 15000,
+    attainedEexi: 21.8,
+    requiredEexi: 22.4,
+    eexiMarginPct: 2.7,
+    eexiCompliant: true,
+    eplPowerLimitPct: 12,
+    attainedCii: 10.61,
+    requiredCii: 10.2,
+    ciiRatio: 1.04,
+    ciiGrade: 'C',
+    ciiProjectedNextYear: 'C',
+    fuelEuIntensityGPerMj: 92.8
+  },
+  HANDYSIZE_BULK: {
+    vesselType: 'HANDYSIZE_BULK',
+    vesselName: 'MV Cyclades Trader',
+    imoNumber: 'IMO 9531098',
+    dwt: 32000,
+    attainedEexi: 7.6,
+    requiredEexi: 7.8,
+    eexiMarginPct: 2.6,
+    eexiCompliant: true,
+    eplPowerLimitPct: 14,
+    attainedCii: 9.64,
+    requiredCii: 8.1,
+    ciiRatio: 1.19,
+    ciiGrade: 'D',
+    ciiProjectedNextYear: 'E',
+    fuelEuIntensityGPerMj: 94.1
+  },
+  COASTAL_CHARTER: {
+    vesselType: 'COASTAL_CHARTER',
+    vesselName: 'MV Ionian Coaster',
+    imoNumber: 'IMO 9412884',
+    dwt: 5000,
+    attainedEexi: 24.5,
+    requiredEexi: 25.1,
+    eexiMarginPct: 2.4,
+    eexiCompliant: true,
+    eplPowerLimitPct: 10,
+    attainedCii: 13.74,
+    requiredCii: 13.6,
+    ciiRatio: 1.01,
+    ciiGrade: 'C',
+    ciiProjectedNextYear: 'D',
+    fuelEuIntensityGPerMj: 91.6
+  }
+};
+
+export const gradeCiiRatio = (ratio: number): CiiGrade => {
+  if (ratio <= 0.83) return 'A';
+  if (ratio <= 0.94) return 'B';
+  if (ratio <= 1.06) return 'C';
+  if (ratio <= 1.18) return 'D';
+  return 'E';
+};
+
+export const getEffectiveVesselCompliance = (
+  vesselType?: VesselType,
+  slowSteamingPct: number = 0,
+  mode?: string
+): EexiCiiRecord => {
+  const resolvedVessel: VesselType = vesselType && FLEET_EEXI_CII_RECORDS[vesselType]
+    ? vesselType
+    : mode === 'SEA_TRAMP'
+      ? 'MULTI_PURPOSE_TRAMP'
+      : mode === 'SEA_RAIL'
+        ? 'CONTAINER_FEEDER'
+        : 'CONTAINER_DEEPSEA';
+
+  const base = FLEET_EEXI_CII_RECORDS[resolvedVessel];
+  const pct = Math.min(30, Math.max(0, Number(slowSteamingPct) || 0));
+  if (pct <= 0) return base;
+
+  const speedRatio = 1 - pct / 100;
+  // Attained CII improves under slow steaming along propeller power curve
+  const energyFactor = 0.15 + 0.85 * (speedRatio * speedRatio);
+  const attainedCii = Number((base.attainedCii * energyFactor).toFixed(2));
+  const ciiRatio = Number((attainedCii / base.requiredCii).toFixed(2));
+  const ciiGrade = gradeCiiRatio(ciiRatio);
+  // IMO CII tightens ~2% annually (next year factor)
+  const ciiProjectedNextYear = gradeCiiRatio(Number((ciiRatio * 1.022).toFixed(2)));
+  const eexiMarginPct = Number((base.eexiMarginPct + pct * 0.15).toFixed(1));
+
+  return {
+    ...base,
+    eexiMarginPct,
+    attainedCii,
+    ciiRatio,
+    ciiGrade,
+    ciiProjectedNextYear
+  };
+};
+
+export const FUEL_EU_2026_LIMIT_G_PER_MJ = 89.34; // 2% reduction below 91.16 gCO2e/MJ reference
+
+export const computeRouteTripAccounting = (
+  route: RouteCostOption,
+  carbonPricePerTonne: number = DEFAULT_EU_ETS_CARBON_PRICE,
+  _weightTonnes?: number
+): TripComplianceAccounting => {
+  const isMaritime = isMaritimeRouteMode(route.mode);
+  const compliance = isMaritime
+    ? getEffectiveVesselCompliance(route.vesselType, route.slowSteamingPct ?? 0, route.mode)
+    : null;
+
+  // Gross Freight / Charter Revenue Allocation: commercial freight margin model per segment
+  const marginMarkup =
+    route.mode === 'AIR'
+      ? 1.16
+      : route.mode === 'ROAD'
+        ? 1.18
+        : route.mode === 'SEA_TRAMP'
+          ? 1.24
+          : route.mode === 'SEA_LINER' || route.mode === 'SEA'
+            ? 1.28
+            : 1.25;
+
+  const dwellTotal = route.dwellCost ?? 0;
+  const commercialCostEur = Math.max(
+    1,
+    Math.round(route.baseFreightCost + route.fuelCost + route.portFeeTotal + dwellTotal)
+  );
+  const grossFreightRevenueEur = Math.round(commercialCostEur * marginMarkup);
+
+  // TCE Formula: (Gross Freight Revenue - Voyage Expenses) / Voyage Days
+  // Voyage expenses exclude vessel capital/hire (baseFreightCost) and comprise Bunker Fuel + Port Dues + Dwell + Direct CO2/ETS
+  const voyageExpensesEur = Math.round(route.fuelCost + route.portFeeTotal + dwellTotal + route.co2Cost);
+  const netVoyageContributionEur = Math.round(grossFreightRevenueEur - voyageExpensesEur);
+  const voyageDays = Math.max(1, Number(route.estimatedDays) || 1);
+  const tceEurPerDay = Math.round(netVoyageContributionEur / voyageDays);
+
+  const benchmarkTceEurPerDay =
+    route.mode === 'SEA_TRAMP'
+      ? 920
+      : route.mode === 'SEA_LINER' || route.mode === 'SEA'
+        ? 1040
+        : route.mode === 'SEA_RAIL'
+          ? 1120
+          : route.mode === 'RAIL'
+            ? 1280
+            : route.mode === 'AIR'
+              ? 2850
+              : 1380;
+  const tceSpreadEurPerDay = tceEurPerDay - benchmarkTceEurPerDay;
+
+  const co2PerTripKg = Math.round(route.estimatedEmissionsKg);
+  const co2PerTripTonnes = Number((co2PerTripKg / 1000).toFixed(2));
+  const co2PerDayKg = Math.round(co2PerTripKg / voyageDays);
+  const distanceNm = Math.max(1, route.estimatedDistanceKm / 1.852);
+  const co2PerNmKg = Number((co2PerTripKg / distanceNm).toFixed(1));
+  const tcePerTonneCo2 = co2PerTripTonnes > 0 ? Math.round(tceEurPerDay / co2PerTripTonnes) : tceEurPerDay;
+
+  // ESG Cost Accounting per trip (EU ETS + FuelEU Maritime balance + Port Dwell Carbon + Voluntary Offset - Green Rebate)
+  const euEtsCostEur = Math.max(0, Math.round(route.co2Cost));
+  const dwellCarbonCostEur = Math.round(((route.dwellEmissionsKg ?? 0) / 1000) * Math.max(0, carbonPricePerTonne));
+  const voluntaryOffsetCostEur = Math.round(getOffsetPrice(co2PerTripKg, 25));
+
+  // FuelEU Maritime GHG balance (€2,400/t VLSFOeq penalty converted to consignment energy slice)
+  const fuelIntensity = compliance
+    ? compliance.fuelEuIntensityGPerMj
+    : route.mode === 'RAIL'
+      ? 38.0
+      : route.mode === 'ROAD'
+        ? 93.4
+        : 95.8;
+  const energyMj = isMaritime
+    ? Math.max(1000, route.fuelConsumption * 40.5)
+    : Math.max(1000, route.estimatedDistanceKm * 18);
+  const intensityDelta = fuelIntensity - FUEL_EU_2026_LIMIT_G_PER_MJ;
+  // Compliance deficit cost (+EUR) or green pooling surplus credit (-EUR)
+  const rawFuelEu = isMaritime
+    ? Math.round((intensityDelta * energyMj * 2400) / (41000 * 1_000_000) * 60)
+    : 0;
+  const fuelEuComplianceEur = Math.max(-220, Math.min(480, rawFuelEu));
+
+  // Poseidon Principles / Port Green Award rebate for A/B grades or electrified rail
+  const ciiGrade = compliance?.ciiGrade;
+  const greenFinancingRebateEur =
+    ciiGrade === 'A' || route.mode === 'RAIL'
+      ? Math.round(route.baseFreightCost * 0.025)
+      : ciiGrade === 'B'
+        ? Math.round(route.baseFreightCost * 0.015)
+        : 0;
+
+  const totalEsgCostEur = Math.max(
+    0,
+    Math.round(
+      euEtsCostEur +
+        dwellCarbonCostEur +
+        voluntaryOffsetCostEur +
+        fuelEuComplianceEur -
+        greenFinancingRebateEur
+    )
+  );
+  const esgAdjustedCostEur = commercialCostEur + totalEsgCostEur;
+  const esgSharePct =
+    esgAdjustedCostEur > 0 ? Number(((totalEsgCostEur / esgAdjustedCostEur) * 100).toFixed(1)) : 0;
+  const esgCostPerTeuKm =
+    route.teuKm > 0 ? Number((totalEsgCostEur / route.teuKm).toFixed(3)) : 0;
+
+  return {
+    grossFreightRevenueEur,
+    voyageExpensesEur,
+    netVoyageContributionEur,
+    voyageDays,
+    tceEurPerDay,
+    benchmarkTceEurPerDay,
+    tceSpreadEurPerDay,
+    co2PerTripKg,
+    co2PerTripTonnes,
+    co2PerDayKg,
+    co2PerNmKg,
+    tcePerTonneCo2,
+    commercialCostEur,
+    euEtsCostEur,
+    fuelEuComplianceEur,
+    dwellCarbonCostEur,
+    voluntaryOffsetCostEur,
+    greenFinancingRebateEur,
+    totalEsgCostEur,
+    esgAdjustedCostEur,
+    esgSharePct,
+    esgCostPerTeuKm
+  };
+};
+
+export const getShipmentComplianceAccounting = (
+  shipment: Shipment,
+  carbonPricePerTonne: number = DEFAULT_EU_ETS_CARBON_PRICE
+): { compliance: EexiCiiRecord | null; accounting: TripComplianceAccounting } => {
+  const mode = getShipmentPrimaryMode(shipment);
+  const distanceKm = Math.max(100, getShipmentDistanceKm(shipment));
+  const containers = getShipmentContainers(shipment);
+  const isMaritime = isMaritimeRouteMode(mode);
+
+  const compliance = isMaritime
+    ? getEffectiveVesselCompliance(shipment.vesselType, shipment.slowSteamingPct ?? 0, mode)
+    : null;
+
+  const baseDays =
+    mode === 'AIR'
+      ? Math.max(1, Math.round(distanceKm / 4000))
+      : mode === 'ROAD'
+        ? Math.max(1, Math.round((distanceKm / 1000) * 1.1))
+        : mode === 'RAIL'
+          ? Math.max(2, Math.round((distanceKm / 1000) * 1.45))
+          : Math.max(2, Math.round((distanceKm / 1000) * 2.5));
+  const dwellDays = (shipment.dwellTimeHours ?? 0) / 24;
+  const voyageDays = Math.max(1, Number((baseDays + dwellDays).toFixed(1)));
+
+  const baseFreightCost = shipment.costBreakdown?.freight ?? Math.round(shipment.totalCost * 0.78);
+  const fuelCost = shipment.costBreakdown?.fuelSurcharge ?? Math.round(shipment.totalCost * 0.14);
+  const portFeeTotal = shipment.costBreakdown?.portFees ?? 0;
+  const dwellCost = shipment.costBreakdown?.dwellCost ?? 0;
+  const co2Cost =
+    shipment.costBreakdown?.carbonCost ?? calculateCO2Cost(shipment.totalEmissionsKg, carbonPricePerTonne);
+
+  const syntheticRoute: RouteCostOption = {
+    mode,
+    seaServiceType: getShipmentSeaServiceType(shipment),
+    vesselType: shipment.vesselType,
+    slowSteamingPct: shipment.slowSteamingPct ?? 0,
+    estimatedDays: voyageDays,
+    dwellHours: shipment.dwellTimeHours ?? 0,
+    estimatedDistanceKm: distanceKm,
+    containers,
+    teuKm: calculateTeuKm(distanceKm, containers),
+    costPerTeuKm: 0,
+    emissionsPerTeuKm: 0,
+    baseFreightCost,
+    fuelCost,
+    co2Cost,
+    fuelPlusCo2Cost: fuelCost + co2Cost,
+    originPortFee: Math.round(portFeeTotal / 2),
+    destinationPortFee: Math.round(portFeeTotal / 2),
+    portFeeTotal,
+    dwellCost,
+    dwellEmissionsKg: Math.round((shipment.dwellTimeHours ?? 0) * containers * (isMaritime ? 2.8 : 0.8)),
+    estimatedCost: shipment.totalCost,
+    estimatedEmissionsKg: shipment.totalEmissionsKg,
+    fuelConsumption: Math.round(distanceKm * Math.max(1, shipment.weightTonnes) * 0.0045),
+    fuelUnit: isMaritime ? 'L VLSFO' : 'kWh / Diesel',
+    label: mode,
+    reasoning: ''
+  };
+
+  return {
+    compliance,
+    accounting: computeRouteTripAccounting(syntheticRoute, carbonPricePerTonne, shipment.weightTonnes)
+  };
+};
+
+export const getPortfolioComplianceAccountingSummary = (
+  shipments: Shipment[],
+  carbonPricePerTonne: number = DEFAULT_EU_ETS_CARBON_PRICE
+) => {
+  const rows = shipments.map((s) => ({
+    shipment: s,
+    ...getShipmentComplianceAccounting(s, carbonPricePerTonne)
+  }));
+  const count = Math.max(1, rows.length);
+  const maritimeRows = rows.filter((r) => r.compliance !== null);
+  const avgTceEurPerDay = rows.length
+    ? Math.round(rows.reduce((sum, r) => sum + r.accounting.tceEurPerDay, 0) / count)
+    : 0;
+  const avgCo2PerTripKg = rows.length
+    ? Math.round(rows.reduce((sum, r) => sum + r.accounting.co2PerTripKg, 0) / count)
+    : 0;
+  const totalEsgCostEur = rows.reduce((sum, r) => sum + r.accounting.totalEsgCostEur, 0);
+  const avgEsgCostPerTripEur = rows.length ? Math.round(totalEsgCostEur / count) : 0;
+  const totalCommercialEur = rows.reduce((sum, r) => sum + r.accounting.commercialCostEur, 0);
+  const portfolioEsgSharePct =
+    totalCommercialEur + totalEsgCostEur > 0
+      ? Number(((totalEsgCostEur / (totalCommercialEur + totalEsgCostEur)) * 100).toFixed(1))
+      : 0;
+  const avgCiiRatio = maritimeRows.length
+    ? Number(
+        (
+          maritimeRows.reduce((sum, r) => sum + (r.compliance?.ciiRatio ?? 0.9), 0) /
+          maritimeRows.length
+        ).toFixed(2)
+      )
+    : 0.88;
+  const portfolioCiiGrade = gradeCiiRatio(avgCiiRatio);
+  const eexiCompliantCount = maritimeRows.filter((r) => r.compliance?.eexiCompliant).length;
+
+  return {
+    rows,
+    avgTceEurPerDay,
+    avgCo2PerTripKg,
+    totalEsgCostEur,
+    avgEsgCostPerTripEur,
+    portfolioEsgSharePct,
+    maritimeCount: maritimeRows.length,
+    eexiCompliantCount,
+    avgCiiRatio,
+    portfolioCiiGrade
+  };
+};
+

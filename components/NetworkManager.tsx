@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Shield, Award, Leaf, Zap, Globe, Star, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { Language, translations } from '../services/i18n';
-import { LINER_SERVICE_LINES } from '../services/carbon';
+import { LINER_SERVICE_LINES, getEffectiveVesselCompliance } from '../services/carbon';
 
 const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
   const t = translations[lang];
@@ -139,11 +139,14 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
                 <th className="py-3 px-4">{t.linerLineCol}</th>
                 <th className="py-3 px-4">{t.sailingScheduleCol}</th>
                 <th className="py-3 px-4">{t.etaWindowCol}</th>
+                <th className="py-3 px-4 text-center">{t.ciiRatingLabel} / EEXI</th>
                 <th className="py-3 px-4 text-right">{t.publishedIntensityCol}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {LINER_SERVICE_LINES.map((line) => (
+              {LINER_SERVICE_LINES.map((line) => {
+                const vesselCompliance = getEffectiveVesselCompliance(line.vesselType);
+                return (
                 <tr key={line.lineCode} className="hover:bg-slate-50">
                   <td className="py-3 px-4">
                     <p className="font-extrabold text-slate-900">
@@ -159,6 +162,10 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
                     <p className="font-bold text-teal-700">{line.predictableEtaWindow}</p>
                     <p className="text-[11px] text-slate-500">{line.scheduleReliabilityPct.toFixed(1)}% OTIF</p>
                   </td>
+                  <td className="py-3 px-4 text-center font-mono tabular-nums">
+                    <p className="font-black text-emerald-700">CII {vesselCompliance.ciiGrade} ({vesselCompliance.ciiRatio.toFixed(2)})</p>
+                    <p className="text-[11px] text-slate-500">EEXI -{vesselCompliance.eexiMarginPct}% · {vesselCompliance.vesselName}</p>
+                  </td>
                   <td className="py-3 px-4 text-right font-mono tabular-nums">
                     <p className="font-extrabold text-emerald-700">
                       {line.publishedEmissionGPerTeuKm.toFixed(1)} g/TEU-km · {line.publishedEmissionKgPerTkm.toFixed(3)} kg/t·km
@@ -168,7 +175,8 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
                     </p>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

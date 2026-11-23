@@ -106,6 +106,8 @@ export interface RouteCostOption {
   fuelUnit: string;
   label: string;
   reasoning: string;
+  eexiCii?: EexiCiiRecord;
+  tripAccounting?: TripComplianceAccounting;
 }
 
 export interface LinerServiceLine {
@@ -155,6 +157,51 @@ export interface LinerNotificationPrefs {
   recipientPhone: string;
 }
 
+export type CiiGrade = 'A' | 'B' | 'C' | 'D' | 'E';
+
+export interface EexiCiiRecord {
+  vesselType: VesselType;
+  vesselName: string;
+  imoNumber: string;
+  dwt: number;
+  attainedEexi: number;
+  requiredEexi: number;
+  eexiMarginPct: number;
+  eexiCompliant: boolean;
+  eplPowerLimitPct: number;
+  attainedCii: number;
+  requiredCii: number;
+  ciiRatio: number;
+  ciiGrade: CiiGrade;
+  ciiProjectedNextYear: CiiGrade;
+  fuelEuIntensityGPerMj: number;
+}
+
+export interface TripComplianceAccounting {
+  grossFreightRevenueEur: number;
+  voyageExpensesEur: number;
+  netVoyageContributionEur: number;
+  voyageDays: number;
+  tceEurPerDay: number;
+  benchmarkTceEurPerDay: number;
+  tceSpreadEurPerDay: number;
+  co2PerTripKg: number;
+  co2PerTripTonnes: number;
+  co2PerDayKg: number;
+  co2PerNmKg: number;
+  tcePerTonneCo2: number;
+  commercialCostEur: number;
+  euEtsCostEur: number;
+  fuelEuComplianceEur: number;
+  dwellCarbonCostEur: number;
+  voluntaryOffsetCostEur: number;
+  greenFinancingRebateEur: number;
+  totalEsgCostEur: number;
+  esgAdjustedCostEur: number;
+  esgSharePct: number;
+  esgCostPerTeuKm: number;
+}
+
 export interface CarbonAwareTradeOff {
   baselineRoute: RouteCostOption;
   recommendedRoute: RouteCostOption;
@@ -196,6 +243,8 @@ export interface Shipment {
   costBreakdown: CostBreakdown;
   totalCost: number;
   totalEmissionsKg: number;
+  eexiCii?: EexiCiiRecord;
+  tripAccounting?: TripComplianceAccounting;
   trackingHistory: TrackingEvent[];
   createdAt: string;
 }

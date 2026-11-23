@@ -352,6 +352,43 @@ export interface Translations {
   markAllReadBtn: string;
   cutoffLabel: string;
   yoyTrendLabel: string;
+
+  // Compliance & Accounting: EEXI/CII, TCE & CO2 per Trip, ESG Cost Accounting
+  complianceAccountingTitle: string;
+  complianceAccountingSubtitle: string;
+  eexiCiiTrackerTitle: string;
+  eexiCiiTrackerDesc: string;
+  eexiAttainedReqLabel: string;
+  eexiCompliantLabel: string;
+  eplLimitLabel: string;
+  ciiRatingLabel: string;
+  ciiAttainedReqLabel: string;
+  ciiRatioLabel: string;
+  ciiNextYearLabel: string;
+  fuelEuIntensityLabel: string;
+  slowSteamingCiiPreview: string;
+  tceCo2TripTitle: string;
+  tceCo2TripDesc: string;
+  tcePerDayLabel: string;
+  tceBenchmarkLabel: string;
+  tceFormulaNote: string;
+  grossFreightRevLabel: string;
+  voyageExpensesLabel: string;
+  co2PerTripLabel: string;
+  co2PerDayLabel: string;
+  tcePerTonneCo2Label: string;
+  esgCostAccountingTitle: string;
+  esgCostAccountingDesc: string;
+  euEtsLiabilityLabel: string;
+  fuelEuBalanceLabel: string;
+  dwellCarbonLabel: string;
+  voluntaryOffsetLabel: string;
+  greenRebateLabel: string;
+  totalEsgCostTripLabel: string;
+  esgAdjustedCostLabel: string;
+  esgShareLabel: string;
+  commercialCostLabel: string;
+  portfolioTripLedgerTitle: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -685,7 +722,43 @@ export const translations: Record<Language, Translations> = {
     alertDispatchedLogTitle: "Dispatched Liner Alerts & SMS Log",
     markAllReadBtn: "Mark all read",
     cutoffLabel: "Cargo Cut-Off",
-    yoyTrendLabel: "YoY Intensity"
+    yoyTrendLabel: "YoY Intensity",
+
+    complianceAccountingTitle: "Maritime Compliance & Trip ESG Accounting",
+    complianceAccountingSubtitle: "IMO EEXI & CII vessel rating tracking, daily TCE vs. CO2 evaluation, and itemized ESG cost accounting per trip.",
+    eexiCiiTrackerTitle: "IMO EEXI & CII Rating Tracking",
+    eexiCiiTrackerDesc: "Attained vs. required EEXI efficiency index, EPL power limiters, and 2026 CII rating grades (A–E) with slow-steaming impact.",
+    eexiAttainedReqLabel: "EEXI (Att. / Req.)",
+    eexiCompliantLabel: "EEXI Compliant",
+    eplLimitLabel: "EPL Limiter",
+    ciiRatingLabel: "CII Rating",
+    ciiAttainedReqLabel: "CII AER (Att. / Req.)",
+    ciiRatioLabel: "CII Ratio",
+    ciiNextYearLabel: "2027 Proj.",
+    fuelEuIntensityLabel: "FuelEU GHG",
+    slowSteamingCiiPreview: "Slow-Steaming CII Effect",
+    tceCo2TripTitle: "TCE & CO2 per Trip Evaluation",
+    tceCo2TripDesc: "Daily Time Charter Equivalent return net of bunker, port, dwell & carbon costs vs. trip CO2 intensity.",
+    tcePerDayLabel: "TCE (€/day)",
+    tceBenchmarkLabel: "Market Benchmark",
+    tceFormulaNote: "TCE = (Gross Freight Revenue − Voyage Expenses) ÷ Voyage Days",
+    grossFreightRevLabel: "Gross Freight Rev.",
+    voyageExpensesLabel: "Voyage Expenses",
+    co2PerTripLabel: "CO2 / Trip",
+    co2PerDayLabel: "CO2 / Day",
+    tcePerTonneCo2Label: "TCE / t CO2",
+    esgCostAccountingTitle: "ESG Cost Accounting per Trip",
+    esgCostAccountingDesc: "Itemized EU ETS allowances, FuelEU Maritime GHG balance, dwell carbon, voluntary offsets, and green financing rebates.",
+    euEtsLiabilityLabel: "EU ETS / Carbon Levy",
+    fuelEuBalanceLabel: "FuelEU Maritime Balance",
+    dwellCarbonLabel: "Dwell Carbon Cost",
+    voluntaryOffsetLabel: "Voluntary VCS Offset",
+    greenRebateLabel: "Green ESG Rebate",
+    totalEsgCostTripLabel: "Total ESG Cost / Trip",
+    esgAdjustedCostLabel: "ESG-Adjusted Trip Cost",
+    esgShareLabel: "ESG Share of Trip",
+    commercialCostLabel: "Commercial Freight Cost",
+    portfolioTripLedgerTitle: "Per-Trip Compliance, TCE & ESG Accounting Ledger"
   },
   tr: {
     dashboard: "Panel",
@@ -1017,7 +1090,43 @@ export const translations: Record<Language, Translations> = {
     alertDispatchedLogTitle: "Gönderilen Liner Uyarıları ve SMS Kaydı",
     markAllReadBtn: "Tümünü okundu say",
     cutoffLabel: "Yük Cut-Off",
-    yoyTrendLabel: "Yıllık Yoğunluk"
+    yoyTrendLabel: "Yıllık Yoğunluk",
+
+    complianceAccountingTitle: "Denizcilik Uyumluluk ve Sefer Bazlı ESG Muhasebesi",
+    complianceAccountingSubtitle: "IMO EEXI ve CII gemi derecelendirme takibi, günlük TCE ve sefer başı CO2 değerlendirmesi ile kalem bazlı ESG maliyet muhasebesi.",
+    eexiCiiTrackerTitle: "IMO EEXI ve CII Derecelendirme Takibi",
+    eexiCiiTrackerDesc: "Gerçekleşen ve zorunlu EEXI verimlilik endeksi, EPL motor güç sınırlayıcıları ve yavaş seyir etkili 2026 CII notları (A–E).",
+    eexiAttainedReqLabel: "EEXI (Gerç. / Zor.)",
+    eexiCompliantLabel: "EEXI Uyumlu",
+    eplLimitLabel: "EPL Sınırı",
+    ciiRatingLabel: "CII Notu",
+    ciiAttainedReqLabel: "CII AER (Gerç. / Zor.)",
+    ciiRatioLabel: "CII Oranı",
+    ciiNextYearLabel: "2027 Tahmini",
+    fuelEuIntensityLabel: "FuelEU Yoğunluk",
+    slowSteamingCiiPreview: "Yavaş Seyir CII Etkisi",
+    tceCo2TripTitle: "TCE ve Sefer Başı CO2 Değerlendirmesi",
+    tceCo2TripDesc: "Yakıt, liman, bekleme ve karbon giderleri sonrası günlük Zaman Çarteri Eşdeğeri (TCE) getirisi ve sefer CO2 yükü.",
+    tcePerDayLabel: "TCE (€/gün)",
+    tceBenchmarkLabel: "Piyasa Referansı",
+    tceFormulaNote: "TCE = (Brüt Navlun Geliri − Sefer Giderleri) ÷ Sefer Günü",
+    grossFreightRevLabel: "Brüt Navlun Geliri",
+    voyageExpensesLabel: "Sefer Giderleri",
+    co2PerTripLabel: "Sefer Başı CO2",
+    co2PerDayLabel: "Günlük CO2",
+    tcePerTonneCo2Label: "TCE / ton CO2",
+    esgCostAccountingTitle: "Sefer Başı ESG Maliyet Muhasebesi",
+    esgCostAccountingDesc: "EU ETS tahsisatları, FuelEU Maritime GHG dengesi, bekleme karbonu, gönüllü dengeleme ve yeşil finansman indirimi kırılımı.",
+    euEtsLiabilityLabel: "EU ETS / Karbon Yükü",
+    fuelEuBalanceLabel: "FuelEU Maritime Dengesi",
+    dwellCarbonLabel: "Bekleme Karbonu",
+    voluntaryOffsetLabel: "Gönüllü VCS Dengeleme",
+    greenRebateLabel: "Yeşil ESG İndirimi",
+    totalEsgCostTripLabel: "Toplam Sefer ESG Maliyeti",
+    esgAdjustedCostLabel: "ESG Düzeltilmiş Sefer Maliyeti",
+    esgShareLabel: "ESG Maliyet Payı",
+    commercialCostLabel: "Ticari Navlun Maliyeti",
+    portfolioTripLedgerTitle: "Sefer Bazlı Uyumluluk, TCE ve ESG Muhasebe Defteri"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -1349,7 +1458,43 @@ export const translations: Record<Language, Translations> = {
     alertDispatchedLogTitle: "Ιστορικό Ειδοποιήσεων & SMS Liner",
     markAllReadBtn: "Σήμανση όλων ως αναγνωσμένα",
     cutoffLabel: "Cut-Off Φορτίου",
-    yoyTrendLabel: "Ετήσια Μεταβολή"
+    yoyTrendLabel: "Ετήσια Μεταβολή",
+
+    complianceAccountingTitle: "Ναυτιλιακή Συμμόρφωση & Λογιστική ESG ανά Ταξίδι",
+    complianceAccountingSubtitle: "Παρακολούθηση δεικτών EEXI & CII, αξιολόγηση TCE και CO2 ανά ταξίδι και αναλυτική λογιστική κόστους ESG.",
+    eexiCiiTrackerTitle: "Παρακολούθηση Δεικτών IMO EEXI & CII",
+    eexiCiiTrackerDesc: "Επιτευχθείς έναντι απαιτούμενου δείκτη EEXI, περιοριστές ισχύος EPL και βαθμολογία CII 2026 (A–E) με επίδραση slow steaming.",
+    eexiAttainedReqLabel: "EEXI (Επιτ. / Απαιτ.)",
+    eexiCompliantLabel: "Συμμόρφωση EEXI",
+    eplLimitLabel: "Όριο EPL",
+    ciiRatingLabel: "Βαθμός CII",
+    ciiAttainedReqLabel: "CII AER (Επιτ. / Απαιτ.)",
+    ciiRatioLabel: "Λόγος CII",
+    ciiNextYearLabel: "Πρόβλ. 2027",
+    fuelEuIntensityLabel: "Ένταση FuelEU",
+    slowSteamingCiiPreview: "Επίδραση Slow Steaming στο CII",
+    tceCo2TripTitle: "Αξιολόγηση TCE & CO2 ανά Ταξίδι",
+    tceCo2TripDesc: "Ημερήσιο Ισοδύναμο Χρονοναύλωσης (TCE) μετά από καύσιμα, λιμενικά τέλη και κόστος άνθρακα έναντι εκπομπών CO2 ταξιδιού.",
+    tcePerDayLabel: "TCE (€/ημέρα)",
+    tceBenchmarkLabel: "Δείκτης Αγοράς",
+    tceFormulaNote: "TCE = (Μικτά Έσοδα Ναύλου − Έξοδα Ταξιδιού) ÷ Ημέρες Ταξιδιού",
+    grossFreightRevLabel: "Μικτά Έσοδα Ναύλου",
+    voyageExpensesLabel: "Έξοδα Ταξιδιού",
+    co2PerTripLabel: "CO2 / Ταξίδι",
+    co2PerDayLabel: "CO2 / Ημέρα",
+    tcePerTonneCo2Label: "TCE / t CO2",
+    esgCostAccountingTitle: "Λογιστική Κόστους ESG ανά Ταξίδι",
+    esgCostAccountingDesc: "Ανάλυση δικαιωμάτων EU ETS, ισοζυγίου FuelEU Maritime, άνθρακα αναμονής, εθελοντικής αντιστάθμισης και πράσινης έκπτωσης.",
+    euEtsLiabilityLabel: "Επιβάρυνση EU ETS",
+    fuelEuBalanceLabel: "Ισοζύγιο FuelEU Maritime",
+    dwellCarbonLabel: "Κόστος Άνθρακα Αναμονής",
+    voluntaryOffsetLabel: "Εθελοντική Αντιστάθμιση VCS",
+    greenRebateLabel: "Πράσινη Έκπτωση ESG",
+    totalEsgCostTripLabel: "Συνολικό Κόστος ESG / Ταξίδι",
+    esgAdjustedCostLabel: "Συνολικό Κόστος με ESG",
+    esgShareLabel: "Μερίδιο ESG",
+    commercialCostLabel: "Εμπορικό Κόστος Ναύλου",
+    portfolioTripLedgerTitle: "Καθολικό Συμμόρφωσης, TCE & Κόστους ESG ανά Ταξίδι"
   }
 };
 

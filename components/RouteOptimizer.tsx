@@ -18,7 +18,9 @@ import {
   RotateCcw,
   BookOpenCheck,
   Clock,
-  Gauge
+  Gauge,
+  Calculator,
+  ShieldCheck
 } from 'lucide-react';
 import {
   BarChart,
@@ -34,13 +36,14 @@ import {
   ZAxis,
   ReferenceLine
 } from 'recharts';
-import { RouteCostOption, Shipment, ShipmentStatus, SpeedProfile, TransportMode, VesselType } from '../types';
+import { CiiGrade, RouteCostOption, Shipment, ShipmentStatus, SpeedProfile, TransportMode, VesselType } from '../types';
 import {
   CARBON_PRICE_PRESETS,
   DEFAULT_ECO_SLOW_STEAMING_PCT,
   DEFAULT_EU_ETS_CARBON_PRICE,
   DEFAULT_PORT_DWELL_HOURS,
   DWELL_TIME_PRESETS,
+  FUEL_EU_2026_LIMIT_G_PER_MJ,
   LINER_SERVICE_LINES,
   LINER_VESSEL_TYPES,
   SCHEDULE_SLA_TARGET_PCT,
@@ -56,9 +59,11 @@ import {
   computeCarbonAwareTradeOff,
   computeDwellImpact,
   computeModeScheduleReliability,
+  computeRouteTripAccounting,
   estimatePortFees,
   estimateTeuFromCargo,
   getBaselineVesselSpeedKts,
+  getEffectiveVesselCompliance,
   getGlecFactorSpec,
   getVesselTypeSpec,
   isMaritimeRouteMode,
@@ -443,7 +448,15 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       ? carbonAwareTradeOff.baselineRoute.estimatedCost * (1 + costTolerancePct / 100)
       : Infinity;
 
-    return [...activeSpeedComputedOptions].sort((a, b) => {
+    const enriched = activeSpeedComputedOptions.map((opt) => ({
+      ...opt,
+      eexiCii: isMaritimeRouteMode(opt.mode)
+        ? getEffectiveVesselCompliance(opt.vesselType, opt.slowSteamingPct ?? 0, opt.mode)
+        : undefined,
+      tripAccounting: computeRouteTripAccounting(opt, carbonPricePerTonne, weightTonnes)
+    }));
+
+    return enriched.sort((a, b) => {
       if (objective === 'fuel_co2') return a.fuelPlusCo2Cost - b.fuelPlusCo2Cost;
       if (objective === 'fastest') return a.estimatedDays - b.estimatedDays;
       if (objective === 'reliability') return (b.scheduleReliabilityPct ?? 0) - (a.scheduleReliabilityPct ?? 0);
@@ -455,7 +468,7 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       }
       return a.estimatedCost - b.estimatedCost;
     });
-  }, [activeSpeedComputedOptions, objective, carbonAwareTradeOff, costTolerancePct]);
+  }, [activeSpeedComputedOptions, objective, carbonAwareTradeOff, costTolerancePct, carbonPricePerTonne, weightTonnes]);
 
   const optimalRoute = computedOptions[0];
   const selectedRoute =
@@ -712,6 +725,8 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
       },
       totalCost: selectedRoute.estimatedCost,
       totalEmissionsKg: selectedRoute.estimatedEmissionsKg,
+      eexiCii: selectedRoute.eexiCii,
+      tripAccounting: selectedRoute.tripAccounting,
       trackingHistory: [
         {
           status: 'Booked',
@@ -2067,8 +2082,262 @@ const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
           )}
         </div>
       </div>
+
+      {/* Compliance & Trip Accounting: IMO EEXI/CII, TCE vs. CO2 & ESG Cost per Trip */}
+      {selectedRoute && selectedRoute.tripAccounting && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Calculator size={17} className="text-indigo-600" />
+                <span>{t.complianceAccountingTitle}</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">{t.complianceAccountingSubtitle}</p>
+            </div>
+            <div className="text-xs font-mono tabular-nums text-slate-600">
+              {getModeLabel(selectedRoute.mode, t)} · {selectedRoute.estimatedDays}d ·{' '}
+              <span className="font-bold text-slate-900">
+                {formatEUR(carbonPricePerTonne, 0)}/t EU ETS
+              </span>
+            </div>
+          </div>
+
+          {/* 3-Column Executive Strip: Item 13 EEXI/CII · Item 14 TCE & CO2/Trip · Item 15 ESG Cost Accounting */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Item 13: EEXI & CII */}
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50/50">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <ShieldCheck size={15} className="text-blue-600" />
+                  <span>{t.eexiCiiTrackerTitle}</span>
+                </p>
+                {selectedRoute.eexiCii ? (
+                  <span className={`px-2 py-0.5 rounded border text-xs font-black font-mono ${getCiiBadgeStyle(selectedRoute.eexiCii.ciiGrade)}`}>
+                    CII {selectedRoute.eexiCii.ciiGrade}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-slate-500">Inland / Air</span>
+                )}
+              </div>
+              {selectedRoute.eexiCii ? (
+                <div className="space-y-2 text-xs font-mono tabular-nums">
+                  <p className="font-sans font-semibold text-slate-700">
+                    {selectedRoute.eexiCii.vesselName} ({selectedRoute.eexiCii.imoNumber})
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <span className="text-[10px] font-sans text-slate-500 block">{t.eexiAttainedReqLabel}</span>
+                      <span className="font-bold text-slate-900">
+                        {selectedRoute.eexiCii.attainedEexi.toFixed(1)} / {selectedRoute.eexiCii.requiredEexi.toFixed(1)}
+                      </span>
+                      <span className="text-[10px] text-emerald-700 block">
+                        -{selectedRoute.eexiCii.eexiMarginPct.toFixed(1)}% margin
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-sans text-slate-500 block">{t.ciiAttainedReqLabel}</span>
+                      <span className="font-bold text-slate-900">
+                        {selectedRoute.eexiCii.attainedCii.toFixed(2)} / {selectedRoute.eexiCii.requiredCii.toFixed(1)}
+                      </span>
+                      <span className="text-[10px] text-slate-600 block">
+                        Ratio {selectedRoute.eexiCii.ciiRatio.toFixed(2)} · 2027: {selectedRoute.eexiCii.ciiProjectedNextYear}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-sans text-slate-500 block">{t.eplLimitLabel}</span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedRoute.eexiCii.eplPowerLimitPct > 0 ? `EPL -${selectedRoute.eexiCii.eplPowerLimitPct}%` : 'Unrestricted MCR'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-sans text-slate-500 block">{t.fuelEuIntensityLabel}</span>
+                      <span className={`font-semibold ${selectedRoute.eexiCii.fuelEuIntensityGPerMj > FUEL_EU_2026_LIMIT_G_PER_MJ ? 'text-amber-700' : 'text-emerald-700'}`}>
+                        {selectedRoute.eexiCii.fuelEuIntensityGPerMj.toFixed(1)} gCO2e/MJ
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  IMO EEXI &amp; CII apply to maritime vessel legs ({t.seaLiner}, {t.seaTramp}, {t.seaLiner} + {t.rail}).
+                </p>
+              )}
+            </div>
+
+            {/* Item 14: TCE & CO2 per Trip Evaluation */}
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50/50">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <Gauge size={15} className="text-teal-600" />
+                  <span>{t.tceCo2TripTitle}</span>
+                </p>
+                <span className="text-xs font-mono tabular-nums font-black text-teal-700">
+                  {formatEUR(selectedRoute.tripAccounting.tceEurPerDay, 0)}/d
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs font-mono tabular-nums">
+                <div>
+                  <span className="text-[10px] font-sans text-slate-500 block">{t.grossFreightRevLabel}</span>
+                  <span className="font-bold text-slate-900">{formatEUR(selectedRoute.tripAccounting.grossFreightRevenueEur, 0)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-sans text-slate-500 block">{t.voyageExpensesLabel}</span>
+                  <span className="font-bold text-slate-700">-{formatEUR(selectedRoute.tripAccounting.voyageExpensesEur, 0)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-sans text-slate-500 block">{t.tcePerDayLabel}</span>
+                  <span className="font-extrabold text-teal-700">{formatEUR(selectedRoute.tripAccounting.tceEurPerDay, 0)}</span>
+                  <span className={`text-[10px] block ${selectedRoute.tripAccounting.tceSpreadEurPerDay >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {selectedRoute.tripAccounting.tceSpreadEurPerDay >= 0 ? '+' : ''}
+                    {formatEUR(selectedRoute.tripAccounting.tceSpreadEurPerDay, 0)} vs mkt
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-sans text-slate-500 block">{t.co2PerTripLabel}</span>
+                  <span className="font-extrabold text-emerald-700">{formatEmissions(selectedRoute.tripAccounting.co2PerTripKg)}</span>
+                  <span className="text-[10px] text-slate-500 block">
+                    {formatNumber(selectedRoute.tripAccounting.co2PerDayKg)} kg/d · {selectedRoute.tripAccounting.co2PerNmKg} kg/nm
+                  </span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-200/70">
+                {t.tceFormulaNote} · {t.tcePerTonneCo2Label}: {formatEUR(selectedRoute.tripAccounting.tcePerTonneCo2, 0)}/t CO2
+              </p>
+            </div>
+
+            {/* Item 15: ESG Cost Accounting per Trip */}
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50/50">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <Leaf size={15} className="text-emerald-600" />
+                  <span>{t.esgCostAccountingTitle}</span>
+                </p>
+                <span className="text-xs font-mono tabular-nums font-black text-indigo-700">
+                  {formatEUR(selectedRoute.tripAccounting.totalEsgCostEur, 0)} ({selectedRoute.tripAccounting.esgSharePct}%)
+                </span>
+              </div>
+              <div className="space-y-1.5 text-xs font-mono tabular-nums">
+                <div className="flex justify-between">
+                  <span className="font-sans text-slate-600">{t.commercialCostLabel}</span>
+                  <span className="font-semibold text-slate-900">{formatEUR(selectedRoute.tripAccounting.commercialCostEur, 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-sans text-slate-600">{t.euEtsLiabilityLabel}</span>
+                  <span className="font-semibold text-emerald-700">+{formatEUR(selectedRoute.tripAccounting.euEtsCostEur, 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-sans text-slate-600">{t.fuelEuBalanceLabel}</span>
+                  <span className={`font-semibold ${selectedRoute.tripAccounting.fuelEuComplianceEur <= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {selectedRoute.tripAccounting.fuelEuComplianceEur > 0 ? '+' : ''}
+                    {formatEUR(selectedRoute.tripAccounting.fuelEuComplianceEur, 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-sans text-slate-600">{t.voluntaryOffsetLabel}</span>
+                  <span className="font-semibold text-slate-700">+{formatEUR(selectedRoute.tripAccounting.voluntaryOffsetCostEur, 0)}</span>
+                </div>
+                {selectedRoute.tripAccounting.greenFinancingRebateEur > 0 && (
+                  <div className="flex justify-between">
+                    <span className="font-sans text-slate-600">{t.greenRebateLabel}</span>
+                    <span className="font-semibold text-emerald-700">-{formatEUR(selectedRoute.tripAccounting.greenFinancingRebateEur, 0)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-1.5 border-t border-slate-200 font-extrabold text-slate-900">
+                  <span className="font-sans">{t.esgAdjustedCostLabel}</span>
+                  <span>{formatEUR(selectedRoute.tripAccounting.esgAdjustedCostEur, 0)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Comparative Accounting Table across all modes */}
+          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500">
+                  <th className="py-2.5 px-3">{t.mode}</th>
+                  <th className="py-2.5 px-2 text-center">{t.ciiRatingLabel}</th>
+                  <th className="py-2.5 px-2 text-right">{t.tcePerDayLabel}</th>
+                  <th className="py-2.5 px-2 text-right">{t.co2PerTripLabel}</th>
+                  <th className="py-2.5 px-2 text-right">{t.euEtsLiabilityLabel}</th>
+                  <th className="py-2.5 px-2 text-right">{t.fuelEuBalanceLabel}</th>
+                  <th className="py-2.5 px-2 text-right">{t.totalEsgCostTripLabel}</th>
+                  <th className="py-2.5 px-3 text-right">{t.esgAdjustedCostLabel}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
+                {computedOptions.map((opt) => {
+                  const acc = opt.tripAccounting!;
+                  const isSel = selectedRoute.mode === opt.mode;
+                  return (
+                    <tr
+                      key={opt.mode}
+                      onClick={() => setSelectedMode(opt.mode)}
+                      className={`cursor-pointer transition-colors ${isSel ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}
+                    >
+                      <td className="py-2.5 px-3 font-sans font-bold text-slate-900 whitespace-nowrap">
+                        {getModeLabel(opt.mode, t)}
+                        {opt.eexiCii ? (
+                          <span className="block text-[10px] font-normal text-slate-500">
+                            {opt.eexiCii.vesselName} · EEXI -{opt.eexiCii.eexiMarginPct.toFixed(1)}%
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-2.5 px-2 text-center">
+                        {opt.eexiCii ? (
+                          <span className={`inline-block w-6 py-0.5 rounded border font-black text-[11px] ${getCiiBadgeStyle(opt.eexiCii.ciiGrade)}`}>
+                            {opt.eexiCii.ciiGrade}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-bold text-teal-700">
+                        {formatEUR(acc.tceEurPerDay, 0)}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-semibold text-emerald-700">
+                        {formatEmissions(acc.co2PerTripKg)}
+                      </td>
+                      <td className="py-2.5 px-2 text-right text-slate-700">
+                        {formatEUR(acc.euEtsCostEur, 0)}
+                      </td>
+                      <td className="py-2.5 px-2 text-right">
+                        <span className={acc.fuelEuComplianceEur <= 0 ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
+                          {acc.fuelEuComplianceEur > 0 ? '+' : ''}
+                          {formatEUR(acc.fuelEuComplianceEur, 0)}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-bold text-indigo-700">
+                        {formatEUR(acc.totalEsgCostEur, 0)} ({acc.esgSharePct}%)
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-extrabold text-slate-900">
+                        {formatEUR(acc.esgAdjustedCostEur, 0)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
+};
+
+const getCiiBadgeStyle = (grade: CiiGrade) => {
+  switch (grade) {
+    case 'A':
+      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    case 'B':
+      return 'bg-teal-50 text-teal-800 border-teal-200';
+    case 'C':
+      return 'bg-amber-50 text-amber-800 border-amber-200';
+    case 'D':
+      return 'bg-orange-50 text-orange-800 border-orange-200';
+    case 'E':
+      return 'bg-rose-50 text-rose-800 border-rose-200';
+  }
 };
 
 export default RouteOptimizer;
