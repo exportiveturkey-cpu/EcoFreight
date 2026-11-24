@@ -22,6 +22,7 @@ import {
   matchLinerLineForCorridor
 } from '../services/carbon';
 import { formatNumber } from '../services/formatters';
+import SharedVesselKpiLayer from './SharedVesselKpiLayer';
 
 interface TrackingViewProps {
   shipments: Shipment[];
@@ -500,6 +501,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({
           )}
 
           {section === 'telemetry' && (
+          <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           <div className="bg-white rounded-[2.5rem] p-7 border border-slate-200 shadow-sm">
              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t.consignmentMetrics}</h3>
@@ -562,6 +564,13 @@ const TrackingView: React.FC<TrackingViewProps> = ({
                ))}
              </div>
           </div>
+          </div>
+          <SharedVesselKpiLayer
+            shipments={shipments}
+            lang={lang}
+            highlightVesselType={selectedShipment?.vesselType ?? null}
+            compact
+          />
           </div>
           )}
 

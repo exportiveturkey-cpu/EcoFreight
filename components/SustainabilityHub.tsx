@@ -19,6 +19,8 @@ import { toCsv } from '../services/csv';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts';
 import { Language, translations } from '../services/i18n';
 import GlecMethodPanel from './GlecMethodPanel';
+import SharedVesselKpiLayer from './SharedVesselKpiLayer';
+import GreenFleetReferencePanel from './GreenFleetReferencePanel';
 
 interface SustainabilityHubProps { shipments: Shipment[]; lang: Language; }
 
@@ -230,6 +232,8 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
                 </table>
               </div>
             </div>
+
+            <SharedVesselKpiLayer shipments={shipments} lang={lang} />
           </div>
           )}
 
@@ -511,6 +515,8 @@ const SustainabilityHub: React.FC<SustainabilityHubProps> = ({ shipments, lang }
                 </div>
               </div>
             </div>
+
+            <GreenFleetReferencePanel lang={lang} />
           </div>
           )}
         </div>

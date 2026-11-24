@@ -30,6 +30,8 @@ import {
   isShipmentOnTime
 } from '../services/carbon';
 import GlecMethodPanel from './GlecMethodPanel';
+import SharedVesselKpiLayer from './SharedVesselKpiLayer';
+import GreenFleetReferencePanel from './GreenFleetReferencePanel';
 
 interface DashboardProps {
   shipments: Shipment[];
@@ -331,6 +333,9 @@ const Dashboard: React.FC<DashboardProps> = ({ shipments, lang }) => {
               </div>
             </div>
           </div>
+
+          <SharedVesselKpiLayer shipments={shipments} lang={lang} />
+          <GreenFleetReferencePanel lang={lang} />
         </>
       )}
 

@@ -511,7 +511,7 @@ const App: React.FC = () => {
               requestedSection={trackingSectionReq}
             />
           )}
-          {activeTab === 'network' && <NetworkManager lang={lang} />}
+          {activeTab === 'network' && <NetworkManager shipments={shipments} lang={lang} />}
           {activeTab === 'sustainability' && <SustainabilityHub shipments={shipments} lang={lang} />}
           {activeTab === 'ai-assistant' && <AIAssistant lang={lang} />}
           {activeTab === 'docs' && <ArchitectureDocs />}

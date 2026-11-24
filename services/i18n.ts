@@ -389,6 +389,31 @@ export interface Translations {
   esgShareLabel: string;
   commercialCostLabel: string;
   portfolioTripLedgerTitle: string;
+
+  // Shared Per-Vessel KPI Transparency Layer & Green Fleet Reference Case
+  sharedVesselKpiTitle: string;
+  sharedVesselKpiDesc: string;
+  sharedTransparencyLayerLabel: string;
+  vesselNameImoCol: string;
+  serviceClassCol: string;
+  tripsCargoCol: string;
+  co2PerTripCol: string;
+  reliabilityOtifCol: string;
+  formulaTransparencyBtn: string;
+  formulaTransparencyNote: string;
+  greenFleetRefTitle: string;
+  greenFleetRefDesc: string;
+  referenceCaseNotice: string;
+  greenFuelPremiumLabel: string;
+  vesselPathwayCol: string;
+  wtwIntensityCol: string;
+  charterCapexCol: string;
+  greenFuelPremCol: string;
+  netsComplianceCol: string;
+  netAllInCostCol: string;
+  premiumVsConvCol: string;
+  benchmarkLabel: string;
+  liveFleetLabel: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -758,7 +783,31 @@ export const translations: Record<Language, Translations> = {
     esgAdjustedCostLabel: "ESG-Adjusted Trip Cost",
     esgShareLabel: "ESG Share of Trip",
     commercialCostLabel: "Commercial Freight Cost",
-    portfolioTripLedgerTitle: "Per-Trip Compliance, TCE & ESG Accounting Ledger"
+    portfolioTripLedgerTitle: "Per-Trip Compliance, TCE & ESG Accounting Ledger",
+
+    sharedVesselKpiTitle: "Shared Per-Vessel KPI Transparency Layer",
+    sharedVesselKpiDesc: "Single source of truth per vessel across Dashboard, Sustainability, Global Network & Tracking.",
+    sharedTransparencyLayerLabel: "Shared Transparency Engine: GLEC v3.0 WTW · IMO MEPC.328 · EU ETS",
+    vesselNameImoCol: "Vessel / IMO",
+    serviceClassCol: "Service & Capacity",
+    tripsCargoCol: "Trips / Volume",
+    co2PerTripCol: "Avg CO2 / Trip",
+    reliabilityOtifCol: "OTIF Reliability",
+    formulaTransparencyBtn: "Show Transparency Formulas",
+    formulaTransparencyNote: "Identical GLEC WTW, IMO EEXI/CII, TCE (€/day) and EU ETS + FuelEU formulas are computed once and shared across all tabs.",
+    greenFleetRefTitle: "Green Fleet Reference Case: Conventional vs. Methanol-Ready Vessels",
+    greenFleetRefDesc: "Illustrative benchmark comparing conventional VLSFO vs. dual-fuel methanol-ready vessels, including the green e-methanol premium pricing case.",
+    referenceCaseNotice: "Reference Benchmark Case (Read-Only): Not an active methanol booking or bunkering feature.",
+    greenFuelPremiumLabel: "e-Methanol Fuel Premium",
+    vesselPathwayCol: "Vessel & Fuel Pathway",
+    wtwIntensityCol: "WTW GHG",
+    charterCapexCol: "Base + Readiness",
+    greenFuelPremCol: "Green Fuel Prem.",
+    netsComplianceCol: "ETS + FuelEU − Rebate",
+    netAllInCostCol: "All-In / TEU",
+    premiumVsConvCol: "Net Premium vs. VLSFO",
+    benchmarkLabel: "Model Baseline",
+    liveFleetLabel: "Live Portfolio"
   },
   tr: {
     dashboard: "Panel",
@@ -1126,7 +1175,31 @@ export const translations: Record<Language, Translations> = {
     esgAdjustedCostLabel: "ESG Düzeltilmiş Sefer Maliyeti",
     esgShareLabel: "ESG Maliyet Payı",
     commercialCostLabel: "Ticari Navlun Maliyeti",
-    portfolioTripLedgerTitle: "Sefer Bazlı Uyumluluk, TCE ve ESG Muhasebe Defteri"
+    portfolioTripLedgerTitle: "Sefer Bazlı Uyumluluk, TCE ve ESG Muhasebe Defteri",
+
+    sharedVesselKpiTitle: "Gemi Bazlı Ortak KPI Şeffaflık Katmanı",
+    sharedVesselKpiDesc: "Panel, Sürdürülebilirlik, Küresel Ağ ve Canlı Takip ekranlarında aynı hesaplama katmanından beslenen gemi KPI görünümü.",
+    sharedTransparencyLayerLabel: "Ortak Şeffaflık Motoru: GLEC v3.0 WTW · IMO MEPC.328 · EU ETS",
+    vesselNameImoCol: "Gemi / IMO",
+    serviceClassCol: "Hizmet & Kapasite",
+    tripsCargoCol: "Sefer / Hacim",
+    co2PerTripCol: "Ort. Sefer CO2",
+    reliabilityOtifCol: "Tarife Uyumu",
+    formulaTransparencyBtn: "Şeffaflık Formüllerini Göster",
+    formulaTransparencyNote: "Aynı GLEC WTW, IMO EEXI/CII, TCE (€/gün) ve EU ETS + FuelEU formülleri tek noktadan hesaplanır ve tüm görünümlerde paylaşılır.",
+    greenFleetRefTitle: "Yeşil Filo Referans Senaryosu: Konvansiyonel vs. Metanol Hazır Gemiler",
+    greenFleetRefDesc: "Konvansiyonel VLSFO gemiler ile yeşil e-metanol prim fiyatlaması dahil çift yakıtlı metanol-hazır gemileri kıyaslayan referans karşılaştırma.",
+    referenceCaseNotice: "Referans Karşılaştırma Vakası (Salt Okunur): Aktif bir metanol rezervasyon veya ikmal özelliği değildir.",
+    greenFuelPremiumLabel: "e-Metanol Yakıt Primi",
+    vesselPathwayCol: "Gemi & Yakıt Yolu",
+    wtwIntensityCol: "WTW Yoğunluk",
+    charterCapexCol: "Baz + Hazırlık Primi",
+    greenFuelPremCol: "Yeşil Yakıt Primi",
+    netsComplianceCol: "ETS + FuelEU − İndirim",
+    netAllInCostCol: "Toplam / TEU",
+    premiumVsConvCol: "VLSFO'ya Göre Net Fark",
+    benchmarkLabel: "Model Bazı",
+    liveFleetLabel: "Canlı Portföy"
   },
   el: {
     dashboard: "Πίνακας Ελέγχου",
@@ -1494,7 +1567,31 @@ export const translations: Record<Language, Translations> = {
     esgAdjustedCostLabel: "Συνολικό Κόστος με ESG",
     esgShareLabel: "Μερίδιο ESG",
     commercialCostLabel: "Εμπορικό Κόστος Ναύλου",
-    portfolioTripLedgerTitle: "Καθολικό Συμμόρφωσης, TCE & Κόστους ESG ανά Ταξίδι"
+    portfolioTripLedgerTitle: "Καθολικό Συμμόρφωσης, TCE & Κόστους ESG ανά Ταξίδι",
+
+    sharedVesselKpiTitle: "Κοινό Επίπεδο Διαφάνειας KPI ανά Πλοίο",
+    sharedVesselKpiDesc: "Ενιαία πηγή δεδομένων ανά πλοίο σε Πίνακα Ελέγχου, Βιωσιμότητα, Δίκτυο και Παρακολούθηση.",
+    sharedTransparencyLayerLabel: "Κοινός Μηχανισμός Διαφάνειας: GLEC v3.0 WTW · IMO MEPC.328 · EU ETS",
+    vesselNameImoCol: "Πλοίο / IMO",
+    serviceClassCol: "Υπηρεσία & Χωρητικότητα",
+    tripsCargoCol: "Ταξίδια / Όγκος",
+    co2PerTripCol: "Μ.Ο. CO2 / Ταξίδι",
+    reliabilityOtifCol: "Αξιοπιστία ETA",
+    formulaTransparencyBtn: "Προβολή Τύπων Διαφάνειας",
+    formulaTransparencyNote: "Οι ίδιοι τύποι GLEC WTW, IMO EEXI/CII, TCE (€/ημέρα) και EU ETS + FuelEU υπολογίζονται ενιαία για όλες τις οθόνες.",
+    greenFleetRefTitle: "Περίπτωση Αναφοράς Πράσινου Στόλου: Συμβατικά έναντι Methanol-Ready Πλοίων",
+    greenFleetRefDesc: "Ενδεικτική σύγκριση συμβατικών πλοίων VLSFO με πλοία διπλού καυσίμου methanol-ready, συμπεριλαμβανομένου του σεναρίου premium τιμολόγησης.",
+    referenceCaseNotice: "Περίπτωση Αναφοράς (Μόνο Ανάγνωση): Δεν αποτελεί ενεργή λειτουργία κράτησης ή ανεφοδιασμού μεθανόλης.",
+    greenFuelPremiumLabel: "Premium Καυσίμου e-Methanol",
+    vesselPathwayCol: "Πλοίο & Διαδρομή Καυσίμου",
+    wtwIntensityCol: "WTW GHG",
+    charterCapexCol: "Ναύλος + Ετοιμότητα",
+    greenFuelPremCol: "Premium Πράσινου Καυσίμου",
+    netsComplianceCol: "ETS + FuelEU − Έκπτωση",
+    netAllInCostCol: "Σύνολο / TEU",
+    premiumVsConvCol: "Καθαρή Διαφορά έναντι VLSFO",
+    benchmarkLabel: "Βάση Μοντέλου",
+    liveFleetLabel: "Ζωντανό Χαρτοφυλάκιο"
   }
 };
 

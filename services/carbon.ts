@@ -13,7 +13,9 @@ import {
   LinerNotificationPrefs,
   CiiGrade,
   EexiCiiRecord,
-  TripComplianceAccounting
+  TripComplianceAccounting,
+  SharedVesselKpiRow,
+  GreenFleetReferenceCase
 } from '../types';
 
 /**
@@ -1843,5 +1845,269 @@ export const getPortfolioComplianceAccountingSummary = (
     avgCiiRatio,
     portfolioCiiGrade
   };
+};
+
+export const ALL_FLEET_VESSEL_TYPES: VesselType[] = [
+  'CONTAINER_DEEPSEA',
+  'CONTAINER_FEEDER',
+  'RORO_FERRY',
+  'MULTI_PURPOSE_TRAMP',
+  'HANDYSIZE_BULK',
+  'COASTAL_CHARTER'
+];
+
+export const resolveShipmentVesselType = (shipment: Shipment): VesselType | null => {
+  if (shipment.vesselType && VESSEL_TYPE_SPECS[shipment.vesselType]) {
+    return shipment.vesselType;
+  }
+  const hasSea = (shipment.legs || []).some((l) => l.mode === TransportMode.SEA);
+  if (!hasSea) return null;
+  const legWithVessel = (shipment.legs || []).find((l) => l.vesselType);
+  if (legWithVessel?.vesselType) return legWithVessel.vesselType;
+  const svc = getShipmentSeaServiceType(shipment);
+  if (svc === 'TRAMP') {
+    return (shipment.weightTonnes || 0) >= 24 ? 'HANDYSIZE_BULK' : 'MULTI_PURPOSE_TRAMP';
+  }
+  const distKm = getShipmentDistanceKm(shipment);
+  return distKm >= 4000 ? 'CONTAINER_DEEPSEA' : 'CONTAINER_FEEDER';
+};
+
+export const getSharedVesselKpis = (
+  shipments: Shipment[],
+  carbonPricePerTonne: number = DEFAULT_EU_ETS_CARBON_PRICE
+): SharedVesselKpiRow[] => {
+  const transparencyMethod = `GLEC v3.0 WTW · IMO MEPC.328 · EU ETS €${Math.round(carbonPricePerTonne)}/t`;
+
+  return ALL_FLEET_VESSEL_TYPES.map((vt) => {
+    const spec = getVesselTypeSpec(vt);
+    const compliance = getEffectiveVesselCompliance(vt, 0);
+    const matchedLine = LINER_SERVICE_LINES.find((l) => l.vesselType === vt);
+    const vesselShipments = (shipments || []).filter((s) => resolveShipmentVesselType(s) === vt);
+
+    if (vesselShipments.length === 0) {
+      // Deterministic baseline single-voyage benchmark using exact same route/accounting transparency formulas
+      const benchmarkMode = spec.serviceType === 'TRAMP' ? 'SEA_TRAMP' : 'SEA_LINER';
+      const baselineDistanceKm = vt === 'CONTAINER_DEEPSEA' ? 9500 : vt === 'HANDYSIZE_BULK' ? 3400 : 2100;
+      const baselineWeightTonnes = vt === 'CONTAINER_DEEPSEA' ? 18 : vt === 'HANDYSIZE_BULK' ? 28 : 14;
+      const syntheticOpt = buildDeterministicRouteOptions(
+        'Piraeus, GR',
+        'Rotterdam, NL',
+        baselineWeightTonnes,
+        carbonPricePerTonne,
+        1,
+        undefined,
+        undefined,
+        false,
+        undefined,
+        DEFAULT_PORT_DWELL_HOURS,
+        spec.serviceType === 'LINER' ? vt : 'CONTAINER_DEEPSEA',
+        spec.serviceType === 'TRAMP' ? vt : 'MULTI_PURPOSE_TRAMP'
+      ).find((o) => o.mode === benchmarkMode);
+
+      const fallbackTce = syntheticOpt
+        ? computeRouteTripAccounting(syntheticOpt, carbonPricePerTonne, baselineWeightTonnes)
+        : null;
+      const baselineRel = computeModeScheduleReliability(benchmarkMode, DEFAULT_PORT_DWELL_HOURS, false, vt);
+      const baselineCo2Kg = syntheticOpt
+        ? syntheticOpt.estimatedEmissionsKg
+        : Math.round(baselineDistanceKm * baselineWeightTonnes * spec.wtw);
+
+      return {
+        vesselType: vt,
+        vesselName: compliance.vesselName,
+        imoNumber: compliance.imoNumber,
+        serviceType: spec.serviceType,
+        capacityLabel: spec.capacityLabel,
+        linerLineCode: matchedLine?.lineCode,
+        defaultSpeedKts: spec.defaultSpeedKts,
+        shipmentsCount: 0,
+        totalTonnes: 0,
+        totalTeuKm: 0,
+        avgCo2PerTripKg: baselineCo2Kg,
+        totalCo2Kg: 0,
+        glecWtwKgPerTkm: spec.wtw,
+        scheduleReliabilityPct: baselineRel.scheduleReliabilityPct,
+        eexiMarginPct: compliance.eexiMarginPct,
+        ciiGrade: compliance.ciiGrade,
+        ciiRatio: compliance.ciiRatio,
+        fuelEuIntensityGPerMj: compliance.fuelEuIntensityGPerMj,
+        avgTceEurPerDay: fallbackTce?.tceEurPerDay ?? (spec.serviceType === 'LINER' ? 1120 : 945),
+        avgTceSpreadEurPerDay: fallbackTce?.tceSpreadEurPerDay ?? 45,
+        avgEsgCostPerTripEur: fallbackTce?.totalEsgCostEur ?? 110,
+        esgSharePct: fallbackTce?.esgSharePct ?? 4.8,
+        transparencyMethod
+      };
+    }
+
+    const totalTonnes = Number(vesselShipments.reduce((sum, s) => sum + s.weightTonnes, 0).toFixed(1));
+    const totalTeuKm = vesselShipments.reduce((sum, s) => sum + getShipmentTeuKm(s), 0);
+    const totalCo2Kg = Math.round(vesselShipments.reduce((sum, s) => sum + s.totalEmissionsKg, 0));
+    const avgCo2PerTripKg = Math.round(totalCo2Kg / vesselShipments.length);
+
+    const relSum = vesselShipments.reduce((sum, s) => sum + getShipmentScheduleReliability(s), 0);
+    const scheduleReliabilityPct = Number((relSum / vesselShipments.length).toFixed(1));
+
+    const avgSlowPct =
+      vesselShipments.reduce((sum, s) => sum + (s.slowSteamingPct ?? 0), 0) / vesselShipments.length;
+    const effectiveComp = getEffectiveVesselCompliance(vt, avgSlowPct);
+
+    const accList = vesselShipments.map((s) => getShipmentComplianceAccounting(s, carbonPricePerTonne).accounting);
+    const avgTceEurPerDay = Math.round(accList.reduce((sum, a) => sum + a.tceEurPerDay, 0) / accList.length);
+    const avgTceSpreadEurPerDay = Math.round(
+      accList.reduce((sum, a) => sum + a.tceSpreadEurPerDay, 0) / accList.length
+    );
+    const avgEsgCostPerTripEur = Math.round(
+      accList.reduce((sum, a) => sum + a.totalEsgCostEur, 0) / accList.length
+    );
+    const totalCommercial = accList.reduce((sum, a) => sum + a.commercialCostEur, 0);
+    const totalEsg = accList.reduce((sum, a) => sum + a.totalEsgCostEur, 0);
+    const esgSharePct =
+      totalCommercial + totalEsg > 0
+        ? Number(((totalEsg / (totalCommercial + totalEsg)) * 100).toFixed(1))
+        : 0;
+
+    return {
+      vesselType: vt,
+      vesselName: effectiveComp.vesselName,
+      imoNumber: effectiveComp.imoNumber,
+      serviceType: spec.serviceType,
+      capacityLabel: spec.capacityLabel,
+      linerLineCode: matchedLine?.lineCode,
+      defaultSpeedKts: spec.defaultSpeedKts,
+      shipmentsCount: vesselShipments.length,
+      totalTonnes,
+      totalTeuKm,
+      avgCo2PerTripKg,
+      totalCo2Kg,
+      glecWtwKgPerTkm: spec.wtw,
+      scheduleReliabilityPct,
+      eexiMarginPct: effectiveComp.eexiMarginPct,
+      ciiGrade: effectiveComp.ciiGrade,
+      ciiRatio: effectiveComp.ciiRatio,
+      fuelEuIntensityGPerMj: effectiveComp.fuelEuIntensityGPerMj,
+      avgTceEurPerDay,
+      avgTceSpreadEurPerDay,
+      avgEsgCostPerTripEur,
+      esgSharePct,
+      transparencyMethod
+    };
+  });
+};
+
+/**
+ * Reference benchmark case comparing Conventional VLSFO vs. Dual-Fuel Methanol-Ready vessels,
+ * including green e-methanol premium pricing (illustrative reference case, not an active booking flow).
+ */
+export const getGreenFleetMethanolReferenceCases = (
+  carbonPricePerTonne: number = DEFAULT_EU_ETS_CARBON_PRICE,
+  greenFuelPremiumEurPerTonneVlsfoEq: number = 290
+): GreenFleetReferenceCase[] => {
+  const baseCharterRateEurPerTeu = 1180;
+  const baselineFuelTonnesPerTeu = 0.24; // Reference Med-Europe / Deep-Sea feeder voyage slice per TEU
+  const baselineCo2TonnesPerTeu = baselineFuelTonnesPerTeu * 3.15; // ~0.756 t WTW CO2e / TEU
+
+  // 1. Conventional VLSFO Vessel
+  const convWtwGPerMj = 91.2;
+  const convEuEts = Math.round(baselineCo2TonnesPerTeu * carbonPricePerTonne);
+  const convFuelEuDeficit = 36; // > 89.34 g/MJ limit penalty exposure
+  const convAllIn = baseCharterRateEurPerTeu + convEuEts + convFuelEuDeficit;
+
+  // 2. Methanol-Ready Dual-Fuel Vessel (Operating on VLSFO / Grey Methanol bridge)
+  const readyWtwGPerMj = 82.4;
+  const readyCo2ReductionPct = 10;
+  const readyCapexPremium = 68; // +5.8% newbuild readiness charter premium
+  const readyEuEts = Math.round(baselineCo2TonnesPerTeu * (1 - readyCo2ReductionPct / 100) * carbonPricePerTonne);
+  const readyFuelEuBalance = -18; // Slightly below 89.34 g/MJ limit
+  const readyGreenRebate = 18; // Poseidon Principles B-grade green loan rebate
+  const readyAllIn =
+    baseCharterRateEurPerTeu +
+    readyCapexPremium +
+    readyEuEts +
+    readyFuelEuBalance -
+    readyGreenRebate;
+  const readyNetPremium = readyAllIn - convAllIn;
+  const readyAbatement = Math.round(
+    Math.max(0, readyNetPremium) / Math.max(0.05, baselineCo2TonnesPerTeu * (readyCo2ReductionPct / 100))
+  );
+
+  // 3. Green e-Methanol Active Vessel (Premium Pricing Case)
+  const greenWtwGPerMj = 25.5;
+  const greenCo2ReductionPct = 72;
+  const greenCapexPremium = 68;
+  const greenFuelPremium = Math.round(baselineFuelTonnesPerTeu * Math.max(120, greenFuelPremiumEurPerTonneVlsfoEq));
+  const greenEuEts = Math.round(baselineCo2TonnesPerTeu * (1 - greenCo2ReductionPct / 100) * carbonPricePerTonne);
+  const greenFuelEuSurplus = -74; // FuelEU Maritime zero/low-GHG compliance surplus pooling credit
+  const greenRebate = 32; // Tier-A ESG financing / Green Corridor port discount
+  const greenAllIn =
+    baseCharterRateEurPerTeu +
+    greenCapexPremium +
+    greenFuelPremium +
+    greenEuEts +
+    greenFuelEuSurplus -
+    greenRebate;
+  const greenNetPremium = greenAllIn - convAllIn;
+  const greenCo2SavedTonnes = baselineCo2TonnesPerTeu * (greenCo2ReductionPct / 100);
+  const greenAbatement =
+    greenNetPremium > 0 ? Math.round(greenNetPremium / Math.max(0.05, greenCo2SavedTonnes)) : null;
+
+  return [
+    {
+      id: 'conventional_vlsfo',
+      vesselProfile: 'Conventional Container / Tramp (VLSFO)',
+      fuelPathway: 'VLSFO 0.5% S (Fossil Baseline)',
+      isPremiumCase: false,
+      wtwIntensityGPerMj: convWtwGPerMj,
+      co2ReductionPct: 0,
+      ciiGrade: 'C',
+      baseCharterRateEurPerTeu,
+      capexReadinessPremiumEurPerTeu: 0,
+      greenFuelPremiumEurPerTeu: 0,
+      euEtsCostEurPerTeu: convEuEts,
+      fuelEuBalanceEurPerTeu: convFuelEuDeficit,
+      greenRebateEurPerTeu: 0,
+      netAllInCostEurPerTeu: convAllIn,
+      netPremiumVsConventionalEurPerTeu: 0,
+      netPremiumPct: 0,
+      abatementCostEurPerTonne: null
+    },
+    {
+      id: 'methanol_ready_bridge',
+      vesselProfile: 'Methanol-Ready Dual-Fuel (Bridge Ops)',
+      fuelPathway: 'VLSFO + 15% Bio-Blend Readiness',
+      isPremiumCase: false,
+      wtwIntensityGPerMj: readyWtwGPerMj,
+      co2ReductionPct: readyCo2ReductionPct,
+      ciiGrade: 'B',
+      baseCharterRateEurPerTeu,
+      capexReadinessPremiumEurPerTeu: readyCapexPremium,
+      greenFuelPremiumEurPerTeu: 0,
+      euEtsCostEurPerTeu: readyEuEts,
+      fuelEuBalanceEurPerTeu: readyFuelEuBalance,
+      greenRebateEurPerTeu: readyGreenRebate,
+      netAllInCostEurPerTeu: readyAllIn,
+      netPremiumVsConventionalEurPerTeu: readyNetPremium,
+      netPremiumPct: Number(((readyNetPremium / convAllIn) * 100).toFixed(1)),
+      abatementCostEurPerTonne: readyNetPremium > 0 ? readyAbatement : null
+    },
+    {
+      id: 'green_methanol_premium',
+      vesselProfile: 'Methanol-Ready Vessel · Green e-Methanol',
+      fuelPathway: 'Renewable e-Methanol / Bio-Methanol (Premium Case)',
+      isPremiumCase: true,
+      wtwIntensityGPerMj: greenWtwGPerMj,
+      co2ReductionPct: greenCo2ReductionPct,
+      ciiGrade: 'A',
+      baseCharterRateEurPerTeu,
+      capexReadinessPremiumEurPerTeu: greenCapexPremium,
+      greenFuelPremiumEurPerTeu: greenFuelPremium,
+      euEtsCostEurPerTeu: greenEuEts,
+      fuelEuBalanceEurPerTeu: greenFuelEuSurplus,
+      greenRebateEurPerTeu: greenRebate,
+      netAllInCostEurPerTeu: greenAllIn,
+      netPremiumVsConventionalEurPerTeu: greenNetPremium,
+      netPremiumPct: Number(((greenNetPremium / convAllIn) * 100).toFixed(1)),
+      abatementCostEurPerTonne: greenAbatement
+    }
+  ];
 };
 

@@ -202,6 +202,52 @@ export interface TripComplianceAccounting {
   esgCostPerTeuKm: number;
 }
 
+export interface SharedVesselKpiRow {
+  vesselType: VesselType;
+  vesselName: string;
+  imoNumber: string;
+  serviceType: SeaServiceType;
+  capacityLabel: string;
+  linerLineCode?: string;
+  defaultSpeedKts: number;
+  shipmentsCount: number;
+  totalTonnes: number;
+  totalTeuKm: number;
+  avgCo2PerTripKg: number;
+  totalCo2Kg: number;
+  glecWtwKgPerTkm: number;
+  scheduleReliabilityPct: number;
+  eexiMarginPct: number;
+  ciiGrade: CiiGrade;
+  ciiRatio: number;
+  fuelEuIntensityGPerMj: number;
+  avgTceEurPerDay: number;
+  avgTceSpreadEurPerDay: number;
+  avgEsgCostPerTripEur: number;
+  esgSharePct: number;
+  transparencyMethod: string;
+}
+
+export interface GreenFleetReferenceCase {
+  id: 'conventional_vlsfo' | 'methanol_ready_bridge' | 'green_methanol_premium';
+  vesselProfile: string;
+  fuelPathway: string;
+  isPremiumCase: boolean;
+  wtwIntensityGPerMj: number;
+  co2ReductionPct: number;
+  ciiGrade: CiiGrade;
+  baseCharterRateEurPerTeu: number;
+  capexReadinessPremiumEurPerTeu: number;
+  greenFuelPremiumEurPerTeu: number;
+  euEtsCostEurPerTeu: number;
+  fuelEuBalanceEurPerTeu: number;
+  greenRebateEurPerTeu: number;
+  netAllInCostEurPerTeu: number;
+  netPremiumVsConventionalEurPerTeu: number;
+  netPremiumPct: number;
+  abatementCostEurPerTonne: number | null;
+}
+
 export interface CarbonAwareTradeOff {
   baselineRoute: RouteCostOption;
   recommendedRoute: RouteCostOption;

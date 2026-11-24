@@ -4,8 +4,10 @@ import { Shield, Award, Leaf, Zap, Globe, Star, ArrowUpRight, CheckCircle2 } fro
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { Language, translations } from '../services/i18n';
 import { LINER_SERVICE_LINES, getEffectiveVesselCompliance } from '../services/carbon';
+import { Shipment } from '../types';
+import SharedVesselKpiLayer from './SharedVesselKpiLayer';
 
-const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
+const NetworkManager: React.FC<{ lang: Language; shipments?: Shipment[] }> = ({ lang, shipments = [] }) => {
   const t = translations[lang];
   const [preferred, setPreferred] = useState<string[]>([]);
   const togglePreferred = (name: string) =>
@@ -125,6 +127,8 @@ const NetworkManager: React.FC<{ lang: Language }> = ({ lang }) => {
           </div>
         ))}
       </div>
+
+      <SharedVesselKpiLayer shipments={shipments} lang={lang} />
 
       {/* Published Emissions & Fixed Schedules per Liner Line */}
       <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm space-y-4">
